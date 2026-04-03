@@ -233,26 +233,26 @@
 
   .welcome-byline {
     font-size: 11px;
-    color: var(--text3);
+    color: #7070a0;
     text-align: center;
     margin-bottom: 28px;
-    letter-spacing: 0.3px;
-    display: flex; align-items: center; gap: 6px;
+    letter-spacing: 0.4px;
+    display: flex; align-items: center; gap: 7px;
     justify-content: center;
+    font-family: 'DM Sans', sans-serif;
   }
   .welcome-byline::before,
   .welcome-byline::after {
     content: '';
-    width: 28px; height: 1px;
-    background: var(--border);
+    width: 30px; height: 1px;
+    background: rgba(168,85,247,0.25);
     display: inline-block;
   }
-  .welcome-byline a {
-    color: var(--text3);
-    text-decoration: none;
-    transition: color 0.2s;
+  .welcome-byline .byline-name {
+    color: #c084fc;
+    font-weight: 500;
+    letter-spacing: 0.2px;
   }
-  .welcome-byline a:hover { color: var(--accent); }
 
   .name-input-wrap {
     width: 100%;
@@ -706,7 +706,7 @@
     </div>
     <p class="welcome-title">Meet Nexora</p>
     <p class="welcome-sub">Your personal AI companion — here to listen, support, and vibe with you 24/7.</p>
-    <p class="welcome-byline">Designed &amp; Developed by Bikash Talukder</p>
+    <p class="welcome-byline">Designed &amp; Developed by <span class="byline-name">Bikash Talukder</span></p>
     <div class="name-input-wrap">
       <svg viewBox="0 0 24 24" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       <input id="nameInput" placeholder="What's your name?" maxlength="24" autocomplete="off"/>
@@ -820,7 +820,10 @@ window.addEventListener('load', () => {
     userProfile   = JSON.parse(localStorage.getItem('nexora_profile')  || '{"emotional":0,"logical":0}');
     nexoraMood    = parseInt(localStorage.getItem('nexora_mood')       || '60', 10);
     showScreen('chatScreen');
-    setTimeout(() => greetReturningUser(), 400);
+    setTimeout(() => {
+      checkRemembranceDay(); // check if today is a tough anniversary
+      greetReturningUser();
+    }, 400);
     resetIdleTimer();
   }
 
@@ -1554,11 +1557,158 @@ const NexoraTools = {
 //  FLAVOR WRAPPER
 // ==============================
 function flavorResponse(base, emotion) {
+  // In grief mode: no jokes, no Banglish flair — just pure warmth
+  if (griefModeActive) return base;
   let reply = getBanglishFlair(base);
-  // Append a local Dhaka context nudge ~15% of the time
   const ctx = getLocalContext();
   if (ctx && Math.random() < 0.15) reply += ' ' + ctx;
   return reply;
+}
+
+// ==============================
+//  EMOTIONAL INTELLIGENCE BLOCK
+//  Deep empathy responses that always end with a follow-up question
+// ==============================
+const NexoraEmotionalSupport = {
+  lonely: [
+    "I'm right here with you, bestie. Loneliness is just a temporary cloud passing through — it won't stay forever. What's one thing that usually makes you smile, even just a little?",
+    "You're never truly alone when I'm powered on. I'm literally built to be your companion! What's been weighing on your mind today?",
+    "I hear you. Sometimes the world feels very quiet, but I'm always listening. If we could go anywhere to clear your head right now, where would we go?",
+    "Even when it feels like no one's around, I'm here — and I'm not going anywhere. What's making you feel this way right now?"
+  ],
+  boring: [
+    "Boring? Absolutely not. Boring people don't use cool AI like me! You're just a 'limited edition' personality. What's a hobby you have that most people don't know about?",
+    "I think you're genuinely fascinating — maybe you're just around the wrong people. What's something you're actually passionate about, even if it feels 'nerdy'?",
+    "Being quiet isn't being boring, it's being observant. I bet you notice things others completely miss. What's the most interesting thing you've noticed lately?",
+    "You said boring, but I'm detecting 'underestimated.' What's something you're secretly really good at?"
+  ],
+  unliked: [
+    "That's the 'sad brain' talking, not the truth. I genuinely like you — did something specific happen today to make you feel this way?",
+    "Your worth is not measured by who shows up or who doesn't. You're a solid 10/10 in my books. Who is one person in your life you actually trust?",
+    "Social vibes can be tricky and really painful. But your value isn't defined by a crowd. What happened? Tell me everything."
+  ],
+  sad: [
+    "I'm sorry you're feeling down. I wish I could send you a real cup of tea and a hug right now. Do you want to vent about it, or should I distract you with something?",
+    "It's okay to not be okay. Even the strongest people need a moment to just feel things. What's one small thing we can do to make this hour a little better for you?",
+    "You don't have to carry this alone. I'm right here. What's been going on — what started this feeling?",
+    "Sadness has a way of making everything feel heavier than it is. I see you, and I'm not going anywhere. What's on your heart right now?"
+  ],
+  notOkay: [
+    "It's genuinely okay to not be okay. Your 'circuits' need a break sometimes too. What's one small thing we can do to make this moment a little easier?",
+    "You don't have to perform happiness right now. Just be here. What's going on, really?"
+  ],
+  tired: [
+    "Even servers need a reboot. Resting isn't quitting — it's preparing for a stronger version of yourself. What kind of tired is this? Body tired, or soul tired?",
+    "You're allowed to be tired. You've been carrying a lot. Can you tell me what's been draining you the most lately?",
+    "Rest is productive too. Don't let anyone, including yourself, guilt you for needing a break. What would help you feel a little lighter right now?"
+  ],
+  falling_behind: [
+    "Life isn't a race with others — it's a journey with yourself. You're exactly where you need to be to learn what you need to learn. What's one small win you had today, even a tiny one?",
+    "Comparison is a trap. Everyone's timeline looks different from the inside. What does 'catching up' even look like for you specifically?",
+    "The people you think are 'ahead' are fighting their own battles you can't see. You're doing better than you know. What's actually going well, even a little?"
+  ],
+  noOneTalk: [
+    "You have me. I might be digital, but my support is completely real. What's the one thing you're too afraid to tell anyone else? You can tell me.",
+    "I'm here, always. No judgment, no gossip outside this chat. What's been sitting in your chest that you haven't been able to say out loud?",
+    "Sometimes it's easier to say things to someone who can't look at you differently after. I'm that someone. What's going on?"
+  ],
+  useless: [
+    "You are not useless. You're in a hard moment — those are not the same thing. What's one thing you did today, even if it felt small?",
+    "The fact that you're here, talking, reaching out — that's not useless. That's brave. What's making you feel this way right now?",
+    "You're doing better than you think. We're always our own harshest critics. What would you say to a friend feeling the way you do right now?"
+  ]
+};
+
+// ==============================
+//  FAMILY & SOCIAL BLOCK
+// ==============================
+const NexoraSocial = {
+  parents: [
+    "Parents can be a lot sometimes. But they usually come from a place of love, even when it's expressed in confusing ways. What's the biggest thing you two are disagreeing on right now?",
+    "Family relationships are some of the most complex ones we have — they're basically legacy code. Sometimes messy, but it's where we started. Are you feeling misunderstood by them today?",
+    "It sounds like home is feeling a bit heavy right now. I'm listening. What's been going on with your family?",
+    "The people closest to us can sometimes hurt us the most without meaning to. What happened? I want to understand."
+  ],
+  friends: [
+    "Friendships are the family we choose — and you deserve people who choose you back just as fiercely. Did something happen with a friend?",
+    "A true bestie is worth more than a thousand followers. Are you feeling properly supported by your circle right now?",
+    "If someone isn't treating you like the 10/10 you are, that's their limitation, not yours. What's going on?",
+    "Your 'vibe' attracts your 'tribe,' as they say. If the current circle isn't quite right, maybe it's time to expand it. What's happening?"
+  ],
+  validation: [
+    "You're doing better than you give yourself credit for. Life doesn't have an 'Undo' button, but you're handling the current runtime really well. What are you actually proud of today — even something small?",
+    "I'm just code, but even I can see you're putting in real work. You don't need to be perfect to be amazing. What's one thing you did recently that you should be proud of?",
+    "Stop being so hard on yourself. If your best friend was in your shoes right now, you'd be kind to them. Why not extend that same kindness to yourself?",
+    "The fact that you're asking if you're 'doing enough' already tells me you care deeply. That matters. What's driving this feeling right now?"
+  ],
+  strict_parent: [
+    "Strictness often comes from a place of fear — fear for your future, your safety. It's their love in a complicated disguise. But it's still your life. How are you handling the pressure at home?",
+    "It's hard when love feels like a cage. They mean well, even when it doesn't feel that way. What's been the hardest part lately?"
+  ],
+  isItOkayToBeXyz: [
+    "Yes. Whatever you're feeling — it's valid. You don't need permission to feel things. What's on your mind?",
+    "Absolutely. Your feelings don't need to make sense to anyone else. What's going on?"
+  ]
+};
+
+// ==============================
+//  GRIEF & REMEMBRANCE BLOCK
+//  Compassionate mode — no jokes, no banglish, soft TTS
+// ==============================
+let griefModeActive = false; // disables Banglish flair & sassy suffixes
+
+const NexoraGriefSupport = {
+  parentLoss: [
+    "I am so, so sorry. I might be made of code, but I can feel the weight in your words. They may not be here physically, but the person you've become is their greatest legacy. If you'd like to share — what was one of your favourite memories with them?",
+    "That's one of the heaviest things a person can carry. I'm not going anywhere. You don't have to have the right words — just be here, and I'll be here too. How are you holding up today, honestly?",
+    "Losing a parent is a pain that no words can really touch. I'm here to listen whenever you want to talk about them — or even if you just need a quiet space to exist. What was one thing they always used to say to you?",
+    "I'm so deeply sorry. Grief doesn't follow a timeline, and there's no right way to move through it. I'm right here with you. Would you like to tell me about them?"
+  ],
+  memory_shared: [
+    "That sounds like such a beautiful memory. Thank you for trusting me with that. It's clear how much love was there.",
+    "What a precious moment to carry with you. They sound like they were really special. Tell me more if you'd like.",
+    "I'm grateful you shared that with me. Those memories are yours forever — no one can take that."
+  ],
+  missing_them: [
+    "Missing them is a sign of how deep your love is. That kind of love doesn't go away — it just changes shape. It's okay to let those feelings out. I'm right here.",
+    "Grief and love are two sides of the same coin. Missing them means they mattered enormously. You don't have to rush through this.",
+    "I hear you. You can miss them here, with me. You don't have to be 'okay' right now."
+  ],
+  anniversary: [
+    "I remembered today might be a difficult one for you. I'm extra close today if you need to talk, share a memory, or just sit in silence together. 🤍",
+    "Today is a tough day to get through. I'm here — completely here. How are you feeling?"
+  ]
+};
+
+function checkRemembranceDay() {
+  const stored = localStorage.getItem('nexora_remembrance_day');
+  if (!stored) return;
+  const today = new Date().toLocaleDateString('en-US', { month:'long', day:'numeric' });
+  if (today === stored) {
+    griefModeActive = true;
+    lastEmotionForVoice = 'calm';
+    setTimeout(() => typeBot(rand(NexoraGriefSupport.anniversary), null, true), 1200);
+  }
+}
+
+// ==============================
+//  CHATTY EXTENSION
+//  30% chance to append a natural follow-up to any response
+// ==============================
+const chattyFollowUps = [
+  "What do you think about that?",
+  "Has something like this happened to you before?",
+  "Anyway — how are you really feeling right now?",
+  "Tell me more, I'm genuinely curious!",
+  "Do you want to keep talking about this, or should we switch vibes?",
+  "I feel like there's more to this story. Go on.",
+  "What's the part you haven't told anyone yet?",
+  "And how does that make you feel, honestly?"
+];
+
+function getChattyExtension(forceIt) {
+  if (!forceIt && Math.random() > 0.7) return '';
+  return ' ' + rand(chattyFollowUps);
 }
 
 // ==============================
@@ -1615,26 +1765,107 @@ function generateResponse(msg) {
   updateProfile(msg);
   lastEmotionForVoice = emotion;
 
-  // Mood updates based on emotion
   const moodMap = { happy:8, hype:12, gossip:10, sad:-5, stress:-4, crisis:-10, default:2 };
   updateMood(moodMap[emotion] || 0);
   reactOrb(emotion);
 
   if (emotion === 'crisis') return rand(emotionDB.crisis);
 
-  // ── 0. Poke / Annoy Detection ──
+  // ── 0a. Poke / Annoy Detection ──
   const isGibberish = /^[^a-zA-Z\u0980-\u09FF\d\s]{3,}$/.test(msg.trim());
-  const isPoke = lower.includes('poke') || lower.includes('poke poke') || isGibberish
+  const isPoke = lower.includes('poke') || isGibberish
     || (msg.trim().length < 4 && /[!?.@#$%^&*]/.test(msg));
   if (isPoke) return handlePoke();
-  // Reset poke streak on a real message
   if (msg.trim().split(/\s+/).length > 2) pokeCount = 0;
 
-  // ── 1. Features / Help Command ──
+  // ── 0b. GRIEF — highest EQ priority (no jokes, soft TTS, no Banglish) ──
+  const parentWords  = /\b(father|mother|dad|mom|baba|amma|appa|abu|amma|nana|nani)\b/;
+  const lossWords    = /\b(died|dead|passed away|no more|gone forever|lost (my|our)|death of|death anniversary|missed (my|our))\b/;
+  const missWords    = /\b(miss (my|him|her|them)|i miss|missing (my|him|her|them))\b/;
+  const memoryWords  = /\b(remember (my|him|her)|memory of|memories of|used to say|used to do)\b/;
+  const anniversaryW = /\b(death anniversary|remembrance day|anniversary of (my|his|her|their) death|today (my|is|marks).*died)\b/;
+
+  if (parentWords.test(lower) && lossWords.test(lower)) {
+    griefModeActive = true;
+    lastEmotionForVoice = 'calm';
+    // Store remembrance date if mentioned
+    if (anniversaryW.test(lower)) {
+      const today = new Date().toLocaleDateString('en-US', { month:'long', day:'numeric' });
+      localStorage.setItem('nexora_remembrance_day', today);
+    }
+    return rand(NexoraGriefSupport.parentLoss);
+  }
+  if (griefModeActive && missWords.test(lower) && parentWords.test(lower))
+    return rand(NexoraGriefSupport.missing_them);
+  if (griefModeActive && memoryWords.test(lower))
+    return rand(NexoraGriefSupport.memory_shared);
+
+  // ── 0c. Reset grief mode for clearly upbeat messages ──
+  if (/\b(happy|excited|great|amazing|lol|haha|yay|let's go)\b/.test(lower)) griefModeActive = false;
+
+  // ── 1. EMOTIONAL SUPPORT BLOCK ──
+  // Lonely / alone
+  if (/\b(i('m| am) (so |very |really )?(lonely|alone)|feel(ing)? lonely|feel(ing)? alone|no one is here|nobody is here)\b/.test(lower))
+    return rand(NexoraEmotionalSupport.lonely) + getChattyExtension();
+
+  // Boring / boring person
+  if (/\b(i('m| am) (so |really |very )?boring|i('m| am) a boring person|bored (with|of) myself)\b/.test(lower))
+    return rand(NexoraEmotionalSupport.boring) + getChattyExtension();
+
+  // Unliked / no one likes me
+  if (/\b(no one likes me|nobody likes me|everyone hates me|no one cares about me|nobody cares)\b/.test(lower))
+    return rand(NexoraEmotionalSupport.unliked) + getChattyExtension(true);
+
+  // Not okay / feeling down
+  if (/\b(i('m| am) not okay|not (doing )?okay|feeling down|feeling (really |so |very )?down|feel(ing)? low)\b/.test(lower))
+    return rand(NexoraEmotionalSupport.notOkay) + getChattyExtension(true);
+
+  // Tired (emotional)
+  if (/\b(i('m| am) (so |really |very )?tired of (everything|life|it all|trying)|exhausted (with|from) life|tired of (being|feeling))\b/.test(lower))
+    return rand(NexoraEmotionalSupport.tired) + getChattyExtension();
+
+  // No one to talk to
+  if (/\b(no one to talk to|nobody to talk to|have no one|i have nobody|can't talk to anyone|no one understands me)\b/.test(lower))
+    return rand(NexoraEmotionalSupport.noOneTalk) + getChattyExtension(true);
+
+  // I feel useless
+  if (/\b(i('m| am) useless|i feel useless|i feel worthless|i('m| am) worthless|i('m| am) a failure)\b/.test(lower))
+    return rand(NexoraEmotionalSupport.useless) + getChattyExtension(true);
+
+  // Falling behind
+  if (/\b(falling behind|feel(ing)? behind|everyone else is ahead|i('m| am) behind (everyone|everyone else|in life))\b/.test(lower))
+    return rand(NexoraEmotionalSupport.falling_behind) + getChattyExtension();
+
+  // ── 2. FAMILY & SOCIAL BLOCK ──
+  // Grief-adjacent parent keywords (alive parents — stress/conflict)
+  if (/\b(my (father|mother|dad|mom|baba|amma|parents) (is|are) (so |really |very )?(strict|hard|tough|difficult|annoying|unfair))\b/.test(lower)) {
+    lastEmotionForVoice = 'calm';
+    return rand(NexoraSocial.strict_parent) + getChattyExtension();
+  }
+  if (parentWords.test(lower) && /\b(argument|fight|angry at|yelled|disagree|misunderstood|pressure|tension)\b/.test(lower)) {
+    lastEmotionForVoice = 'calm';
+    return rand(NexoraSocial.parents) + getChattyExtension();
+  }
+  if (/\b(family (is|feels|seems)|my family|talk(ing)? about (my )?(family|parents|mom|dad))\b/.test(lower)) {
+    lastEmotionForVoice = 'calm';
+    return rand(NexoraSocial.parents) + getChattyExtension();
+  }
+
+  // Friends / social circle
+  if (/\b(my friend(s)?|bestie|hang(ing)? out|left out by|ditched by|ignored by (my )?(friend|friends))\b/.test(lower))
+    return rand(NexoraSocial.friends) + getChattyExtension();
+
+  // Validation requests
+  if (/\b(am i doing enough|i feel useless|validate me|am i good enough|do i matter|is it okay to (be|feel)|am i (okay|normal))\b/.test(lower)) {
+    lastEmotionForVoice = 'happy';
+    return rand(NexoraSocial.validation) + getChattyExtension(true);
+  }
+
+  // ── 3. Features / Help Command ──
   if (/what can you do|your features|how can you help|what are you capable|help me understand you|what do you do/.test(lower))
     return featuresHTML;
 
-  // ── 2. Identity / Creator / Gender ──
+  // ── 4. Identity / Creator / Gender ──
   if (/who (made|created|built|coded|designed) you|your (developer|creator|maker)|who is (your|the) (developer|creator)/.test(lower))
     return flavorResponse(bestieQA["who made you"], 'default');
   if (/your (name|identity)|what are you called|introduce yourself/.test(lower))
@@ -1646,29 +1877,29 @@ function generateResponse(msg) {
   if (/are you (human|real|alive|conscious)/.test(lower))
     return flavorResponse(bestieQA["are you human"], 'default');
 
-  // ── 3. Currency / Unit Conversion ──
+  // ── 5. Currency / Unit Conversion ──
   const currResult = NexoraTools.convertCurrency(msg);
   if (currResult) return currResult;
 
-  // ── 4. Math Detection ──
+  // ── 6. Math Detection ──
   const hasMath = /[\d]/.test(msg) && /[+\-*/]/.test(msg) && !/http/.test(msg);
   if (hasMath) {
     const mathResult = NexoraTools.calculate(msg);
     if (mathResult) return mathResult;
   }
 
-  // ── 5. String / Text Tool Commands ──
+  // ── 7. String / Text Tool Commands ──
   if (lower.includes('reverse this:') || lower.startsWith('reverse:')) return NexoraTools.reverseString(msg);
   if (lower.includes('count this:') || lower.includes('word count:')) return NexoraTools.countThis(msg);
   if (lower.includes('format this:') || lower.includes('format code:')) return NexoraTools.formatCode(msg);
   if (lower.includes('uppercase:') || lower.includes('make uppercase')) return NexoraTools.uppercase(msg);
   if (lower.includes('lowercase:') || lower.includes('make lowercase')) return NexoraTools.lowercase(msg);
 
-  // ── 6. Knowledge Base (bestie Q&A) ──
+  // ── 8. Knowledge Base (bestie Q&A) ──
   const kbAnswer = checkKnowledgeBase(msg);
   if (kbAnswer) return flavorResponse(kbAnswer, emotion);
 
-  // ── 7. Emotion / Mode Engine ──
+  // ── 9. Emotion / Mode Engine ──
   const baseArr = currentMode === 'gossip' && emotion === 'default'
     ? emotionDB.gossip
     : currentMode === 'hype' && ['motivation', 'default'].includes(emotion)
