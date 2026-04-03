@@ -8,4 +8,4 @@ Nexora is a futuristic, context-aware AI companion designed for students and dev
 - **Local Context:** Knows the weather, traffic, and vibes of Dhaka.
 
 ### 🛠️ Built By:
-Created with ❤️ by **Bikash Talukder**.
+Created by **Bikash Talukder**.
