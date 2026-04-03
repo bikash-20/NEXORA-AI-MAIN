@@ -1375,6 +1375,156 @@ function checkKnowledgeBase(msg) {
 }
 
 // ==============================
+//  BIKASH KNOWLEDGE BASE
+//  All personal info about Bikash Talukder
+// ==============================
+function checkBikashKB(msg) {
+  const q = msg.toLowerCase().trim();
+
+  // ── WHO IS BIKASH / INTRO ──
+  if (/who is bikash|about bikash|tell me about (him|bikash)|introduce|overview/.test(q))
+    return "Bikash Talukder is a CSE student, systems thinker, and quiet builder from <strong>Ramdigha village, Sylhet, Bangladesh</strong> 🇧🇩. He grew up with a grounded village philosophy — writes <strong>powerful, dependency-free code</strong>, lives as a committed <strong>Vegetarian</strong>, and describes himself as a <em>\"Selective Extrovert.\"</em> His motto: <em>\"Always learning. Always building.\"</em> 💙";
+
+  // ── CREATOR / WHO MADE YOU ──
+  if (/who (made|built|created|coded|designed) (you|nexora)|your (developer|creator|maker)|nexora.*creator/.test(q))
+    return "I was designed and developed by <strong>Bikash Talukder</strong> — a 2nd-year CSE student from Metropolitan University, Sylhet, Bangladesh. He built me entirely in Vanilla JS with zero frameworks. Every response, every emotion engine, every feature — handcrafted by him. 💙";
+
+  // ── SKILLS ──
+  if (/skill|language|tech stack|know|proficient|coding|programming/.test(q) && /bikash/.test(q))
+    return "💻 <strong>Bikash's Skills:</strong> C & C++ (88%), Python (80%), HTML/CSS + JS (70%), Java (60%), DSA (75%), Arduino (45%), Robotics (35%). He also integrates RESTful APIs, does Prompt Engineering, and builds clean systems with zero dependency philosophy. ✦";
+
+  // ── PROJECTS ──
+  if (/project|built|portfolio|github/.test(q) && /bikash/.test(q))
+    return "🛠 <strong>Bikash's Projects:</strong><br>🕐 <strong>Digital Clock (C)</strong> — multi-threaded terminal clock with mutex locks & ANSI UI<br>⚔️ <strong>Echoes of the Void (C++)</strong> — full OOP text-adventure RPG<br>🗺 <strong>Google Maps Navigator (C++)</strong> — Dijkstra's algorithm with Raylib graphics<br>🤖 <strong>Nexora AI</strong> — this very assistant! Built with Anthropic Claude API + Vanilla JS<br><br>All on <a href='https://github.com/bikash-20' target='_blank' style='color:#d94ff5'>GitHub →</a>";
+
+  // ── CGPA ──
+  if (/cgpa|gpa|grade|academic/.test(q) && /bikash/.test(q))
+    return "📊 Bikash holds a <strong>CGPA of 3.65</strong> — achieved while simultaneously building projects, competing on Codeforces, and developing Nexora. He doesn't just study CS; he lives it. 🎓";
+
+  // ── UNIVERSITY ──
+  if (/university|metropolitan|mu\b|bateshwar/.test(q))
+    return "🎓 Bikash studies at <strong>Metropolitan University (MU)</strong>, Bateshwar, Sylhet — a private university established in 2003. His department: CSE (Science & Technology school). MU is considered the best private CSE option in Sylhet. Campus is green and calm. 🌿";
+
+  // ── SUST ──
+  if (/\bsust\b|shahjalal university/.test(q))
+    return "🎓 <strong>SUST (Shahjalal University of Science & Technology)</strong> — Sylhet's top-tier public university, est. 1986. Strong in CSE/SWE, competitive programming culture, many graduates at global tech companies. Bikash's friend Susmit studies here. 🥇";
+
+  // ── PERSONALITY ──
+  if (/personality|introvert|selective extrovert|character|nature/.test(q) && /bikash/.test(q))
+    return "🎭 Bikash describes himself as a <strong>\"Selective Extrovert.\"</strong> Deeply introverted by nature — thrives in solitude and focused work. But when in his element, he becomes confident and compelling. He keeps a <em>small, high-quality circle</em> of loyal friends. Quality over quantity — in code and in life. ✦";
+
+  // ── VEGAN / VEGETARIAN ──
+  if (/vegan|vegetarian|diet|why.*not.*meat|no.*meat/.test(q) && /bikash/.test(q))
+    return "🌱 Bikash is a <strong>Vegetarian</strong> for three reasons: (1) Ethics — he believes killing an animal isn't fair when alternatives exist. (2) Spiritual devotion — Lord Krishna accepts only pure vegetarian offerings. By eating what can be offered to Krishna, he aligns daily life with devotion. (3) Tapasya — voluntary austerity and sacrifice for a higher purpose. Every meal is a small act of devotion. 🙏";
+
+  // ── SPORTS ──
+  if (/sport|football|cricket|gym|fitness/.test(q) && /bikash/.test(q))
+    return "⚽ Bikash's passions outside code: <strong>Football</strong> (favourite), <strong>Cricket</strong>, and the <strong>Gym</strong>. The same discipline that makes him a great engineer makes him competitive on the field too. 🔥";
+
+  // ── MARRIAGE ──
+  if (/marry|marriage|wife|girlfriend|relationship|love life/.test(q) && /bikash/.test(q))
+    return "Bikash has made a clear choice — he <strong>does not plan to marry</strong>. His life is devoted to his craft, his family, and his journey in technology. Some build relationships. He builds systems. 💻";
+
+  // ── HOMETOWN / VILLAGE ──
+  if (/hometown|village|origin|where.*from|ramdigha|sunamganj|madhyanagar/.test(q))
+    return "🏡 Bikash is from <strong>Madhyanagar Upazila, Sunamganj Zila, Sylhet Division</strong> — specifically <strong>Ramdigha village</strong>. This is where he grew up with his grandmother's care and village friendships that shaped his quiet discipline. He misses it deeply. 💙";
+
+  // ── CONTACT ──
+  if (/contact|reach|hire|phone|linkedin|social|connect/.test(q) && /bikash/.test(q))
+    return "📬 Reach Bikash:<br>📞 <strong>+880 1926 240 062</strong><br>🐙 <a href='https://github.com/bikash-20' target='_blank' style='color:#d94ff5'>GitHub: bikash-20</a><br>💼 <a href='https://linkedin.com/in/bikash-talukder-6497633b8' target='_blank' style='color:#d94ff5'>LinkedIn</a><br>📸 Instagram: @talukder_20";
+
+  // ── CODEFORCES / LEETCODE ──
+  if (/codeforces|competitive programming|cf rating/.test(q))
+    return "⚡ Bikash competes on Codeforces as <strong>talukder_20</strong>. On LeetCode he is <strong>bikashtalukder</strong> with 75% DSA proficiency. He tests his algorithms under real pressure — the same discipline he brings to every project. 🧩";
+
+  // ── FATHER ──
+  if (/\bfather\b|\bdad\b|\bbaba\b/.test(q) && /bikash/.test(q))
+    return "👨 Bikash's father is <strong>Haridhan Talukder</strong> — one of his two greatest inspirations. His sacrifice and hard work through immense struggles gave Bikash the foundation he stands on. Bikash holds him in the highest honor. 🙏";
+
+  // ── MOTHER ──
+  if (/\bmother\b|\bmom\b|\bmaa\b/.test(q) && /bikash/.test(q))
+    return "👩 Bikash's mother is <strong>Shila Rani Talukder</strong> — deeply cherished and an irreplaceable part of his life and values.";
+
+  // ── GRANDMOTHER ──
+  if (/grandm|grandmother|granny/.test(q) && /bikash/.test(q))
+    return "🕊️ Bikash's grandmother raised him and loved him unconditionally. She shaped the gentleness behind his calm nature. She has passed away — and that loss is one he carries every day. Her patience and warmth live in everything he builds. 💔🌿";
+
+  // ── UNCLE ARADHAN / AUNT MADHURI ──
+  if (/aradhan|madhuri|second mom|uncle.*passed|passed.*2025/.test(q))
+    return "🌟 Bikash's uncle <strong>Aradhan Talukder</strong> and aunt <strong>Madhuri Rani Talukder</strong> (his second mother) both <strong>passed away in 2025</strong>. They were two of the most important pillars of his life. Their memory is woven into every achievement. Every project is quietly dedicated to their struggle and love. 🙏💔";
+
+  // ── BROTHER AKASH ──
+  if (/akash|unpayable|guardian/.test(q))
+    return "💙 <strong>Akash Talukder</strong> is more than a brother — he is Bikash's guardian. Through every high and low, Akash was present. Bikash calls it an <em>\"unpayable debt.\"</em> No matter how far he goes, he knows he stands on his brother's shoulders. 🙏";
+
+  // ── BROTHER DEVARSHI ──
+  if (/devarshi|srivas|spiritual leader|spiritual.*brother/.test(q))
+    return "🕉️ <strong>Devarshi Srivas Dasa</strong> is Bikash's eldest cousin brother — a <strong>spiritual leader</strong> who has traveled to the USA, Australia, China, Singapore, and Canada. He teaches Bikash spiritual wisdom and deeper life values, and is a mental pillar in hard times. 🌍🙏";
+
+  // ── BROTHER TAPOSH ──
+  if (/taposh|usa.*support|financial.*support|us.*citizen.*brother/.test(q))
+    return "🇺🇸 <strong>Taposh Ranjan Talukder</strong> lives in the USA as a citizen and provides <strong>financial support</strong> for Bikash's studies. He lives with his wife <strong>Laxmi Das</strong> and brilliant son <strong>Namananda</strong>. 🌟";
+
+  // ── SISTER DRISTY ──
+  if (/dristy|rubi|biddhut|krishna consciousness|madhyanagor/.test(q))
+    return "💜 <strong>Dristy Talukder Rubi</strong> is Bikash's sister. She is married to <strong>Biddhut Sarker</strong> — a calm, respected teacher spreading Krishna consciousness in Madhyanagor Upazila. They have a cute, clever baby boy. 🥰";
+
+  // ── SISTER NISHAT ──
+  if (/nishat|nisa|chosen.*sister/.test(q))
+    return "💙 <strong>Nishat Tasmin Nisa</strong> is Bikash's sister from another mother — one of his strongest pillars of support through his hardest times. A bond built not just on blood, but on deep loyalty.";
+
+  // ── INSPIRATION ──
+  if (/inspir|motivat|role model|who drives|hero/.test(q) && /bikash/.test(q))
+    return "🌟 Bikash's greatest inspirations are his <strong>Father (Haridhan Talukder)</strong> and his late <strong>Uncle (Aradhan Talukder)</strong>. These two men faced immense hardship to give Bikash the life he has. Every line of his code is quietly dedicated to their struggle. He has never told them face-to-face — but his entire arc of work is his tribute. 🙏💙";
+
+  // ── FRIENDS OVERVIEW ──
+  if (/friends|friend.*circle|bikash.*friend|who.*bikash.*close/.test(q))
+    return "💙 Bikash's circle:<br>🌟 <strong>Susmit</strong> — most brilliant person he knows (SUST)<br>📏 <strong>Ankon</strong> — tallest, cutest in the group<br>🗣️ <strong>Arnob</strong> — goes deep into his own world, loved for it<br>🇮🇳 <strong>Sakkor</strong> — studying CSE at NIT India<br>🎓 <strong>Mithu Roy</strong> — most mature senior Dada<br>🌿 <strong>Probesh & Plabon</strong> — village brothers, still close<br>😂 <strong>Dhruvo</strong> — funniest guy in uni<br>🤝 <strong>Anidra Paul</strong> — AI co-builder<br>💻 <strong>Tahzib Ebad</strong> — talented developer ✦";
+
+  // ── SUSMIT ──
+  if (/susmit/.test(q))
+    return "🌟 <strong>Susmit</strong> — Bikash describes him as <em>\"the most brilliant boy I've ever seen.\"</em> A CS student from SUST. A mind that stands out even in a world of smart people. One of Bikash's closest city friends. 💙";
+
+  // ── ANIDRA / AI PROJECT ──
+  if (/anidra/.test(q))
+    return "🤝 <strong>Anidra Paul</strong> — a consistent mental support for Bikash, and they are set to <strong>collaborate on a big AI project</strong> together. Two minds aligned on a mission to build something meaningful. ✦";
+
+  // ── ARMAN UDDIN ──
+  if (/arman/.test(q))
+    return "🌟 <strong>Arman Uddin</strong> holds a <strong>CGPA of 3.95</strong> and has a strong command of both <strong>business and technology</strong> — a rare and powerful combination. One of the most impressive people in Bikash's uni circle. 💙";
+
+  // ── JABEL ALVI ──
+  if (/jabel/.test(q))
+    return "💙 <strong>Jabel Alvi</strong> — close to Bikash during university, the kind of closeness where everything is shared. He is now preparing to go <strong>abroad</strong>. The paths have separated, but: <em>\"He will stay in my heart forever.\"</em> 💙";
+
+  // ── RAMDIGHA CRICKET ──
+  if (/ramdigha.*cricket|cricket.*ramdigha|swapan|subir|tapan.*sarkar|glucose biscuit/.test(q))
+    return "🏏 Ramdigha cricket legends: <strong>Swapan Sarkar</strong>, <strong>Subir Talukder</strong>, and <strong>Tapan Sarkar</strong> (all-rounder & Swapan's brother). Stakes of every match? <strong>One packet of Glucose Biscuit</strong> 😂. Bikash learned cricket from these guys on that field. Those days are pure, unfiltered happiness. 💙";
+
+  // ── RAMDIGHA FOOTBALL ──
+  if (/joy sarkar|mrittunjoy|jersey.*10|neymar.*ramdigha|rat.*goalkeeper/.test(q))
+    return "⚽ Ramdigha football icons: <strong>Joy Sarkar</strong> (goalkeeper, nicknamed \"The Rat\" 🐀😂) and <strong>Mrittunjoy Sarkar</strong> (jersey #10, the Neymar of Ramdigha 🇧🇷). They're brothers. Those village field matches — unforgettable. 💙😄";
+
+  // ── SCHOOL HISTORY ──
+  if (/akota|osmani.*school|school.*history|bikash.*school/.test(q))
+    return "🎒 Bikash's academic journey: <strong>Akota High School, Ramdigha</strong> (up to Class 8) → <strong>Osmani Medical High School, Sylhet</strong> (Classes 9-10) → <strong>Scholar's Home</strong> (HSC) → <strong>Metropolitan University CSE</strong> (CGPA 3.65). From a quiet village classroom to engineering. 💪";
+
+  // ── SYLHET ──
+  if (/sylhet(?! university| agricultural)/.test(q) && !/sust|metropolitan/.test(q))
+    return "🌿 <strong>Sylhet</strong> — Bikash's home city in NE Bangladesh, near India's Meghalaya. Famous for: Tea gardens, Jaflong, Ratargul Swamp Forest, Hazrat Shah Jalal Mazar, Shatkora beef, and Seven-layer tea ☕. One of the most beautiful and spiritually rich cities in Bangladesh. ✦";
+
+  // ── PHILOSOPHY / TAPASYA ──
+  if (/philosophy|tapasya|principle|ethos|grounded/.test(q) && /bikash/.test(q))
+    return "🌿 Bikash's core philosophy: <em>\"Life means sacrifice for others — not for my own happiness.\"</em> This is <strong>Tapasya</strong> — voluntary austerity for a higher purpose. From his code (clean, no bloat) to his diet (vegetarian devotion) to his friendships (small, loyal circle) — everything reflects this ethos. ✦";
+
+  // ── RESEARCH INTERESTS ──
+  if (/research|interest|quantum|llm|machine learning|big data/.test(q) && /bikash/.test(q))
+    return "🔬 Bikash's research interests: <strong>AI & LLMs</strong>, <strong>Machine Learning</strong>, <strong>Quantum Algorithms</strong>, <strong>Embedded Systems & IoT</strong>, <strong>Big Data</strong> (Hadoop, Spark), and <strong>NLP</strong>. He doesn't just study the future — he builds it. ✦";
+
+  return null;
+}
+
+// ==============================
 //  BANGLISH PERSONALITY LAYER
 // ==============================
 const banglishFillers = [
@@ -1894,6 +2044,10 @@ function generateResponse(msg) {
   if (lower.includes('format this:') || lower.includes('format code:')) return NexoraTools.formatCode(msg);
   if (lower.includes('uppercase:') || lower.includes('make uppercase')) return NexoraTools.uppercase(msg);
   if (lower.includes('lowercase:') || lower.includes('make lowercase')) return NexoraTools.lowercase(msg);
+
+  // ── 7b. Bikash Knowledge Base ──
+  const bikashAnswer = checkBikashKB(msg);
+  if (bikashAnswer) return bikashAnswer;
 
   // ── 8. Knowledge Base (bestie Q&A) ──
   const kbAnswer = checkKnowledgeBase(msg);
