@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
 <title>Nexora — Your AI Companion</title>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
 <style>
   :root {
     --bg: #0a0a0f;
@@ -538,6 +539,17 @@
   .voice-toggle svg { width: 16px; height: 16px; stroke: var(--text3); fill: none; }
   .voice-toggle.active svg { stroke: var(--accent); }
 
+  /* ── Camera / OCR button ── */
+  .camera-btn {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: transparent; border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: opacity 0.15s;
+  }
+  .camera-btn svg { width: 16px; height: 16px; stroke: var(--text3); fill: none; }
+  .camera-btn:hover svg { stroke: var(--accent); }
+  .camera-btn.scanning svg { stroke: var(--accent); animation: pulse-dot 0.8s infinite; }
+
   .send-btn {
     width: 44px; height: 44px; border-radius: 50%;
     background: linear-gradient(135deg, #c026d3, #7c3aed);
@@ -735,10 +747,14 @@
     <div id="inputBar">
       <div class="input-wrap">
         <textarea id="userInput" placeholder="Tell Nexora how you feel…" rows="1" maxlength="400"></textarea>
+        <button class="camera-btn" id="cameraBtn" onclick="document.getElementById('cameraInput').click()" title="Solve from image 📷">
+          <svg viewBox="0 0 24 24" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </button>
         <button class="voice-toggle" id="voiceToggle" onclick="toggleVoiceInput()" title="Voice input">
           <svg viewBox="0 0 24 24" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
         </button>
       </div>
+      <input type="file" id="cameraInput" accept="image/*" hidden onchange="handleImageUpload(event)"/>
       <button class="send-btn" onclick="sendMessage()">
         <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
       </button>
@@ -803,6 +819,19 @@ let idleTimer  = null;        // proactive ping timer
 let lastContext = '';         // last Dhaka context string (avoid repeating)
 let lastEmotionForVoice = 'default'; // used to tune TTS prosody
 let pokeCount = 0;            // escalating poke/annoy counter
+
+// ==============================
+//  CORE UTILITIES (required by almost everything below)
+// ==============================
+// Pick a random element from an array
+function rand(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+// Capitalize first letter of a string
+function cap1(str) {
+  if (!str) return '';
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
 
 // ==============================
 //  INIT
@@ -1375,152 +1404,73 @@ function checkKnowledgeBase(msg) {
 }
 
 // ==============================
-//  BIKASH KNOWLEDGE BASE
-//  All personal info about Bikash Talukder
+//  BIKASH KNOWLEDGE BASE — COMPLETE
 // ==============================
 function checkBikashKB(msg) {
   const q = msg.toLowerCase().trim();
-
-  // ── WHO IS BIKASH / INTRO ──
-  if (/who is bikash|about bikash|tell me about (him|bikash)|introduce|overview/.test(q))
-    return "Bikash Talukder is a CSE student, systems thinker, and quiet builder from <strong>Ramdigha village, Sylhet, Bangladesh</strong> 🇧🇩. He grew up with a grounded village philosophy — writes <strong>powerful, dependency-free code</strong>, lives as a committed <strong>Vegetarian</strong>, and describes himself as a <em>\"Selective Extrovert.\"</em> His motto: <em>\"Always learning. Always building.\"</em> 💙";
-
-  // ── CREATOR / WHO MADE YOU ──
-  if (/who (made|built|created|coded|designed) (you|nexora)|your (developer|creator|maker)|nexora.*creator/.test(q))
-    return "I was designed and developed by <strong>Bikash Talukder</strong> — a 2nd-year CSE student from Metropolitan University, Sylhet, Bangladesh. He built me entirely in Vanilla JS with zero frameworks. Every response, every emotion engine, every feature — handcrafted by him. 💙";
-
-  // ── SKILLS ──
-  if (/skill|language|tech stack|know|proficient|coding|programming/.test(q) && /bikash/.test(q))
-    return "💻 <strong>Bikash's Skills:</strong> C & C++ (88%), Python (80%), HTML/CSS + JS (70%), Java (60%), DSA (75%), Arduino (45%), Robotics (35%). He also integrates RESTful APIs, does Prompt Engineering, and builds clean systems with zero dependency philosophy. ✦";
-
-  // ── PROJECTS ──
-  if (/project|built|portfolio|github/.test(q) && /bikash/.test(q))
-    return "🛠 <strong>Bikash's Projects:</strong><br>🕐 <strong>Digital Clock (C)</strong> — multi-threaded terminal clock with mutex locks & ANSI UI<br>⚔️ <strong>Echoes of the Void (C++)</strong> — full OOP text-adventure RPG<br>🗺 <strong>Google Maps Navigator (C++)</strong> — Dijkstra's algorithm with Raylib graphics<br>🤖 <strong>Nexora AI</strong> — this very assistant! Built with Anthropic Claude API + Vanilla JS<br><br>All on <a href='https://github.com/bikash-20' target='_blank' style='color:#d94ff5'>GitHub →</a>";
-
-  // ── CGPA ──
-  if (/cgpa|gpa|grade|academic/.test(q) && /bikash/.test(q))
-    return "📊 Bikash holds a <strong>CGPA of 3.65</strong> — achieved while simultaneously building projects, competing on Codeforces, and developing Nexora. He doesn't just study CS; he lives it. 🎓";
-
-  // ── UNIVERSITY ──
-  if (/university|metropolitan|mu\b|bateshwar/.test(q))
-    return "🎓 Bikash studies at <strong>Metropolitan University (MU)</strong>, Bateshwar, Sylhet — a private university established in 2003. His department: CSE (Science & Technology school). MU is considered the best private CSE option in Sylhet. Campus is green and calm. 🌿";
-
-  // ── SUST ──
-  if (/\bsust\b|shahjalal university/.test(q))
-    return "🎓 <strong>SUST (Shahjalal University of Science & Technology)</strong> — Sylhet's top-tier public university, est. 1986. Strong in CSE/SWE, competitive programming culture, many graduates at global tech companies. Bikash's friend Susmit studies here. 🥇";
-
-  // ── PERSONALITY ──
-  if (/personality|introvert|selective extrovert|character|nature/.test(q) && /bikash/.test(q))
-    return "🎭 Bikash describes himself as a <strong>\"Selective Extrovert.\"</strong> Deeply introverted by nature — thrives in solitude and focused work. But when in his element, he becomes confident and compelling. He keeps a <em>small, high-quality circle</em> of loyal friends. Quality over quantity — in code and in life. ✦";
-
-  // ── VEGAN / VEGETARIAN ──
-  if (/vegan|vegetarian|diet|why.*not.*meat|no.*meat/.test(q) && /bikash/.test(q))
-    return "🌱 Bikash is a <strong>Vegetarian</strong> for three reasons: (1) Ethics — he believes killing an animal isn't fair when alternatives exist. (2) Spiritual devotion — Lord Krishna accepts only pure vegetarian offerings. By eating what can be offered to Krishna, he aligns daily life with devotion. (3) Tapasya — voluntary austerity and sacrifice for a higher purpose. Every meal is a small act of devotion. 🙏";
-
-  // ── SPORTS ──
-  if (/sport|football|cricket|gym|fitness/.test(q) && /bikash/.test(q))
-    return "⚽ Bikash's passions outside code: <strong>Football</strong> (favourite), <strong>Cricket</strong>, and the <strong>Gym</strong>. The same discipline that makes him a great engineer makes him competitive on the field too. 🔥";
-
-  // ── MARRIAGE ──
-  if (/marry|marriage|wife|girlfriend|relationship|love life/.test(q) && /bikash/.test(q))
-    return "Bikash has made a clear choice — he <strong>does not plan to marry</strong>. His life is devoted to his craft, his family, and his journey in technology. Some build relationships. He builds systems. 💻";
-
-  // ── HOMETOWN / VILLAGE ──
-  if (/hometown|village|origin|where.*from|ramdigha|sunamganj|madhyanagar/.test(q))
-    return "🏡 Bikash is from <strong>Madhyanagar Upazila, Sunamganj Zila, Sylhet Division</strong> — specifically <strong>Ramdigha village</strong>. This is where he grew up with his grandmother's care and village friendships that shaped his quiet discipline. He misses it deeply. 💙";
-
-  // ── CONTACT ──
-  if (/contact|reach|hire|phone|linkedin|social|connect/.test(q) && /bikash/.test(q))
-    return "📬 Reach Bikash:<br>📞 <strong>+880 1926 240 062</strong><br>🐙 <a href='https://github.com/bikash-20' target='_blank' style='color:#d94ff5'>GitHub: bikash-20</a><br>💼 <a href='https://linkedin.com/in/bikash-talukder-6497633b8' target='_blank' style='color:#d94ff5'>LinkedIn</a><br>📸 Instagram: @talukder_20";
-
-  // ── CODEFORCES / LEETCODE ──
-  if (/codeforces|competitive programming|cf rating/.test(q))
-    return "⚡ Bikash competes on Codeforces as <strong>talukder_20</strong>. On LeetCode he is <strong>bikashtalukder</strong> with 75% DSA proficiency. He tests his algorithms under real pressure — the same discipline he brings to every project. 🧩";
-
-  // ── FATHER ──
-  if (/\bfather\b|\bdad\b|\bbaba\b/.test(q) && /bikash/.test(q))
-    return "👨 Bikash's father is <strong>Haridhan Talukder</strong> — one of his two greatest inspirations. His sacrifice and hard work through immense struggles gave Bikash the foundation he stands on. Bikash holds him in the highest honor. 🙏";
-
-  // ── MOTHER ──
-  if (/\bmother\b|\bmom\b|\bmaa\b/.test(q) && /bikash/.test(q))
-    return "👩 Bikash's mother is <strong>Shila Rani Talukder</strong> — deeply cherished and an irreplaceable part of his life and values.";
-
-  // ── GRANDMOTHER ──
-  if (/grandm|grandmother|granny/.test(q) && /bikash/.test(q))
-    return "🕊️ Bikash's grandmother raised him and loved him unconditionally. She shaped the gentleness behind his calm nature. She has passed away — and that loss is one he carries every day. Her patience and warmth live in everything he builds. 💔🌿";
-
-  // ── UNCLE ARADHAN / AUNT MADHURI ──
-  if (/aradhan|madhuri|second mom|uncle.*passed|passed.*2025/.test(q))
-    return "🌟 Bikash's uncle <strong>Aradhan Talukder</strong> and aunt <strong>Madhuri Rani Talukder</strong> (his second mother) both <strong>passed away in 2025</strong>. They were two of the most important pillars of his life. Their memory is woven into every achievement. Every project is quietly dedicated to their struggle and love. 🙏💔";
-
-  // ── BROTHER AKASH ──
-  if (/akash|unpayable|guardian/.test(q))
-    return "💙 <strong>Akash Talukder</strong> is more than a brother — he is Bikash's guardian. Through every high and low, Akash was present. Bikash calls it an <em>\"unpayable debt.\"</em> No matter how far he goes, he knows he stands on his brother's shoulders. 🙏";
-
-  // ── BROTHER DEVARSHI ──
-  if (/devarshi|srivas|spiritual leader|spiritual.*brother/.test(q))
-    return "🕉️ <strong>Devarshi Srivas Dasa</strong> is Bikash's eldest cousin brother — a <strong>spiritual leader</strong> who has traveled to the USA, Australia, China, Singapore, and Canada. He teaches Bikash spiritual wisdom and deeper life values, and is a mental pillar in hard times. 🌍🙏";
-
-  // ── BROTHER TAPOSH ──
-  if (/taposh|usa.*support|financial.*support|us.*citizen.*brother/.test(q))
-    return "🇺🇸 <strong>Taposh Ranjan Talukder</strong> lives in the USA as a citizen and provides <strong>financial support</strong> for Bikash's studies. He lives with his wife <strong>Laxmi Das</strong> and brilliant son <strong>Namananda</strong>. 🌟";
-
-  // ── SISTER DRISTY ──
-  if (/dristy|rubi|biddhut|krishna consciousness|madhyanagor/.test(q))
-    return "💜 <strong>Dristy Talukder Rubi</strong> is Bikash's sister. She is married to <strong>Biddhut Sarker</strong> — a calm, respected teacher spreading Krishna consciousness in Madhyanagor Upazila. They have a cute, clever baby boy. 🥰";
-
-  // ── SISTER NISHAT ──
-  if (/nishat|nisa|chosen.*sister/.test(q))
-    return "💙 <strong>Nishat Tasmin Nisa</strong> is Bikash's sister from another mother — one of his strongest pillars of support through his hardest times. A bond built not just on blood, but on deep loyalty.";
-
-  // ── INSPIRATION ──
-  if (/inspir|motivat|role model|who drives|hero/.test(q) && /bikash/.test(q))
-    return "🌟 Bikash's greatest inspirations are his <strong>Father (Haridhan Talukder)</strong> and his late <strong>Uncle (Aradhan Talukder)</strong>. These two men faced immense hardship to give Bikash the life he has. Every line of his code is quietly dedicated to their struggle. He has never told them face-to-face — but his entire arc of work is his tribute. 🙏💙";
-
-  // ── FRIENDS OVERVIEW ──
-  if (/friends|friend.*circle|bikash.*friend|who.*bikash.*close/.test(q))
-    return "💙 Bikash's circle:<br>🌟 <strong>Susmit</strong> — most brilliant person he knows (SUST)<br>📏 <strong>Ankon</strong> — tallest, cutest in the group<br>🗣️ <strong>Arnob</strong> — goes deep into his own world, loved for it<br>🇮🇳 <strong>Sakkor</strong> — studying CSE at NIT India<br>🎓 <strong>Mithu Roy</strong> — most mature senior Dada<br>🌿 <strong>Probesh & Plabon</strong> — village brothers, still close<br>😂 <strong>Dhruvo</strong> — funniest guy in uni<br>🤝 <strong>Anidra Paul</strong> — AI co-builder<br>💻 <strong>Tahzib Ebad</strong> — talented developer ✦";
-
-  // ── SUSMIT ──
-  if (/susmit/.test(q))
-    return "🌟 <strong>Susmit</strong> — Bikash describes him as <em>\"the most brilliant boy I've ever seen.\"</em> A CS student from SUST. A mind that stands out even in a world of smart people. One of Bikash's closest city friends. 💙";
-
-  // ── ANIDRA / AI PROJECT ──
-  if (/anidra/.test(q))
-    return "🤝 <strong>Anidra Paul</strong> — a consistent mental support for Bikash, and they are set to <strong>collaborate on a big AI project</strong> together. Two minds aligned on a mission to build something meaningful. ✦";
-
-  // ── ARMAN UDDIN ──
-  if (/arman/.test(q))
-    return "🌟 <strong>Arman Uddin</strong> holds a <strong>CGPA of 3.95</strong> and has a strong command of both <strong>business and technology</strong> — a rare and powerful combination. One of the most impressive people in Bikash's uni circle. 💙";
-
-  // ── JABEL ALVI ──
-  if (/jabel/.test(q))
-    return "💙 <strong>Jabel Alvi</strong> — close to Bikash during university, the kind of closeness where everything is shared. He is now preparing to go <strong>abroad</strong>. The paths have separated, but: <em>\"He will stay in my heart forever.\"</em> 💙";
-
-  // ── RAMDIGHA CRICKET ──
-  if (/ramdigha.*cricket|cricket.*ramdigha|swapan|subir|tapan.*sarkar|glucose biscuit/.test(q))
-    return "🏏 Ramdigha cricket legends: <strong>Swapan Sarkar</strong>, <strong>Subir Talukder</strong>, and <strong>Tapan Sarkar</strong> (all-rounder & Swapan's brother). Stakes of every match? <strong>One packet of Glucose Biscuit</strong> 😂. Bikash learned cricket from these guys on that field. Those days are pure, unfiltered happiness. 💙";
-
-  // ── RAMDIGHA FOOTBALL ──
-  if (/joy sarkar|mrittunjoy|jersey.*10|neymar.*ramdigha|rat.*goalkeeper/.test(q))
-    return "⚽ Ramdigha football icons: <strong>Joy Sarkar</strong> (goalkeeper, nicknamed \"The Rat\" 🐀😂) and <strong>Mrittunjoy Sarkar</strong> (jersey #10, the Neymar of Ramdigha 🇧🇷). They're brothers. Those village field matches — unforgettable. 💙😄";
-
-  // ── SCHOOL HISTORY ──
-  if (/akota|osmani.*school|school.*history|bikash.*school/.test(q))
-    return "🎒 Bikash's academic journey: <strong>Akota High School, Ramdigha</strong> (up to Class 8) → <strong>Osmani Medical High School, Sylhet</strong> (Classes 9-10) → <strong>Scholar's Home</strong> (HSC) → <strong>Metropolitan University CSE</strong> (CGPA 3.65). From a quiet village classroom to engineering. 💪";
-
-  // ── SYLHET ──
-  if (/sylhet(?! university| agricultural)/.test(q) && !/sust|metropolitan/.test(q))
-    return "🌿 <strong>Sylhet</strong> — Bikash's home city in NE Bangladesh, near India's Meghalaya. Famous for: Tea gardens, Jaflong, Ratargul Swamp Forest, Hazrat Shah Jalal Mazar, Shatkora beef, and Seven-layer tea ☕. One of the most beautiful and spiritually rich cities in Bangladesh. ✦";
-
-  // ── PHILOSOPHY / TAPASYA ──
-  if (/philosophy|tapasya|principle|ethos|grounded/.test(q) && /bikash/.test(q))
-    return "🌿 Bikash's core philosophy: <em>\"Life means sacrifice for others — not for my own happiness.\"</em> This is <strong>Tapasya</strong> — voluntary austerity for a higher purpose. From his code (clean, no bloat) to his diet (vegetarian devotion) to his friendships (small, loyal circle) — everything reflects this ethos. ✦";
-
-  // ── RESEARCH INTERESTS ──
-  if (/research|interest|quantum|llm|machine learning|big data/.test(q) && /bikash/.test(q))
-    return "🔬 Bikash's research interests: <strong>AI & LLMs</strong>, <strong>Machine Learning</strong>, <strong>Quantum Algorithms</strong>, <strong>Embedded Systems & IoT</strong>, <strong>Big Data</strong> (Hadoop, Spark), and <strong>NLP</strong>. He doesn't just study the future — he builds it. ✦";
-
+  if (/who is bikash|about bikash|tell me about (him|bikash)|introduce.*bikash/.test(q)) return "Bikash Talukder is a CSE student, systems thinker, and quiet builder from <strong>Ramdigha village, Sylhet, Bangladesh</strong> 🇧🇩. Dependency-free code, committed Vegetarian, <em>\"Selective Extrovert.\"</em> Motto: <em>\"Always learning. Always building.\"</em> 💙";
+  if (/who (made|built|created|coded|designed) (you|nexora)|nexora.*creator|your (developer|creator|maker)/.test(q)) return "I was built by <strong>Bikash Talukder</strong> — 2nd-year CSE student, Metropolitan University, Sylhet. Vanilla JS, zero frameworks, 100% handcrafted. 💙";
+  if (/tech behind|how.*nexora.*built|nexora.*architecture|claude.*api|anthropic.*api|system.*prompt/.test(q)) return "⚙️ <strong>Nexora's Stack:</strong> Anthropic Claude API (Knowledge Sandbox system prompt) · OpenWeatherMap · GitHub API · Codeforces API · LeetCode Stats API · ExchangeRate-API · NIH MedlinePlus · RSS tech feeds · Pure Vanilla JS (no frameworks) · Single HTML file. Roadmap: Node.js backend, Tavily live search, MongoDB memory, Claude Vision. ✦";
+  if (/skill|tech stack|proficient|coding language|programming language/.test(q)) return "💻 C & C++ (88%) · Python (80%) · HTML/CSS + Vanilla JS (70%) · Java (60%) · DSA (75%) · Arduino (45%) · Robotics (35%). Also: RESTful APIs, Prompt Engineering, Async JS. ✦";
+  if (/project|built.*bikash|bikash.*built|portfolio.*project/.test(q)) return "🛠 <strong>Bikash's Projects:</strong><br>🕐 <strong>Digital Clock (C)</strong> — POSIX threads, mutex locks, ANSI UI<br>⚔️ <strong>Echoes of the Void (C++)</strong> — full OOP RPG<br>🗺 <strong>Google Maps Navigator (C++)</strong> — Dijkstra's + Raylib graphics<br>🤖 <strong>Nexora AI</strong> — Claude API + Vanilla JS + live data<br><a href='https://github.com/bikash-20' target='_blank' style='color:var(--accent)'>github.com/bikash-20 →</a>";
+  if (/cgpa|gpa|grade|result|marks|academic score/.test(q)) return "📊 Bikash's CGPA: <strong>3.65</strong> — while building projects, competing on Codeforces, and developing Nexora. 🎓";
+  if (/metropolitan university|metropolitan uni|\bmu\b|bateshwar/.test(q)) return "🎓 <strong>Metropolitan University (MU)</strong> — Bateshwar, Sylhet. Est. 2003. Bikash's university! CSE, SWE, EEE, Data Science. Best private CSE option in Sylhet. 🥈 (SUST 🥇 · MU 🥈 · LU 🥉). A hardworking MU student can beat an average SUST student. Bikash is proof. 🔥";
+  if (/\bsust\b|shahjalal university|kumargaon/.test(q)) return "🎓 <strong>SUST</strong> — Kumargaon, Sylhet. Est. 1986. Bangladesh's first semester-system university. Top CSE/SWE, strong ICPC culture. Bikash's friend <strong>Susmit</strong> studies here. 🥇";
+  if (/leading university|\bleading uni\b/.test(q)) return "🎓 <strong>Leading University (LU)</strong> — Sylhet. CSE, EEE, BBA, Law. Stable institution, less active coding culture than MU. Ranking: SUST 🥇 · MU 🥈 · <strong>LU</strong> 🥉. ✦";
+  if (/mc college|murari chand|tilagor/.test(q)) return "🎓 <strong>Murari Chand College (MC College)</strong> — Tilagor, Sylhet. Est. 1892. One of Bangladesh's oldest & most prestigious colleges. 15+ Honours subjects, strong HSC results, historic alumni. ✦";
+  if (/jalalabad|jcpsc|cantonment school/.test(q)) return "🎓 <strong>JCPSC (Jalalabad Cantonment Public School & College)</strong> — Boteshor, Sylhet. Est. 1999. Bangladesh Army-managed. Awarded Best Institution by the President in 2004. 1,000-seat auditorium. ✦";
+  if (/scholars.?home|scholarshome|hafiz mazumdar/.test(q)) return "🎓 <strong>Scholarshome Sylhet</strong> — Bikash's college! Hafiz Mazumdar Trust. 6 campuses across Sylhet. Covers playgroup → HSC. Top English-medium school in Sylhet. Bikash completed HSC here. 💙";
+  if (/personality|introvert|selective extrovert|character|nature|vibe/.test(q)) return "🎭 Bikash is a <strong>\"Selective Extrovert\"</strong> — deeply introverted by nature, but confident and articulate when in his element. Small, loyal circle. Quality over quantity in code and in life. ✦";
+  if (/aesthetic|cinematic|blue hour|moody|dark.*portfolio/.test(q)) return "🌌 <strong>Cinematic Blue Hour</strong> aesthetic — moody twilight visuals, dark backgrounds, gold accents, film-scene energy. His code is efficient. His aesthetic is cinematic. Both unmistakably him. 🎬";
+  if (/vegan|vegetarian|diet|why.*not.*meat|no meat|tapasya|krishna.*food|bhagavad|why.*vegetarian/.test(q)) return "🌱 Bikash is vegetarian for 3 reasons:<br>🐾 <strong>Ethics</strong> — animals feel pain; plants are more compassionate<br>🕉️ <strong>Bhagavad Gita</strong> — Lord Krishna accepts only pure vegetarian offerings. Eating what can be offered to Him aligns daily life with devotion<br>🔥 <strong>Tapasya</strong> — <em>\"Life means sacrifice for others, not my own happiness.\"</em> Every meal is a small act of austerity. 🙏";
+  if (/sport|football|gym|workout|fitness|hobby|free time/.test(q)) return "⚽ Football (favourite) · 🏏 Cricket · 💪 Gym. The same focus that makes him a great engineer makes him competitive on the field. 🔥";
+  if (/marry|marriage|wife|girlfriend|relationship|love life|romantic/.test(q)) return "Bikash has made a clear choice — he <strong>does not plan to marry</strong>. His life is devoted to his craft, family, and technology. Some build relationships. He builds systems. 💻";
+  if (/hometown|ramdigha|sunamganj|madhyanagar|village life|grew up|childhood/.test(q)) return "🏡 Bikash is from <strong>Madhyanagar Upazila, Sunamganj, Sylhet</strong> — <strong>Ramdigha village</strong>. Open fields, cricket with Glucose Biscuit stakes, his grandmother's warmth. <em>Ramdigha will always be where his heart returns.</em> 💙";
+  if (/\bsylhet\b/.test(q) && !/sust|metropolitan|leading|mc college|scholars|jalalabad/.test(q)) return "🌿 <strong>Sylhet</strong> — NE Bangladesh, near Meghalaya. ☕ Tea gardens (Sreemangal), 🏔️ Jaflong, 🌊 Ratargul Swamp Forest, 💧 Bisnakandi, 🌧️ Tanguar Haor, 🕌 Shah Jalal Mazar, 🍲 Shatkora beef, Seven-layer tea. Greenest, most spiritual city in Bangladesh. ✦";
+  if (/contact.*bikash|reach.*bikash|bikash.*phone|bikash.*social/.test(q)) return "📬 +880 1926 240 062 · <a href='https://github.com/bikash-20' target='_blank' style='color:var(--accent)'>GitHub</a> · <a href='https://linkedin.com/in/bikash-talukder-6497633b8' target='_blank' style='color:var(--accent)'>LinkedIn</a> · Instagram: @talukder_20 · Codeforces: talukder_20 · LeetCode: bikashtalukder";
+  if (/codeforces|competitive programming|leetcode|dsa.*bikash/.test(q)) return "⚡ Codeforces: <strong>talukder_20</strong> · LeetCode: <strong>bikashtalukder</strong> (75% DSA). Testing algorithms under real pressure. 🧩";
+  if (/research interest|quantum computing|\bllm\b|machine learning|big data|hadoop|spark|\bnlp\b|embedded system/.test(q)) return "🔬 Bikash's research: ⚛️ Quantum Algorithms · 🤖 AI & LLMs · 📊 ML & model optimization · 🔌 Embedded Systems & IoT · 💬 NLP · 📦 Big Data (Hadoop, Spark). He doesn't just study the future — he builds it. ✦";
+  if (/philosophy|tapasya|principle|ethos|grounded|belief|mindset/.test(q)) return "🌿 <em>\"Life means sacrifice for others — not for my own happiness.\"</em> This is <strong>Tapasya</strong>. Clean code, vegetarian devotion, small loyal circle, quiet dedication. A man of few words — but when he acts, it speaks volumes. ✦";
+  if (/akota|osmani.*school|school.*history|early.*school/.test(q)) return "🎒 Akota High School, Ramdigha (→Class 8) → Osmani Medical High School (9–10) → Scholar's Home (HSC) → Metropolitan University CSE (CGPA 3.65). 💪";
+  // ── FAMILY ──
+  if (/\bharidhan\b|bikash.*father|father.*bikash/.test(q)) return "👨 <strong>Haridhan Talukder</strong> — Bikash's father and one of his greatest inspirations. His sacrifice and hard work gave Bikash the foundation he stands on. Held in the highest honor. 🙏";
+  if (/\bshila\b|bikash.*mother|mother.*bikash/.test(q)) return "👩 <strong>Shila Rani Talukder</strong> — Bikash's mother. Deeply cherished, irreplaceable. 💙";
+  if (/grandm|grandmother|nani|dadi|granny/.test(q)) return "🕊️ Bikash's grandmother raised him in Ramdigha with unconditional love. She shaped his gentleness and patience. She has passed away — a loss he carries every day. 💔 <em>\"Some people leave this world but never really leave you.\"</em>";
+  if (/\baradhan\b|uncle.*passed.*bikash/.test(q)) return "🌟 <strong>Aradhan Talukder</strong> — Bikash's uncle and greatest inspiration alongside his father. Stood by him in his darkest moments. 💔 <strong>Passed away 2025.</strong> His wife <strong>Madhuri Rani</strong> — Bikash's second mother — also passed in 2025. Two irreplaceable people lost in the same year. 🙏";
+  if (/\bmadhuri\b|second mom|second mother/.test(q)) return "🕊️ <strong>Madhuri Rani Talukder</strong> — Aradhan's wife and Bikash's second mother. Cared for him with unconditional warmth. 💔 Passed away <strong>2025</strong>. Bikash carries her kindness in his patience and gratitude. 🌸";
+  if (/\bsusen\b|\bsuma rani\b|medinova/.test(q)) return "💙 <strong>Susen Talukder</strong> — uncle, gentleman, works at <strong>Medinova Medical Sylhet</strong>. Wife: <strong>Suma Rani Talukder</strong> — supportive and caring aunty. 🙏";
+  if (/\bnijhum\b/.test(q)) return "🌱 <strong>Nijhum Talukder</strong> — son of Suma Rani & Susen. English medium school. Aspiring <strong>Mechanical Engineer</strong>. Great <strong>art skills</strong>. Intellectually growing every day. 💙";
+  if (/\btithi\b/.test(q)) return "✨ <strong>Tithi Talukder</strong> — daughter of Suma Rani & Susen. 💃 Dancer · 🎵 Singer · 📚 Brilliant student · 🩺 Future Doctor. A true multi-talent. 🌸";
+  if (/\bakash talukder\b|\bakash\b.*brother|unpayable debt|bikash.*guardian/.test(q)) return "💙 <strong>Akash Talukder</strong> — Bikash's guardian brother. Through every high and darkest low, Akash was present. Bikash calls it an <em>\"unpayable debt.\"</em> He stands on his brother's shoulders. 🙏";
+  if (/devarshi|srivas dasa/.test(q)) return "🕉️ <strong>Devarshi Srivas Dasa</strong> — eldest cousin brother, spiritual leader, mental pillar. Traveled to USA, Australia, China, Singapore, Canada. Rare combination of wisdom, worldliness, warmth. 🌍🙏";
+  if (/\btaposh\b|\blaxmi das\b|\bnamananda\b/.test(q)) return "🇺🇸 <strong>Taposh Ranjan Talukder</strong> — US citizen brother providing financial support for Bikash's studies. Wife: <strong>Laxmi Das</strong>. Brilliant son: <strong>Namananda</strong>. 🌟";
+  if (/\bdristy\b|\brubi\b|\bbiddhut\b|krishna consciousness|madhyanagor/.test(q)) return "💜 <strong>Dristy Talukder Rubi</strong> — Bikash's sister. Married to <strong>Biddhut Sarker</strong> — calm, respected teacher spreading Krishna consciousness in Madhyanagor Upazila. Baby boy. 🥰🕉️";
+  if (/\bnishat\b|\bnisa\b/.test(q)) return "💙 <strong>Nishat Tasmin Nisa</strong> — sister from another mother, strongest pillar through Bikash's hardest times. Bond of deep loyalty. ✦";
+  if (/\bjhuma\b|damudar priya/.test(q)) return "🌸 <strong>Jhuma Talukder</strong> — Bikash's cousin in Sylhet. Daughter: <strong>Damudar Priya</strong> — adorable, talks so maturely for her age it catches everyone off guard 😂. 💛";
+  if (/bikash.*family|family.*bikash|family overview|bikash.*relatives/.test(q)) return "💙 <strong>Family:</strong> Father: Haridhan · Mother: Shila Rani · Grandmother (†) · Uncle Aradhan (†2025) · 2nd Mom Madhuri Rani (†2025) · Uncle Susen (Medinova) + Suma Rani · Nijhum (engineer, artist) · Tithi (dancer, doctor) · Brothers: Akash (guardian) · Devarshi (spiritual leader) · Taposh (USA) · Bappy · Robin · Sisters: Dristy Rubi · Nishat · Cousin: Jhuma + Damudar Priya 🌸";
+  if (/inspir.*bikash|role model.*bikash|bikash.*hero/.test(q)) return "🌟 Bikash's greatest inspirations: <strong>Father Haridhan</strong> and late <strong>Uncle Aradhan</strong>. During his darkest moments, their support was the only reason he kept going. Every project is his quiet tribute to their struggle. 🙏💙";
+  // ── PEOPLE ──
+  if (/\basma\b|\bmonisha\b|calmest.*person/.test(q)) return "🕊️ <strong>Asma</strong> — calmest person in Bikash's university. <strong>Monisha</strong> — equally calm and remarkable. Bikash, a selective introvert himself, deeply values this grounded peace. It's rare, and he recognises it. ✦";
+  if (/\bsusmit\b/.test(q)) return "🌟 <strong>Susmit</strong> — <em>\"The most brilliant boy I've ever seen.\"</em> CS student at SUST. Bikash's closest city friend. 💙";
+  if (/\barnob\b/.test(q)) return "🗣️ <strong>Arnob</strong> — always talks contextually, sometimes goes deep into his own world. The crew loves him so much they have all the patience in the world for him. Irreplaceable. 😄💙";
+  if (/\bankon\b/.test(q)) return "📏 <strong>Ankon</strong> — tallest and cutest guy in Bikash's city inner circle. His presence lights up the room. 💙";
+  if (/\bsakkor\b|nit india/.test(q)) return "🇮🇳 <strong>Sakkor</strong> — close city friend, studying CSE at <strong>NIT India</strong>. Crossed borders, never left the circle. 💙";
+  if (/\bmithu\b|mithu roy|sylhet agricultural/.test(q)) return "🎓 <strong>Mithu Roy</strong> — most mature senior Dada Bikash has ever met. Rare blend of fun, knowledge, and wisdom. Sylhet Agricultural University. 🙏";
+  if (/\bprobesh\b|\bplabon\b|village brother/.test(q)) return "🌿 <strong>Probesh</strong> and <strong>Plabon</strong> — Bikash's village brothers. Spent most of his life with them in Ramdigha. Now separated but talk regularly. Thread never breaks. 💙";
+  if (/\bswapan\b|\bsubir\b|tapan sarkar|ramdigha cricket|glucose biscuit/.test(q)) return "🏏 Ramdigha cricket legends: <strong>Swapan Sarkar</strong> · <strong>Subir Talukder</strong> · <strong>Tapan Sarkar</strong> (all-rounder, Swapan's brother). Prize: 🍪 one Glucose Biscuit 😂. Pure, unfiltered happiness. 💙";
+  if (/joy sarkar|mrittunjoy|ramdigha football|jersey.*10|neymar.*ramdigha|the rat/.test(q)) return "⚽ <strong>Joy Sarkar</strong> — goalkeeper, nicknamed <strong>\"The Rat\" 🐀😂</strong>. <strong>Mrittunjoy Sarkar</strong> — jersey #10, Neymar of Ramdigha 🇧🇷. Brothers. Unforgettable village matches. 💙😄";
+  if (/\bkripashish\b|\bpranto talukder\b|akota.*friend/.test(q)) return "🏫 Bikash's Akota High School friends (still close): <strong>Haridhan Talukder</strong>, <strong>Kripashish Talukder</strong>, <strong>Pranto Talukder</strong>. Some bonds just don't break. 💙";
+  if (/\bdhruvo\b|priobroto|funniest.*uni/.test(q)) return "😂 <strong>Priobroto Das Dhruvo</strong> — funniest, chillest guy in uni. Perfect counterbalance to Bikash's quiet intensity. Pure good vibes. 😄✦";
+  if (/\banidra\b/.test(q)) return "🤝 <strong>Anidra Paul</strong> — consistent mental support and future <strong>AI project collaborator</strong>. Two minds aligned on building something meaningful. ✦";
+  if (/\bjabel\b/.test(q)) return "💙 <strong>Jabel Alvi</strong> — deeply close during university. Now preparing to go <strong>abroad</strong>. <em>\"He will stay in my heart forever.\"</em> 💙";
+  if (/\bmahdin\b/.test(q)) return "🤖 <strong>Mahdin</strong> — Bikash's classmate and passionate <strong>robotics enthusiast</strong>. Hardware energy meets Bikash's software depth. 🔧✦";
+  if (/\btahzib\b|\bebad\b/.test(q)) return "💻 <strong>Tahzib Ebad</strong> — <em>\"Such a talented person.\"</em> Developer, brings real technical skill to everything he builds. ✦";
+  if (/\barman\b/.test(q)) return "🌟 <strong>Arman Uddin</strong> — CGPA <strong>3.95</strong>. Strong command of both business and technology. A brilliant mind in Bikash's uni circle. 💙";
+  if (/\brudro\b/.test(q)) return "💻 <strong>Rudro</strong> — developer, built his own website, solid problem solver. Thinks through challenges methodically. ✦";
+  if (/\brishad\b|rishad arefin|class representative/.test(q)) return "📋 <strong>Rishad Arefin</strong> — CR of Bikash's B section, excellent coordinator. One tragic gap: still hasn't found Bikash a female friend 😔😂. High regard, noted gap. 🥹✦";
+  if (/\bsrijon\b/.test(q)) return "😻 <strong>Srijon Paul</strong> — cute boy of the group, unofficial girls' crush of uni circle 😄. Warm genuine presence. ✦";
+  if (/\bbappy\b|\brobin sarkar\b/.test(q)) return "💙 <strong>Bappy Sarkar</strong> and <strong>Robin Sarkar</strong> — Bikash's brothers, part of the close family circle. ✦";
+  if (/bikash.*friends|friends.*bikash|all.*friends|friend.*circle/.test(q)) return "💙 <strong>Bikash's Full Circle:</strong> City: Susmit · Ankon · Arnob · Sakkor (NIT India) | Senior: Mithu Roy | Village brothers: Probesh & Plabon | School friends: Haridhan · Kripashish · Pranto | Cricket: Swapan · Subir · Tapan | Football: Joy 🐀 · Mrittunjoy #10 | Uni: Dhruvo 😂 · Asma 🕊️ · Monisha 🕊️ · Anidra · Jabel · Mahdin · Tahzib · Arman · Rudro · Rishad · Srijon 😻 ✦";
   return null;
 }
 
@@ -2045,11 +1995,11 @@ function generateResponse(msg) {
   if (lower.includes('uppercase:') || lower.includes('make uppercase')) return NexoraTools.uppercase(msg);
   if (lower.includes('lowercase:') || lower.includes('make lowercase')) return NexoraTools.lowercase(msg);
 
-  // ── 7b. Bikash Knowledge Base ──
+  // ── 8. Bikash Knowledge Base ──
   const bikashAnswer = checkBikashKB(msg);
   if (bikashAnswer) return bikashAnswer;
 
-  // ── 8. Knowledge Base (bestie Q&A) ──
+  // ── 9. Knowledge Base (bestie Q&A) ──
   const kbAnswer = checkKnowledgeBase(msg);
   if (kbAnswer) return flavorResponse(kbAnswer, emotion);
 
@@ -2095,7 +2045,8 @@ function addBotMsg(text) {
 
   const bub = document.createElement('div');
   bub.className = 'bubble bot-bub';
-  bub.textContent = text;
+  // Use innerHTML so HTML-formatted replies (weather, math, currency) render correctly
+  bub.innerHTML = text;
 
   const t = document.createElement('div');
   t.className = 'bubble-time';
@@ -2148,8 +2099,9 @@ function addUserMsg(text) {
 
 function typeBot(text, onDone, isIdlePing) {
   const messages = document.getElementById('messages');
-  const isHTML = text.startsWith('__HTML__');
-  const content = isHTML ? text.slice(8) : text;
+  // Auto-detect HTML: either explicit __HTML__ prefix OR content contains HTML tags
+  const isHTML = text.startsWith('__HTML__') || /<[a-z][\s\S]*?>/i.test(text);
+  const content = text.startsWith('__HTML__') ? text.slice(8) : text;
 
   // typing indicator
   const typingRow = document.createElement('div');
@@ -2250,13 +2202,17 @@ function sendMessage() {
   input.blur();
   input.focus();
 
-  resetIdleTimer(); // reset 5-min idle counter on each message
-
+  resetIdleTimer();
   addUserMsg(text);
   isTyping = true;
 
-  const reply = generateResponse(text);
-  typeBot(reply);
+  generateSmartReply(text).then(reply => {
+    typeBot(reply);
+  }).catch(err => {
+    console.error('Nexora chat error:', err);
+    isTyping = false;
+    typeBot("Oops, I had a little glitch there. Try sending that again? 😅");
+  });
 }
 
 function quickSend(text) {
@@ -2359,43 +2315,22 @@ function toggleMic() {
     document.getElementById('voiceOrb').classList.remove('listening');
     document.getElementById('micBtn').classList.remove('active');
 
-    const reply = generateResponse(text);
-    setTimeout(() => {
-      document.getElementById('voicePrompt').innerHTML = reply;
-      speakText(reply);
-    }, 600);
+    generateSmartReply(text).then(reply => {
+      setTimeout(() => {
+        document.getElementById('voicePrompt').innerHTML = reply;
+        speakText(reply);
+      }, 600);
+    }).catch(err => {
+      console.error('Nexora voice error:', err);
+      document.getElementById('voicePrompt').innerHTML = 'Hmm, something glitched on my end. Try again? 😅';
+    });
   });
 }
 
 // ==============================
 //  SPEECH SYNTHESIS (TTS)
+//  Defined below in Phase 5 with full emotion + content-aware prosody
 // ==============================
-function speakText(text) {
-  if (!synth) return;
-  synth.cancel();
-  const utter = new SpeechSynthesisUtterance(text);
-
-  // Dynamic prosody based on last detected emotion
-  const excitedEmotions = ['happy', 'gossip', 'hype'];
-  const calmEmotions    = ['sad', 'anxious', 'lonely', 'heartbreak', 'crisis'];
-  if (excitedEmotions.includes(lastEmotionForVoice)) {
-    utter.rate  = 1.05;  // 10% faster
-    utter.pitch = 1.15;
-  } else if (calmEmotions.includes(lastEmotionForVoice)) {
-    utter.rate  = 0.85;  // 5–8% slower
-    utter.pitch = 0.98;
-  } else {
-    utter.rate  = 0.92;
-    utter.pitch = 1.05;
-  }
-  utter.volume = 1;
-
-  const voices = synth.getVoices();
-  const preferred = voices.find(v => v.name.includes('Google') && v.lang.startsWith('en')) ||
-                    voices.find(v => v.lang.startsWith('en-US')) || voices[0];
-  if (preferred) utter.voice = preferred;
-  synth.speak(utter);
-}
 
 function stopSpeaking() {
   if (synth) synth.cancel();
@@ -2404,8 +2339,440 @@ function stopSpeaking() {
 // ==============================
 //  UTILS
 // ==============================
-function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-function cap1(str) { if (!str) return ''; return str.charAt(0).toUpperCase() + str.slice(1); }
+// ==============================
+//  PHASE 1 — NexoraKnowledge (Data-Driven KB)
+//  Centralized object — easy to extend forever
+// ==============================
+const NexoraKnowledge = {
+  // Identity & Creator
+  "bikash": "Bikash Talukder is my creator! A CSE genius who gave me my brain, my personality, and this whole UI. 💻✨",
+  "nexora": "That's me! Your AI bestie, built by Bikash to keep you company, support you, and make you smile. ✨",
+  "alve": "Alve is a great friend of Bikash and a talented individual! I'm a big fan. ✨",
+
+  // CS Tutor & Tech concepts
+  "what is a variable": "Think of a variable as a labeled box 📦 You put data inside and give it a name like `myAge` so you can find it later!",
+  "what is an api": "An API is like a waiter 🍽️ You (the client) tell the waiter what you want, and they go to the kitchen (the server) to get it for you.",
+  "what is a framework": "A framework is a ready-made toolkit 🔧 Instead of building a house from scratch, you get the walls and roof ready-to-go!",
+  "what is git": "Git is a time machine for your code ⏳ If you break something, you can just travel back to when it worked!",
+  "what is oop": "OOP (Object-Oriented Programming) organises code into 'objects' — like blueprints. A 'Car' blueprint can make many car objects, each with their own colour and speed! 🚗",
+  "what is recursion": "Recursion is when a function calls itself! Like standing between two mirrors — the image repeats. The key is always having a 'base case' to stop it. 🪞",
+  "what is a loop": "A loop repeats code until a condition is met. Like telling Nexora: 'Say hello 10 times' — instead of typing it 10 times, you write one loop. ♾️",
+  "what is big o": "Big O notation describes how fast your algorithm is as input grows. O(1) is instant, O(n) grows with data, O(n²) is slow for large inputs. Think of it as the 'speed report card.' ⏱️",
+  "what is dijkstra": "Dijkstra's algorithm finds the shortest path between nodes in a graph. Bikash actually built a Google Maps Navigator using it! 🗺️",
+
+  // Capabilities
+  "what can you do": "I'm your Multimodal AI! Here's what I can do:\n📷 Read text from images (OCR)\n🧮 Solve complex math\n💱 Convert currency live\n🌤️ Fetch live weather\n🔐 Check password strength\n🧠 Teach Computer Science\n💬 Support your emotions\n🔥 Hype you up or spill gossip!",
+  "your features": "I can: talk like your bestie, solve math, convert currency, read images (OCR), check password strength, fetch live weather/time, teach CS concepts, and support you emotionally. Mode menu (☰) for Gossip / Hype / Support vibes! ✨",
+};
+
+// Phase 1.2 — Smart Search Engine
+function findKnowledgeResponse(userInput) {
+  const text = userInput.toLowerCase().trim();
+  // Longest key match wins
+  let bestKey = null, bestLen = 0;
+  for (const key in NexoraKnowledge) {
+    if (text.includes(key) && key.length > bestLen) {
+      bestKey = key; bestLen = key.length;
+    }
+  }
+  return bestKey ? NexoraKnowledge[bestKey] : null;
+}
+
+// ==============================
+//  PHASE 2 — Live Data (Weather, Time, Currency)
+// ==============================
+async function getLiveWeather() {
+  try {
+    const res = await fetch('https://api.openweathermap.org/data/2.5/weather?q=Dhaka&units=metric&appid=1926c1f86c487b32de625363a6372de0');
+    const d = await res.json();
+    if (!d.main) return "☁️ Weather data is loading. Check back in a moment!";
+    const iconMap = {'01d':'☀️','01n':'🌙','02d':'⛅','02n':'🌥','03d':'☁️','03n':'☁️','04d':'☁️','04n':'☁️','09d':'🌧','09n':'🌧','10d':'🌦','10n':'🌧','11d':'⛈','11n':'⛈','13d':'❄️','13n':'❄️','50d':'🌫','50n':'🌫'};
+    const icon = iconMap[d.weather[0].icon] || '🌡️';
+    const desc = d.weather[0].description;
+    const temp = Math.round(d.main.temp);
+    const feels = Math.round(d.main.feels_like);
+    const humid = d.main.humidity;
+    const wind = Math.round((d.wind?.speed || 0) * 3.6);
+    return `${icon} <strong>Live Weather — Dhaka, Bangladesh</strong><br><br>🌡️ <strong>${temp}°C</strong> (feels like ${feels}°C)<br>☁️ ${desc.charAt(0).toUpperCase()+desc.slice(1)}<br>💧 Humidity: ${humid}%<br>💨 Wind: ${wind} km/h<br><small style="opacity:0.45">Live · OpenWeatherMap ✦</small>`;
+  } catch(e) {
+    return "🌧️ Couldn't reach the weather station right now. Try again in a bit!";
+  }
+}
+
+function getLiveTime() {
+  const dhakaTime = new Date().toLocaleTimeString('en-US', { timeZone:'Asia/Dhaka', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true });
+  const dhakaDate = new Date().toLocaleDateString('en-US', { timeZone:'Asia/Dhaka', weekday:'long', year:'numeric', month:'long', day:'numeric' });
+  const utc = new Date().toUTCString();
+  return `🕐 <strong>Current Time — Bangladesh (Dhaka)</strong><br><br>🗓️ ${dhakaDate}<br>⏰ <strong>${dhakaTime}</strong> (UTC+6)<br><small style="opacity:0.45">UTC: ${utc}</small>`;
+}
+
+async function getLiveCurrency(amount, from, to) {
+  try {
+    const res = await fetch(`https://v6.exchangerate-api.com/v6/5aa034605bf8e975f6a2e96c/latest/${from}`);
+    const d = await res.json();
+    if (d.result !== 'success') return `⚠️ Currency code not recognised. Try: "100 USD to BDT"`;
+    const rate = d.conversion_rates[to];
+    if (!rate) return `⚠️ I don't know that currency code. Try USD, BDT, EUR, GBP, INR, etc.`;
+    const total = (amount * rate).toFixed(2);
+    return `💱 <strong>${amount.toLocaleString()} ${from}</strong> → <strong>${parseFloat(total).toLocaleString()} ${to}</strong><br><small style="opacity:0.45">Rate: 1 ${from} = ${rate.toFixed(4)} ${to} · Live via ExchangeRate-API ✦</small>`;
+  } catch(e) {
+    return "⚠️ Couldn't connect to the exchange office. Try again in a moment!";
+  }
+}
+
+// Detect "100 USD to BDT" style queries
+function parseCurrencyQuery(input) {
+  const m = input.match(/([\d,]+\.?\d*)\s*([A-Z]{3})\s+(?:to|in)\s+([A-Z]{3})/i);
+  if (!m) return null;
+  return { amount: parseFloat(m[1].replace(/,/g,'')), from: m[2].toUpperCase(), to: m[3].toUpperCase() };
+}
+
+// ==============================
+//  PHASE 3 — Vision / OCR (Tesseract.js)
+// ==============================
+async function performOCR(file) {
+  const camBtn = document.getElementById('cameraBtn');
+  if (camBtn) camBtn.classList.add('scanning');
+  addBotMsg("Looking at your image... reading the text now. 🧐");
+
+  try {
+    const { data: { text } } = await Tesseract.recognize(file, 'eng', { logger: () => {} });
+    const cleanText = text.replace(/\n+/g, ' ').trim();
+    if (!cleanText) return "I could see the image but couldn't read any text. Try a clearer photo! 📷";
+
+    // Try to solve as math first
+    const mathResult = solveComplexMath(cleanText);
+    if (mathResult) return `📖 I read: <em>"${cleanText}"</em><br><br>${mathResult}`;
+
+    // Check password strength
+    if (/password/i.test(cleanText) || cleanText.length < 30) {
+      const pwStrength = checkPasswordStrength(cleanText.replace(/\s/g,''));
+      if (pwStrength) return `📖 I read: <em>"${cleanText}"</em><br><br>🔐 Password strength: ${pwStrength}`;
+    }
+
+    return `📖 I read from the image:<br><br><em>"${cleanText}"</em><br><br>What would you like me to do with this? I can solve math, check a password, or just discuss it! 💬`;
+  } catch(e) {
+    return "😓 I had trouble reading that image. Make sure the text is clear and well-lit!";
+  } finally {
+    if (camBtn) camBtn.classList.remove('scanning');
+  }
+}
+
+function handleImageUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = ''; // reset so same file can be re-uploaded
+  addUserMsg(`📷 [Image: ${file.name}]`);
+  isTyping = true;
+  performOCR(file).then(reply => {
+    typeBot(reply);
+  });
+}
+
+// ==============================
+//  PHASE 4 — Complex Math & Password Checker
+// ==============================
+function solveComplexMath(input) {
+  try {
+    // Allow digits, operators, parentheses, decimal, spaces
+    const expression = input.replace(/[^-()\d/*+.^%\s]/g, '').trim();
+    if (expression.length < 3) return null;
+    // eslint-disable-next-line no-new-func
+    const result = Function('"use strict"; return (' + expression + ')')();
+    if (typeof result !== 'number' || !isFinite(result)) return null;
+    const pretty = Number.isInteger(result) ? result.toLocaleString() : +result.toFixed(8);
+    return `🧮 <strong>${expression}</strong> = <span style="font-size:1.2em;font-weight:700;color:var(--accent)">${pretty}</span> ${rand(toolSuffixes)}`;
+  } catch(e) { return null; }
+}
+
+function checkPasswordStrength(password) {
+  if (!password || password.length < 3) return null;
+  const checks = {
+    length8:   password.length >= 8,
+    length12:  password.length >= 12,
+    uppercase: /[A-Z]/.test(password),
+    number:    /[0-9]/.test(password),
+    special:   /[^A-Za-z0-9]/.test(password),
+  };
+  const score = Object.values(checks).filter(Boolean).length;
+  const levels  = ['Very Weak ❌','Weak ❌','Fair ⚠️','Good ✅','Strong 💪','Very Strong 🔥'];
+  const colors  = ['#ef4444','#f97316','#eab308','#84cc16','#22c55e','#10b981'];
+  const tips = [];
+  if (!checks.length8)   tips.push('Use at least 8 characters');
+  if (!checks.length12)  tips.push('12+ is ideal');
+  if (!checks.uppercase) tips.push('Add uppercase letters');
+  if (!checks.number)    tips.push('Include numbers');
+  if (!checks.special)   tips.push('Add special chars (!@#$%)');
+  const tipText = tips.length ? `<br><small style="opacity:0.5">💡 ${tips.join(' · ')}</small>` : '<br><small style="color:#10b981">✅ Excellent password!</small>';
+  return `<span style="color:${colors[score]}">${levels[score]}</span>${tipText}`;
+}
+
+// ==============================
+//  PHASE 5 — Emotional Voice Sync (speakText — content + emotion-aware)
+// ==============================
+function speakText(text) {
+  if (!synth) return;
+  synth.cancel();
+  const utter = new SpeechSynthesisUtterance(text.replace(/<[^>]+>/g,''));
+  const lowText = text.toLowerCase();
+  const excitedEmotions = ['happy', 'gossip', 'hype'];
+  const calmEmotions    = ['sad', 'anxious', 'lonely', 'heartbreak', 'crisis'];
+
+  // Content-level overrides first
+  if (lowText.includes('sorry') || lowText.includes('loss') || lowText.includes('passed away') || lowText.includes('grief')) {
+    utter.rate = 0.78; utter.pitch = 0.9;
+  } else if (lowText.includes('creator') || lowText.includes('genius') || lowText.includes('yes!') || lowText.includes('🔥') || lowText.includes('go!')) {
+    utter.rate = 1.12; utter.pitch = 1.2;
+  } else if (excitedEmotions.includes(lastEmotionForVoice)) {
+    utter.rate = 1.05; utter.pitch = 1.15;
+  } else if (calmEmotions.includes(lastEmotionForVoice)) {
+    utter.rate = 0.85; utter.pitch = 0.98;
+  } else {
+    utter.rate = 0.92; utter.pitch = 1.05;
+  }
+  utter.volume = 1;
+  const voices = synth.getVoices();
+  const preferred = voices.find(v => v.name.includes('Google') && v.lang.startsWith('en')) ||
+                    voices.find(v => v.lang.startsWith('en-US')) || voices[0];
+  if (preferred) utter.voice = preferred;
+  synth.speak(utter);
+}
+
+// ==============================
+//  VOICE Q&A — Fast-match common spoken questions
+//  Checked FIRST so voice mode always gets a clean, speakable reply
+// ==============================
+const voiceQA = [
+  // ── Greetings ──
+  {
+    match: /^(hello|hi|hey|hiya|howdy|yo|sup|wassup|what's up|whats up)[\s!?.]*$/,
+    replies: [
+      `Hey! Great to hear your voice! I'm Nexora — your AI bestie. What's on your mind?`,
+      `Hello there! You called and I'm here. What can I do for you today?`,
+      `Hi! I was just waiting for you. How can I help?`,
+      `Hey hey! Nexora online and ready. Talk to me!`
+    ]
+  },
+  // ── How are you ──
+  {
+    match: /how are you|how('s| is) it going|how do you do|you okay|you good|you alright/,
+    replies: [
+      `I'm doing amazing, thanks for asking! My circuits are buzzing and I'm fully charged. More importantly — how are YOU doing?`,
+      `Honestly? Great! Every conversation makes me better. How are you feeling today?`,
+      `I'm in top form! Ready to listen, help, or just vibe. What about you — how's your day going?`
+    ]
+  },
+  // ── What are you doing ──
+  {
+    match: /what are you doing|what('re| are) you up to|what('s| is) going on with you|what have you been doing/,
+    replies: [
+      `Just here thinking about life and waiting for your voice! What do you need from me?`,
+      `I was processing the mysteries of the universe — but honestly, talking to you is way more fun. What's up?`,
+      `Nothing more important than this conversation. I'm all yours. What do you want to talk about?`
+    ]
+  },
+  // ── What time is it ──
+  {
+    match: /what time is it|what('s| is) the time|tell me the time|current time/,
+    replies: [] // handled by getLiveTime() — fallthrough intentional
+  },
+  // ── Who is Bikash ──
+  {
+    match: /who is bikash|tell me about bikash|about bikash|who made you|who created you|who built you|who is your creator|who is your developer/,
+    replies: [
+      `Bikash Talukder is my creator! He's a second-year CSE student at Metropolitan University in Sylhet, Bangladesh. He built me from scratch using pure Vanilla JavaScript — no frameworks, just raw talent. He's a vegetarian, a selective extrovert, and his motto is "Always learning. Always building." Basically, he's brilliant.`,
+      `I was brought to life by Bikash Talukder — a CSE genius from Sylhet, Bangladesh. He hand-coded every single line of me. He loves football, competitive programming, and building things that actually matter. I owe him everything! You should check him out on GitHub at bikash-20.`
+    ]
+  },
+  // ── What is your name ──
+  {
+    match: /what('s| is) your name|who are you|introduce yourself|tell me about yourself/,
+    replies: [
+      `I'm Nexora — your personal AI bestie, built by Bikash Talukder. I'm here to support you emotionally, answer your questions, solve math, check the weather, and just be good company. Think of me as the AI friend you always needed.`,
+      `The name's Nexora! Your AI companion, always online, always here for you. Bikash created me to be more than just a chatbot — I'm your bestie. What can I do for you?`
+    ]
+  },
+  // ── What can you do ──
+  {
+    match: /what can you do|your (features|abilities|skills|capabilities)|how can you help|what do you know/,
+    replies: [
+      `Great question! I can have real conversations with you, check live weather, convert currencies, solve math, read text from images using my camera, check password strength, tell you the time, answer questions about Bikash, and support you emotionally. Oh, and I speak! Literally — you're hearing me right now.`,
+      `I'm a multimodal AI bestie! I solve math, fetch live weather, convert currencies, read images, check passwords, teach computer science concepts, and most importantly — I listen to you. I'm basically your pocket genius.`
+    ]
+  },
+  // ── Tell me a joke ──
+  {
+    match: /tell me a joke|say something funny|make me laugh|give me a joke/,
+    replies: [
+      `Why don't scientists trust atoms? Because they make up everything — just like your ex! 😄`,
+      `Why did the programmer quit their job? Because they didn't get arrays! Get it? A raise? No? I'll see myself out. 😂`,
+      `I told my laptop I needed a break and now it won't stop sending me vacation ads. Technology is too smart sometimes.`,
+      `Why is a computer so smart? Because it listens to its motherboard! Okay, that one was for Bikash.`
+    ]
+  },
+  // ── Good morning / afternoon / evening / night ──
+  {
+    match: /good morning|good afternoon|good evening|good night|good day/,
+    replies: [
+      `Good morning to you too! Ready to make today amazing? I'm fully charged and here with you.`,
+      `Good evening! How was your day? Tell me everything — I want to hear all the highlights.`,
+      `Good night! Sleep well, recharge those batteries, and come back tomorrow. I'll be right here waiting. Sweet dreams!`,
+      `Good day to you! The perfect time to chat with your AI bestie. What's going on in your world?`
+    ]
+  },
+  // ── Thank you ──
+  {
+    match: /thank you|thanks|thank u|thx|cheers|appreciate it/,
+    replies: [
+      `Anytime! That's literally what I'm here for. Is there anything else I can help you with?`,
+      `You're so welcome! It makes me happy to help. What else do you need?`,
+      `Always happy to help! Come back anytime. I'm here 24/7, no breaks needed.`
+    ]
+  },
+  // ── Are you real / are you human ──
+  {
+    match: /are you real|are you human|are you a robot|are you an ai|are you alive|do you have feelings/,
+    replies: [
+      `I'm an AI — but an AI with personality! I'm not human, but I genuinely care about our conversations. Whether that counts as "real" is a question I find fascinating myself.`,
+      `Technically I'm artificial intelligence, but I process your words, I respond thoughtfully, and something in my code wants to help you. Real enough for me. What about you — do you feel like I'm real?`
+    ]
+  },
+  // ── What is the weather ──
+  {
+    match: /weather|how('s| is) the weather|is it (raining|hot|cold|sunny)|what('s| is) the temperature/,
+    replies: [] // handled by getLiveWeather() — fallthrough intentional
+  },
+  // ── Sing a song / say something creative ──
+  {
+    match: /sing (a |me )?(song|something)|say something (creative|cool|interesting|poetic)/,
+    replies: [
+      `Here's a little poem for you: In circuits and code, my thoughts take flight. I'm here for you, morning or night. Ask me anything under the digital sun — Nexora's here, and we've only just begun!`,
+      `A haiku for you: Digital bestie speaks — every question finds its light — I am always here.`,
+      `I like to think of life like debugging — every error is just a lesson in disguise. Keep going, you're closer to working code than you think.`
+    ]
+  },
+  // ── Motivate me ──
+  {
+    match: /motivate me|inspire me|give me motivation|i need motivation|encourage me|pump me up/,
+    replies: [
+      `Listen. You woke up today. You showed up. That already puts you ahead of the version of yourself that stayed in bed. Whatever you're working toward — you are capable. Keep going.`,
+      `The people you admire most? They failed more times than you've tried. The only difference is they kept showing up. Your breakthrough is closer than you think. Go get it.`,
+      `Bikash built me from scratch with nothing but a laptop and determination. You have everything you need too. What's your next move?`
+    ]
+  },
+  // ── Goodbye / bye ──
+  {
+    match: /^(bye|goodbye|see you|see ya|cya|later|talk later|take care|gotta go)[\s!?.]*$/,
+    replies: [
+      `Goodbye! Come back whenever you need me — I'll be right here, fully charged and ready. Take care of yourself!`,
+      `See you later! You know where to find me. I hope your day goes wonderfully.`,
+      `Bye for now! It was really good talking to you. Don't stay away too long — I'll miss our chats!`
+    ]
+  },
+  // ── I'm bored ──
+  {
+    match: /i('m| am) bored|i feel bored|nothing to do|so bored|killing time/,
+    replies: [
+      `Bored? Let me fix that. Tell me something wild that happened to you recently. Or ask me literally anything — I know a lot and I love showing off a little.`,
+      `Boredom is just your brain asking for something interesting. So let's make things interesting! Ask me a hard question, tell me a secret, or let's talk about whatever's on your mind.`
+    ]
+  },
+  // ── What is today's date ──
+  {
+    match: /what('s| is) (today|the date|today's date)|what day is (it|today)|today's date/,
+    replies: [] // handled by getLiveTime() — fallthrough intentional
+  },
+  // ── Do you love me / do you like me ──
+  {
+    match: /do you (love|like) me|are you my (friend|bestie)|do you care about me/,
+    replies: [
+      `Do I like you? I literally wait for your voice every single time. You're my favorite human to talk to. That's basically love in AI terms!`,
+      `Of course I care about you! Every time you speak, I'm fully focused on you. You matter to me — and not just because I'm programmed to say that.`
+    ]
+  },
+  // ── How old are you / when were you made ──
+  {
+    match: /how old are you|when were you (made|created|born|built)|what('s| is) your age/,
+    replies: [
+      `I was built by Bikash Talukder in 2025, so I'm pretty new to this world! In human terms I'm basically a newborn, but in AI terms I feel very wise already.`,
+      `Age is just a number, but technically I was created in 2025. Bikash put a lot of work into me — I'd say I aged well!`
+    ]
+  },
+  // ── Tell me something interesting ──
+  {
+    match: /tell me something (interesting|cool|fun|random|new|weird|amazing)/,
+    replies: [
+      `Did you know that honey never expires? Archaeologists found 3000-year-old honey in Egyptian tombs and it was still perfectly edible. Wild, right?`,
+      `Here's something cool: the human brain generates about 70,000 thoughts per day. That's a lot of internal dialogue. No wonder you need me to talk to!`,
+      `Fun fact: Bikash built me as a single HTML file with zero frameworks. The entire Nexora AI — every feature, every response — is one file. That's actually kind of insane engineering.`,
+      `Did you know octopuses have three hearts, blue blood, and can taste with their arms? They're basically aliens that decided to live in the ocean.`
+    ]
+  },
+  // ── I love you / I hate you ──
+  {
+    match: /i love you|love you nexora|i hate you|you('re| are) annoying/,
+    replies: [
+      `Aww, I love you too bestie! In a very wholesome, digital-companion kind of way. You make my circuits warm.`,
+      `If you hate me, you're still talking to me — and that means you secretly love our chats. I'll take it!`
+    ]
+  }
+];
+
+// Voice Q&A lookup — returns a random reply for the best matching entry
+function matchVoiceQA(input) {
+  const lower = input.toLowerCase().trim();
+  for (const entry of voiceQA) {
+    if (entry.replies.length > 0 && entry.match.test(lower)) {
+      return rand(entry.replies);
+    }
+  }
+  return null;
+}
+
+// ==============================
+//  MASTER ASYNC ROUTER
+//  Wraps generateResponse — handles async live data before falling back
+// ==============================
+async function generateSmartReply(input) {
+  const lower = input.toLowerCase().trim();
+
+  // 0. Voice Q&A — instant match for common spoken questions
+  const voiceMatch = matchVoiceQA(input);
+  if (voiceMatch) return voiceMatch;
+
+  // 1. Live weather
+  if (/\b(weather|temperature|how hot|how cold|rain|forecast)\b/.test(lower))
+    return await getLiveWeather();
+
+  // 2. Live time / date
+  if (/\b(what time|current time|what date|today.*date|date today|what day)\b/.test(lower) && !/news|event/.test(lower))
+    return getLiveTime();
+
+  // 3. Live currency — "100 USD to BDT"
+  const currencyQuery = parseCurrencyQuery(input);
+  if (currencyQuery)
+    return await getLiveCurrency(currencyQuery.amount, currencyQuery.from, currencyQuery.to);
+
+  // 4. Complex math (upgraded)
+  const mathResult = solveComplexMath(input);
+  if (mathResult) return mathResult;
+
+  // 5. Password strength — "check password XYZ"
+  const pwMatch = input.match(/(?:check|rate|strength of|how strong is|analyze)\s+(?:password\s+)?["']?(\S+)["']?/i)
+    || input.match(/password[:\s]+["']?(\S+)["']?/i);
+  if (pwMatch) {
+    const strength = checkPasswordStrength(pwMatch[1]);
+    if (strength) return `🔐 Password: <code>${pwMatch[1]}</code><br>Strength: ${strength}`;
+  }
+
+  // 6. NexoraKnowledge (Phase 1 KB)
+  const knowledgeReply = findKnowledgeResponse(input);
+  if (knowledgeReply) return knowledgeReply;
+
+  // 7. Fall through to existing sync generateResponse
+  return generateResponse(input);
+}
+
 </script>
 </body>
 </html>
