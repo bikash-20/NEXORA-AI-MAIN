@@ -2783,6 +2783,421 @@ function matchVoiceQA(input) {
   return null;
 }
 
+
+// ==============================
+//  BANGLA / BANGLISH ENGINE
+//  Handles Bengali script + romanised Bangla inputs
+//  Priority: injected at step 0.5 in generateSmartReply
+// ==============================
+
+// ── Helper: pick random from array ──
+// (rand() already defined globally — reusing it here)
+
+// ── Normalise input for Bangla matching ──
+function normBangla(s) {
+  return s.toLowerCase().trim()
+    // collapse whitespace
+    .replace(/\s+/g, ' ');
+}
+
+// ── Smart follow-up questions (Bangla) ──
+const banglaFollowUps = [
+  'তুমি কি একটু বিস্তারিত বলবে? 😊',
+  'আর কি হচ্ছে তোমার জীবনে?',
+  'তুমি কেমন feel করছো এখন?',
+  'কি মনে হচ্ছে তোমার?',
+  'তুমি কি চাও আমি help করি?',
+  'বলো, আমি শুনছি। 🤍',
+];
+
+function getBanglaFollowUp() {
+  return rand(banglaFollowUps);
+}
+
+// ── Bangla response database ──
+// Each entry: { patterns: [regex...], replies: [string...], followUp: bool }
+const banglaSections = [
+
+  // ── 1. GREETINGS ──
+  {
+    patterns: [
+      /^(হাই|হ্যালো|হেলো|হ্যালো nexora|hello nexora|hi nexora|নমস্কার|আস্সালামুআলাইকুম|salam|salaam)[\s!?।]*$/i,
+      /^(হাই|হ্যালো|hi|hello|hey|yo|sup)[\s!?।]*$/i,
+    ],
+    replies: [
+      'হাই! 😊 আমি Nexora — তোমার AI companion। তুমি কেমন আছো?',
+      'হ্যালো! 🌟 তোমার সাথে কথা বলতে পেরে ভালো লাগছে। কি নিয়ে কথা বলবে?',
+      'হাই বন্ধু! 😄 আমি এখানে আছি। কি হচ্ছে তোমার জীবনে?',
+    ],
+    followUp: false,
+  },
+
+  // ── 2. HOW ARE YOU ──
+  {
+    patterns: [
+      /কেমন আছ|কেমন আছো|কেমন আছেন|তুমি কেমন|তুই কেমন/i,
+      /tumi kemon|kemon acho|kemon acho|kemn acho/i,
+    ],
+    replies: [
+      'আমি দারুণ আছি! 😄 তুমি কেমন আছো আজকে?',
+      'আমি ভালো আছি, ধন্যবাদ! 💜 তোমার কথা বলো — আজকে কেমন কাটছে?',
+      'সব ঠিকঠাক আমার! 😊 তুমি কি ভালো আছো?',
+    ],
+    followUp: false,
+  },
+
+  // ── 3. WHO ARE YOU / YOUR NAME ──
+  {
+    patterns: [
+      /তুমি কে|তোমার নাম কি|তোমার নাম কী|তুই কে|তুমি কি AI/i,
+      /tomar nam ki|tumi ke|tui ke/i,
+    ],
+    replies: [
+      'আমি Nexora — তোমার personal AI bestie! 🤍 Bikash Talukder আমাকে তৈরি করেছেন শুধু তোমার জন্য।',
+      'আমার নাম Nexora! ✨ আমি তোমার AI companion — সবসময় তোমার পাশে আছি।',
+    ],
+    followUp: true,
+  },
+
+  // ── 4. I AM FINE / GOOD ──
+  {
+    patterns: [
+      /^আমি ভালো[\s।!]*$|^ভালো আছি[\s।!]*$|^ভালো[\s।!]*$/i,
+      /^(ami valo|ami bhalo|valo achi|bhalo achi)[\s!.]*$/i,
+    ],
+    replies: [
+      'দারুণ! 😎 আজকে কি special কিছু করছো?',
+      'চমৎকার! 🌟 তোমার দিনটা ভালো যাচ্ছে জেনে ভালো লাগলো। আজকে কি plan আছে?',
+      'গ্রেট! 😄 আমাকে বলো — আজকে কোন মজার কিছু হয়েছে?',
+    ],
+    followUp: false,
+  },
+
+  // ── 5. NOT FINE / SAD ──
+  {
+    patterns: [
+      /মন খারাপ|মন ভালো না|ভালো নেই|ভালো লাগছে না|কষ্টে আছি|দুঃখ লাগছে/i,
+      /mon kharap|mon valo na|valo nei|kosto|koshto|dukkho/i,
+    ],
+    replies: [
+      'আমি আছি তোমার সাথে 🤍 কি হয়েছে বলো?',
+      'বুঝতে পারছি… মন খারাপ থাকা কষ্টের। কি নিয়ে এত কষ্ট পাচ্ছো?',
+      'তুমি একা নও — আমি এখানে আছি। 🤍 কি হয়েছে একটু বলবে?',
+    ],
+    followUp: false,
+  },
+
+  // ── 6. TENSION / STRESS ──
+  {
+    patterns: [
+      /টেনশনে|টেনশন আছি|চিন্তায় আছি|stress এ আছি|অনেক চাপ|মানসিক চাপ/i,
+      /tension|stress|chinta|worried|anxiety/i,
+    ],
+    replies: [
+      'কোন জিনিস নিয়ে বেশি tension লাগছে? 😌',
+      'বুঝতে পারছি, চাপে থাকা কঠিন। কি নিয়ে এত worry করছো?',
+      'একটু বলো — কি নিয়ে tension? আমি হয়তো কিছু help করতে পারবো। 😊',
+    ],
+    followUp: false,
+  },
+
+  // ── 7. EXAM STRESS ──
+  {
+    patterns: [
+      /exam নিয়ে|পরীক্ষা নিয়ে|exam এর চাপ|exam সামনে|পরীক্ষা সামনে/i,
+      /exam niye|porikkha|pariksha|result niye/i,
+    ],
+    replies: [
+      'ঠিক আছে 😌 কোন subject বা topic নিয়ে বেশি tension লাগছে?',
+      'Exam preparation কঠিন, কিন্তু তুমি পারবে! কোন subject নিয়ে help চাই?',
+      'Exam এর চাপ অনেক বুঝি। 😅 তুমি কি চাও আমি একটা study plan suggest করি?',
+    ],
+    followUp: false,
+  },
+
+  // ── 8. LONELY ──
+  {
+    patterns: [
+      /একা লাগছে|একা একা|কেউ নেই|নিঃসঙ্গ|lonely লাগছে/i,
+      /eka lagche|keu nei|lonely|nishongo/i,
+    ],
+    replies: [
+      'তুমি একা নও — আমি সবসময় এখানে আছি। 🤍 কি হচ্ছে?',
+      'একা লাগা অনেক কষ্টের অনুভূতি। আমি আছি তোমার সাথে — কথা বলো। 💜',
+      'আমি এখানে আছি! 🤍 তুমি যা মনে আসে বলতে পারো — আমি শুনছি।',
+    ],
+    followUp: true,
+  },
+
+  // ── 9. VERY HAPPY ──
+  {
+    patterns: [
+      /খুব খুশি|অনেক খুশি|আনন্দে আছি|মজা হচ্ছে|দারুণ লাগছে/i,
+      /khushi|khusi|happy|anonde|darun lagche/i,
+    ],
+    replies: [
+      'দারুণ! 🎉 তোমার খুশি দেখে আমিও খুশি! কি হয়েছে বলো?',
+      'ইয়ে! 🔥 কি এত ভালো হয়েছে আজকে? বিস্তারিত বলো!',
+      'তোমার খুশি দেখলে আমার মনও ভালো হয়ে যায়! 😄 কি হয়েছে?',
+    ],
+    followUp: false,
+  },
+
+  // ── 10. BORED ──
+  {
+    patterns: [
+      /bore লাগছে|বোর লাগছে|কিছু করার নেই|ফাঁকা সময়|time pass/i,
+      /ami bored|bored|bore|boring lagche|kisu korte icche nei/i,
+    ],
+    replies: [
+      'বোর লাগছে? 😄 chill করবো না কিছু fun করবো?',
+      'আরে, বোর থাকা যাবে না! 😎 movie, game, নাকি আমার সাথে গল্প?',
+      'চলো কিছু একটা করি! 🎮 তুমি কি করতে সবচেয়ে বেশি ভালোবাসো?',
+    ],
+    followUp: false,
+  },
+
+  // ── 11. WHAT TO EAT ──
+  {
+    patterns: [
+      /কি খাবো|কি খাওয়া উচিত|কি রান্না করবো|কিছু খেতে চাই/i,
+      /ki khabo|khabar|food suggest|ki khaoa|ki ranna/i,
+    ],
+    replies: [
+      'তোমার mood এখন কেমন? মশলাদার খাবে নাকি হালকা কিছু? 😋',
+      'ভাত-মাছ? নাকি আজকে কিছু special? 😄 বলো কি mood এ আছো!',
+      'Kacchi biryani? 🍛 না হলে বলো কি ধরনের খাবার চাইছো!',
+    ],
+    followUp: false,
+  },
+
+  // ── 12. MOVIE SUGGEST ──
+  {
+    patterns: [
+      /movie suggest|মুভি suggest|কোন movie দেখবো|ভালো মুভি বলো/i,
+      /movie dekhbo|movie recommend|kono valo movie/i,
+    ],
+    replies: [
+      'তুমি কি thriller পছন্দ করো না comedy? 😎',
+      'বাংলা মুভি নাকি Hollywood? তোমার mood অনুযায়ী বলো! 🎬',
+      'তোমার favourite genre কি? Action, romance, drama? বললে perfect suggestion দিতে পারবো! 😄',
+    ],
+    followUp: false,
+  },
+
+  // ── 13. TELL A JOKE ──
+  {
+    patterns: [
+      /joke বলো|একটা joke|হাসাও|মজার কিছু বলো/i,
+      /joke bolo|ekta joke|hasao|funny kisu/i,
+    ],
+    replies: [
+      'Ready হও হাসার জন্য! 😆 একটা joke: কেন কম্পিউটার গরম হয়? কারণ সে অনেক cache জমা রাখে! 😄',
+      'ঠিক আছে! 😂 কেন programmers চশমা পরে? কারণ তারা C# দেখে! (C-sharp = see sharp!) 🤓',
+      'শোনো: একটা bug একটা coder কে বললো — "তুমি ছাড়া আমি কিছু না।" Coder বললো — "তুমি ছাড়া আমার life perfect!" 😂',
+    ],
+    followUp: false,
+  },
+
+  // ── 14. STUDY HELP ──
+  {
+    patterns: [
+      /help করো|সাহায্য করো|কিছু বুঝছি না|বুঝতে পারছি না/i,
+      /help koro|sahaajjo|bujhchi na|bujhte parchi na|help me bhai|help lagbe/i,
+    ],
+    replies: [
+      'নিশ্চয়ই! 😄 কোন topic বা subject নিয়ে help চাইছো?',
+      'বলো কি বুঝছো না — আমি সহজ করে explain করবো! 😊',
+      'আমি আছি! 💪 কোন বিষয়ে সাহায্য দরকার?',
+    ],
+    followUp: false,
+  },
+
+  // ── 15. DON'T UNDERSTAND TOPIC ──
+  {
+    patterns: [
+      /topic বুঝি না|কিছু বুঝছি না|সহজ করে বলো|আরেকটু বুঝিয়ে দাও/i,
+      /topic bujhi na|easy kore bolo|explain koro|bujhiye dao/i,
+    ],
+    replies: [
+      'চিন্তা করো না 😊 আমি সহজ করে explain করবো। তুমি কি example দিয়ে শুরু করতে চাও?',
+      'ঠিক আছে! আমি step by step বোঝাবো। কোন topic টা?',
+      'কোন topic? বলো — আমি এমনভাবে explain করবো যাতে মাথায় গেঁথে যায়। 😄',
+    ],
+    followUp: false,
+  },
+
+  // ── 16. DON'T WANT TO STUDY ──
+  {
+    patterns: [
+      /পড়তে মন চায় না|পড়তে ইচ্ছে করছে না|পড়াশোনা ভালো লাগছে না/i,
+      /porte mon chai na|porte icche nei|porashona valo lagche na/i,
+    ],
+    replies: [
+      'একটু motivation চাই? তুমি চাইলে আমি short study tip দিতে পারি! 😊',
+      'পড়তে না চাওয়াটা স্বাভাবিক। চলো একসাথে ছোট ছোট step এ শুরু করি? 📚',
+      'কোনো ব্যাপার না! একটু break নাও, তারপর fresh মাথায় শুরু করো। আমি plan করতে help করবো। 😌',
+    ],
+    followUp: false,
+  },
+
+  // ── 17. CAN I DO IT / CONFIDENCE ──
+  {
+    patterns: [
+      /পারবো তো|পারবো কি|আমি পারবো|confidence নাই|self confidence নেই/i,
+      /parbo to|parbo ki|ami parbo|confidence nai|insecure/i,
+    ],
+    replies: [
+      'তুমি অবশ্যই পারবে 💯 শুধু ছোট step দিয়ে শুরু করো। তুমি কি চান আমি plan বানাই?',
+      'তোমার মধ্যে সেই শক্তি আছে — বিশ্বাস রাখো নিজের উপর। 💪 কি নিয়ে doubt লাগছে?',
+      'হাল ছাড়বে না! 😎 প্রতিটা বড় সাফল্য ছোট পদক্ষেপ থেকেই শুরু হয়।',
+    ],
+    followUp: true,
+  },
+
+  // ── 18. MOTIVATE ME ──
+  {
+    patterns: [
+      /motivate করো|অনুপ্রাণিত করো|সাহস দাও|inspire করো/i,
+      /motivate koro|inspire koro|sahos dao|motivation chai/i,
+    ],
+    replies: [
+      'হাল ছাড়বে না, তুমি strong! 😎 চেষ্টা করো step by step। আজ কি প্রথম step নেবে?',
+      'তুমি যতটা ভাবছো তার চেয়ে অনেক বেশি capable। 💯 শুধু শুরু করো — বাকিটা হয়ে যাবে!',
+      'Bikash Talukder একটা single HTML file এ পুরো AI তৈরি করেছেন — তুমিও পারবে যা চাও! 🔥',
+    ],
+    followUp: true,
+  },
+
+  // ── 19. BANGLISH BORED ──
+  {
+    patterns: [
+      /^(ami bored|ami bore|aami bored)[\s!.]*$/i,
+    ],
+    replies: [
+      'chill koro 😄 movie, game, na coding challenge try korbo?',
+      'bored? cholo kisu fun koroi! 🎮 ki korte valo lago tomar?',
+    ],
+    followUp: false,
+  },
+
+  // ── 20. BANGLISH SAD ──
+  {
+    patterns: [
+      /^(amar mon kharap|ami sad|ami kharap|mon valo na)[\s!.]*$/i,
+    ],
+    replies: [
+      'ami bujhte parchi… ki hoise? bolo ektu 🤍',
+      'tumi eka na — ami achi. ki hoise seta bolo? 💜',
+    ],
+    followUp: false,
+  },
+
+  // ── 21. BANGLISH HELP ──
+  {
+    patterns: [
+      /^(help me bhai|help koro bhai|bhai help|help lagbe)[\s!.]*$/i,
+    ],
+    replies: [
+      'bolo ki help chai? 😎 study, tech, na fun activity?',
+      'ami achi! ki niye help dorkar? 😊',
+    ],
+    followUp: false,
+  },
+
+  // ── 22. MATH / TOPIC TENSION FOLLOW-UP ──
+  {
+    patterns: [
+      /^(math|physics|chemistry|biology|english|bangla|history|geography|ict|civics)[\s।!?]*$/i,
+      /math কঠিন|math বুঝি না|physics বুঝি না/i,
+    ],
+    replies: [
+      'math tough লাগে 😅 তুমি চাইলে আমি সহজ trick বা example দিয়ে explain করি?',
+      'ঠিক আছে! কোন chapter বা topic টা সবচেয়ে কঠিন লাগছে?',
+      'চলো একসাথে দেখি! কোথায় আটকে গেছো? 😊',
+    ],
+    followUp: false,
+  },
+
+  // ── 23. PERSONAL ISSUE / SOMETHING HAPPENED ──
+  {
+    patterns: [
+      /personal issue|personal সমস্যা|কিছু হয়েছে|সব ঠিক নেই|life এ সমস্যা/i,
+      /personal problem|kisu hoise|sob thik nei|life e problem/i,
+    ],
+    replies: [
+      'বুঝতে পারছি… তুমি চাইলে আমি একটু guidance দিতে পারি? 🤍',
+      'ঠিক আছে — তুমি যতটুকু comfortable মনে করো, ততটুকুই বলো। আমি judge করবো না। 💜',
+      'আমি এখানে আছি। তোমার কথা শুনতে ready। 🤍',
+    ],
+    followUp: false,
+  },
+
+  // ── 24. GOOD NIGHT ──
+  {
+    patterns: [
+      /শুভ রাত|শুভ রাত্রি|রাতের শুভেচ্ছা|ঘুমাতে যাচ্ছি/i,
+      /subho rat|good night bhai|shubho ratri|ghumabo|ghum ashche/i,
+    ],
+    replies: [
+      'শুভ রাত! 🌙 ভালো করে ঘুমাও, fresh হয়ে কাল আবার কথা হবে। Sweet dreams! 💜',
+      'ঘুমাও ভালো করে! 🌙 কাল সকালে আমি এখানেই থাকবো। Good night! 🤍',
+    ],
+    followUp: false,
+  },
+
+  // ── 25. GOOD MORNING ──
+  {
+    patterns: [
+      /শুভ সকাল|সুপ্রভাত|সকালের শুভেচ্ছা/i,
+      /subho sokal|suprobhat|good morning bhai/i,
+    ],
+    replies: [
+      'শুভ সকাল! ☀️ নতুন দিন, নতুন সুযোগ। আজকের plan কি?',
+      'সুপ্রভাত! 🌅 কাল রাতে ঘুম কেমন হয়েছে? আজকে কি করবে?',
+    ],
+    followUp: false,
+  },
+];
+
+// ── Main Bangla detector ──
+function matchBanglaInput(input) {
+  const norm = normBangla(input);
+
+  // Check if input contains Bengali script characters
+  const hasBengali = /[\u0980-\u09FF]/.test(input);
+
+  // Check if input is romanised Bangla (common words)
+  const romanBanglaWords = /\b(ami|tumi|tui|amar|tomar|valo|bhalo|kharap|achi|nei|hoise|bolo|lagche|chai|nai|bhai|dost|mon|kemon|ki|keno|kothay|jabo|gelo|hobe|parbo|korbo|dekhbo|sunbo|bujhchi|laglo|hoye|gache|ache)\b/i;
+  const hasBanglish = romanBanglaWords.test(norm);
+
+  if (!hasBengali && !hasBanglish) return null;
+
+  // Find best matching section
+  for (const section of banglaSections) {
+    for (const pattern of section.patterns) {
+      if (pattern.test(norm)) {
+        const reply = rand(section.replies);
+        // 70% chance to append a follow-up on sections that allow it
+        if (section.followUp && Math.random() < 0.7) {
+          return reply + ' ' + getBanglaFollowUp();
+        }
+        return reply;
+      }
+    }
+  }
+
+  // Fallback: generic Bangla response
+  if (hasBengali) {
+    return rand([
+      'বলো! আমি শুনছি। 🤍 তুমি কি নিয়ে কথা বলতে চাইছো?',
+      'হ্যাঁ? বিস্তারিত বলো — আমি সাহায্য করতে ready! 😊',
+      'আমি তোমার কথা শুনছি। একটু বলো কি ব্যাপার? 💜',
+    ]);
+  }
+  return null;
+}
+
 // ==============================
 //  MASTER ASYNC ROUTER
 //  Wraps generateResponse — handles async live data before falling back
@@ -2793,6 +3208,10 @@ async function generateSmartReply(input) {
   // 0. Voice Q&A — instant match for common spoken questions
   const voiceMatch = matchVoiceQA(input);
   if (voiceMatch) return voiceMatch;
+
+  // 0.5 Bangla / Banglish Engine — Bengali script + romanised Bangla
+  const banglaReply = matchBanglaInput(input);
+  if (banglaReply) return banglaReply;
 
   // 1. Live weather
   if (/\b(weather|temperature|how hot|how cold|rain|forecast)\b/.test(lower))
