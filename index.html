@@ -693,6 +693,182 @@
     text-transform: uppercase;
     margin-bottom: 6px;
   }
+
+  /* ===== LIGHT MODE ===== */
+  body.light-mode {
+    --bg: #f5f5fa;
+    --surface: #ffffff;
+    --surface2: #ededf5;
+    --surface3: #e0e0ec;
+    --text: #111118;
+    --text2: #44445a;
+    --text3: #88889a;
+    --border: rgba(0,0,0,0.08);
+    --border2: rgba(168,85,247,0.3);
+  }
+  body.light-mode #phone {
+    border-color: rgba(0,0,0,0.1);
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.05), 0 32px 80px rgba(0,0,0,0.12), 0 0 60px rgba(168,85,247,0.08);
+  }
+  body.light-mode .bot-bub { background: #e8e8f5; }
+  body.light-mode .typing-bub { background: #e8e8f5; }
+  body.light-mode .answer-card { background: #eaeaf5; }
+  body.light-mode .resource-card { background: rgba(239,68,68,0.06); }
+
+  /* ===== THEME TOGGLE BTN ===== */
+  #themeToggle {
+    width: 30px; height: 30px; border-radius: 10px;
+    background: var(--surface2);
+    border: 0.5px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 15px;
+    transition: background 0.15s;
+    flex-shrink: 0;
+  }
+  #themeToggle:active { background: var(--surface3); }
+
+  /* ===== EXPORT BUTTON ===== */
+  #exportBtn {
+    position: absolute; bottom: 80px; right: 16px;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: var(--surface2);
+    border: 0.5px solid var(--border2);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 15px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    z-index: 10;
+    transition: transform 0.15s;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s, transform 0.15s;
+  }
+  #exportBtn.visible { opacity: 1; pointer-events: auto; }
+  #exportBtn:active { transform: scale(0.92); }
+
+  /* ===== SCROLL TO BOTTOM BTN ===== */
+  #scrollBtn {
+    position: absolute; bottom: 130px; right: 16px;
+    width: 34px; height: 34px; border-radius: 50%;
+    background: var(--surface2);
+    border: 0.5px solid var(--border2);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 14px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    z-index: 10;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  #scrollBtn.visible { opacity: 1; pointer-events: auto; }
+
+  /* ===== READ RECEIPT ===== */
+  .read-receipt {
+    font-size: 10px; color: var(--accent2);
+    text-align: right;
+    margin-top: 2px;
+    opacity: 0;
+    transition: opacity 0.4s ease 0.8s;
+    letter-spacing: 0.3px;
+  }
+  .read-receipt.shown { opacity: 1; }
+
+  /* ===== COPY TOAST ===== */
+  #copyToast {
+    position: absolute;
+    bottom: 160px; left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    background: rgba(217,79,245,0.9);
+    color: white;
+    font-size: 12px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    z-index: 200;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+    white-space: nowrap;
+  }
+  #copyToast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* ===== CONTEXT CHIPS (after bot reply) ===== */
+  .context-chips {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    padding: 0 16px 6px;
+    animation: msg-in 0.3s ease;
+  }
+  .ctx-chip {
+    background: var(--surface2);
+    border: 0.5px solid var(--border2);
+    border-radius: 20px;
+    padding: 6px 12px;
+    font-size: 12px;
+    color: var(--accent2);
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+  .ctx-chip:active { background: var(--surface3); }
+
+  /* ===== SEARCH BAR ===== */
+  #searchOverlay {
+    position: absolute; inset: 0;
+    background: var(--bg);
+    z-index: 50;
+    display: none; flex-direction: column;
+    padding: 14px 16px;
+    gap: 12px;
+  }
+  #searchOverlay.open { display: flex; }
+  .search-header {
+    display: flex; align-items: center; gap: 10px;
+  }
+  #searchInput {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 14px;
+    padding: 10px 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: var(--text);
+    outline: none;
+  }
+  #searchInput::placeholder { color: var(--text3); }
+  .search-close {
+    width: 36px; height: 36px; border-radius: 12px;
+    background: var(--surface2); border: none;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 18px; color: var(--text2);
+  }
+  #searchResults {
+    flex: 1; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .search-result-item {
+    background: var(--surface2);
+    border: 0.5px solid var(--border);
+    border-radius: 14px;
+    padding: 10px 13px;
+    font-size: 13px;
+    color: var(--text2);
+    line-height: 1.5;
+  }
+  .search-result-item mark {
+    background: rgba(217,79,245,0.25);
+    color: var(--accent);
+    border-radius: 3px;
+  }
+  .search-no-result {
+    text-align: center; color: var(--text3);
+    font-size: 13px; margin-top: 30px;
+  }
+
+  /* ===== BUBBLE COPY HINT ===== */
+  .bot-bub { cursor: pointer; }
+  .bot-bub:active { opacity: 0.8; }
 </style>
 </head>
 <body>
@@ -717,8 +893,11 @@
         <p id="headerStatus">here for you</p>
       </div>
     </div>
-    <div class="menu-btn" onclick="toggleMenu()">
-      <span></span><span></span><span></span>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark">🌙</div>
+      <div class="menu-btn" onclick="toggleMenu()">
+        <span></span><span></span><span></span>
+      </div>
     </div>
   </div>
 
@@ -728,7 +907,22 @@
     <div class="mode-item" onclick="setMode('gossip')" id="mode-gossip"><span>✨</span> Gossip Mode</div>
     <div class="mode-item" onclick="setMode('hype')" id="mode-hype"><span>🔥</span> Hype Mode</div>
     <div class="mode-item" onclick="switchToVoice()" id="mode-voice"><span>🎙️</span> Voice Mode</div>
+    <div class="mode-item" onclick="openSearch()"><span>🔍</span> Search Chat</div>
+    <div class="mode-item" onclick="exportChat()"><span>💾</span> Export Chat</div>
+    <div class="mode-item" onclick="clearChat()" style="color:#f87171"><span>🗑️</span> Clear Chat</div>
   </div>
+
+  <!-- Search overlay -->
+  <div id="searchOverlay">
+    <div class="search-header">
+      <input id="searchInput" placeholder="Search in chat…" oninput="doSearch(this.value)" autocomplete="off"/>
+      <button class="search-close" onclick="closeSearch()">✕</button>
+    </div>
+    <div id="searchResults"></div>
+  </div>
+
+  <!-- Copy toast -->
+  <div id="copyToast">Copied! 📋</div>
 
   <!-- NAME SCREEN -->
   <div class="screen active" id="nameScreen">
@@ -756,6 +950,10 @@
     <div id="messages">
       <div class="date-divider" id="dateDivider"></div>
     </div>
+    <!-- Scroll to bottom button -->
+    <div id="scrollBtn" onclick="scrollToBottom()" title="Scroll to latest">↓</div>
+    <!-- Export button -->
+    <div id="exportBtn" onclick="exportChat()" title="Export chat">💾</div>
     <div id="moodBar">
       <div class="chip" onclick="quickSend('I feel sad today')">😢 Sad</div>
       <div class="chip" onclick="quickSend('I am feeling really happy!')">😄 Happy</div>
@@ -833,6 +1031,7 @@ let topicMemory = [];
 let userProfile = { emotional: 0, logical: 0 };
 let currentScreen = 'nameScreen';
 let menuOpen = false;
+let isLightMode = false;
 
 // ── New: Mood, Idle, Context ──
 let nexoraMood = 60;          // 0–100; drives orb color tint and energy
@@ -840,6 +1039,11 @@ let idleTimer  = null;        // proactive ping timer
 let lastContext = '';         // last Dhaka context string (avoid repeating)
 let lastEmotionForVoice = 'default'; // used to tune TTS prosody
 let pokeCount = 0;            // escalating poke/annoy counter
+
+// ── In-session conversation memory ──
+let sessionLog = [];          // { role:'user'|'bot', text } — last 20 turns
+let lastBotEmotion = 'default';   // last detected emotion in bot reply context
+let contextChipCooldown = false;  // prevent chip spam
 
 // ==============================
 //  CORE UTILITIES (required by almost everything below)
@@ -870,6 +1074,14 @@ window.addEventListener('load', () => {
   updateClock();
   setInterval(updateClock, 30000);
 
+  // Load theme preference
+  const savedTheme = localStorage.getItem('nexora_theme');
+  if (savedTheme === 'light') {
+    isLightMode = true;
+    document.body.classList.add('light-mode');
+    document.getElementById('themeToggle').textContent = '🌑';
+  }
+
   const savedName = localStorage.getItem('nexora_name');
   if (savedName) {
     userName = savedName;
@@ -879,8 +1091,12 @@ window.addEventListener('load', () => {
     userProfile   = JSON.parse(localStorage.getItem('nexora_profile')  || '{"emotional":0,"logical":0}');
     nexoraMood    = parseInt(localStorage.getItem('nexora_mood')       || '60', 10);
     showScreen('chatScreen');
+
+    // Load persistent chat history
+    const historyLoaded = loadChatHistory();
+
     setTimeout(() => {
-      checkRemembranceDay(); // check if today is a tough anniversary
+      checkRemembranceDay();
       greetReturningUser();
     }, 400);
     resetIdleTimer();
@@ -903,6 +1119,17 @@ window.addEventListener('load', () => {
       menuOpen = false;
     }
   });
+
+  // Scroll-to-bottom button visibility
+  const msgs = document.getElementById('messages');
+  if (msgs) {
+    msgs.addEventListener('scroll', () => {
+      const btn = document.getElementById('scrollBtn');
+      if (!btn) return;
+      const nearBottom = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 120;
+      btn.classList.toggle('visible', !nearBottom);
+    });
+  }
 });
 
 function updateClock() {
@@ -974,6 +1201,9 @@ function startApp() {
   userName = n;
   userInitials = n.slice(0, 2).toUpperCase();
   localStorage.setItem('nexora_name', n);
+  // Clear old chat history on new name entry
+  localStorage.removeItem('nexora_chat_v2');
+  sessionLog = [];
   showScreen('chatScreen');
   resetIdleTimer();
   setTimeout(() => {
@@ -1102,7 +1332,15 @@ const followUps = {
   motivation: ["What's the one thing holding you back right now?", "What does your dream outcome look like?", "What's one tiny step you could take today?"]
 };
 
-const humanStarters = ["Hmm…", "I see…", "Hey…", "Oh…", "You know what,", "Honestly,", "Listen —"];
+const humanStarters = [
+  "Hmm…", "I see…", "Hey…", "Oh…", "You know what,", "Honestly,", "Listen —",
+  "Okay so —", "Wait, really?", "Okay I hear you —", "That's… a lot.",
+  "I won't pretend that's easy —", "Ohhh.", "Actually,", "Here's the thing —",
+  "Not going to lie,", "Lowkey though,", "Between us?", "Real talk —",
+  "Okay but —", "Hmm, I'm thinking…", "You know what I think?",
+  "That hit different.", "Say less —", "Hold on —", "Fair enough —",
+  "I get it,", "I feel that.", "No wonder you feel that way —",
+];
 const softeners = ["a bit", "kind of", "maybe", "sometimes", "a little"];
 
 function detectEmotion(msg) {
@@ -1435,13 +1673,34 @@ for (const keyword of bestieKeywords) {
 }
 
 // Check knowledge base — longest matching keyword wins; deflects on immediate repeat
+// Also does TOKEN-BASED scoring so even one matching word gets a relevant reply
 function checkKnowledgeBase(msg) {
   const lower = msg.toLowerCase();
+
+  // ── Pass 1: exact phrase match (longest first) ──
   let bestKey = null;
   for (const keyword of bestieKeywords) {
     if (bestieQARegexes[keyword].test(lower)) { bestKey = keyword; break; }
   }
+
+  // ── Pass 2: token scoring — extract words and score against KB keys ──
+  if (!bestKey) {
+    const tokens = lower.replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(t => t.length > 3);
+    let bestScore = 0;
+    for (const keyword of bestieKeywords) {
+      const kTokens = keyword.split(/\s+/);
+      let score = 0;
+      for (const kw of kTokens) {
+        if (tokens.includes(kw)) score += kw.length; // longer word match = higher score
+      }
+      if (score > bestScore) { bestScore = score; bestKey = keyword; }
+    }
+    // Only accept token match if score is meaningful (avoids noise)
+    if (bestScore < 4) bestKey = null;
+  }
+
   if (!bestKey) return null;
+
   // Same question twice in a row → use deflection variant if available
   if (bestKey === lastKBKey && bestieDeflect[bestKey]) {
     lastKBKey = bestKey;
@@ -2079,7 +2338,21 @@ function generateResponse(msg) {
   const memory  = memoryResponse();
   const intense = intensityReply(emotion, intensity);
 
-  let reply = (intense || memory) + base;
+  // ── In-session memory: occasionally reference something user said earlier ──
+  let sessionRef = '';
+  if (sessionLog.length >= 4 && Math.random() > 0.75) {
+    const earlier = sessionLog.slice(-6, -2).find(e => e.role === 'user' && e.text.length > 10);
+    if (earlier) {
+      const refStarters = [
+        `You mentioned earlier — "${earlier.text.slice(0, 40)}…" — that's still on my mind. `,
+        `I haven't forgotten what you said before. `,
+        `Going back to what you shared a moment ago — `,
+      ];
+      sessionRef = rand(refStarters);
+    }
+  }
+
+  let reply = (intense || memory || sessionRef) + base;
   if (Math.random() > 0.55 && follow) reply += ' ' + follow;
 
   if (userProfile.emotional > userProfile.logical + 5 && !reply.includes('🤍')) reply += ' 🤍';
@@ -2092,6 +2365,21 @@ function generateResponse(msg) {
 
   return flavorResponse(reply, emotion);
 }
+
+// ==============================
+//  SMART FALLBACK — when nothing matches
+//  Returns a clarifying question instead of a generic reply
+// ==============================
+const smartFallbacks = [
+  "Hmm, I want to make sure I understand — can you say that a bit differently? 😊",
+  "Wait, tell me more about that. What's going on exactly?",
+  "I caught part of that — what's the main thing you want to talk about?",
+  "Okay, I'm with you. Can you give me a bit more context?",
+  "That's interesting — I want to fully get it. Can you unpack that a little?",
+  "I'm listening, I promise! Just help me understand what you mean?",
+  "Say more — I'm here and I want to understand properly. 🤍",
+  "Hmm, you've got my attention. What specifically is on your mind?",
+];
 
 // ==============================
 //  CHAT UI
@@ -2109,8 +2397,14 @@ function addBotMsg(text) {
 
   const bub = document.createElement('div');
   bub.className = 'bubble bot-bub';
+  bub.style.cursor = 'pointer';
+  bub.title = 'Tap to copy';
   // Use innerHTML so HTML-formatted replies (weather, math, currency) render correctly
   bub.innerHTML = text;
+  bub.addEventListener('click', () => {
+    const plain = bub.innerText || bub.textContent;
+    navigator.clipboard.writeText(plain).then(() => showCopyToast()).catch(() => {});
+  });
 
   const t = document.createElement('div');
   t.className = 'bubble-time';
@@ -2122,6 +2416,11 @@ function addBotMsg(text) {
   row.appendChild(col);
   messages.appendChild(row);
   messages.scrollTop = messages.scrollHeight;
+
+  // Push to session log
+  sessionLog.push({ role: 'bot', text: bub.textContent });
+  if (sessionLog.length > 20) sessionLog.shift();
+  saveChatHistory();
 
   // check if crisis
   if (text.includes('crisis line') || text.includes('Kaan Pete Roi')) {
@@ -2135,6 +2434,10 @@ function addBotMsg(text) {
 
 function addUserMsg(text) {
   const messages = document.getElementById('messages');
+  // Remove any context chips when user sends
+  const chips = document.querySelector('.context-chips');
+  if (chips) chips.remove();
+
   const row = document.createElement('div');
   row.className = 'msg-row user';
 
@@ -2143,13 +2446,25 @@ function addUserMsg(text) {
   const bub = document.createElement('div');
   bub.className = 'bubble user-bub';
   bub.textContent = text;
+  // Copy on tap for user bubbles too
+  bub.style.cursor = 'pointer';
+  bub.addEventListener('click', () => {
+    navigator.clipboard.writeText(text).then(() => showCopyToast()).catch(() => {});
+  });
 
   const t = document.createElement('div');
   t.className = 'bubble-time';
   t.textContent = getTime();
 
+  // ── Read receipt ──
+  const receipt = document.createElement('div');
+  receipt.className = 'read-receipt';
+  receipt.textContent = '✓✓ Read';
+  setTimeout(() => receipt.classList.add('shown'), 900);
+
   col.appendChild(bub);
   col.appendChild(t);
+  col.appendChild(receipt);
 
   const av = document.createElement('div');
   av.className = 'msg-av user-av';
@@ -2159,6 +2474,10 @@ function addUserMsg(text) {
   row.appendChild(av);
   messages.appendChild(row);
   messages.scrollTop = messages.scrollHeight;
+
+  // Push to session conversation log for in-session memory
+  sessionLog.push({ role: 'user', text });
+  if (sessionLog.length > 20) sessionLog.shift();
 }
 
 function typeBot(text, onDone, isIdlePing) {
@@ -2180,7 +2499,9 @@ function typeBot(text, onDone, isIdlePing) {
   messages.appendChild(typingRow);
   requestAnimationFrame(() => { messages.scrollTop = messages.scrollHeight; });
 
-  const delay = 800 + Math.random() * 600;
+  // ── Variable delay: longer messages = longer "thinking" time ──
+  const wordCount = content.split(/\s+/).length;
+  const delay = Math.min(600 + wordCount * 28 + Math.random() * 400, 2400);
 
   setTimeout(() => {
     const existing = document.getElementById('typing-row');
@@ -2193,6 +2514,12 @@ function typeBot(text, onDone, isIdlePing) {
     const col = document.createElement('div');
     const bub = document.createElement('div');
     bub.className = 'bubble bot-bub';
+    bub.title = 'Tap to copy';
+    // ── Copy on tap ──
+    bub.addEventListener('click', () => {
+      const plain = bub.innerText || bub.textContent;
+      navigator.clipboard.writeText(plain).then(() => showCopyToast()).catch(() => {});
+    });
     const t = document.createElement('div');
     t.className = 'bubble-time';
 
@@ -2202,30 +2529,44 @@ function typeBot(text, onDone, isIdlePing) {
     requestAnimationFrame(() => { messages.scrollTop = messages.scrollHeight; });
 
     if (isHTML) {
-      // Instant HTML render — no typewriter for rich cards
       bub.innerHTML = content;
       t.textContent = getTime();
       messages.scrollTop = messages.scrollHeight;
       isTyping = false;
+      saveChatHistory();
       if (onDone) onDone();
       if (currentScreen === 'voiceScreen') speakText(bub.textContent);
+      // Show context chips after HTML replies too
+      setTimeout(() => injectContextChips(), 400);
     } else {
-      // Typewriter effect
+      // ── Typewriter with human-like variable speed ──
       let i = 0;
+      const baseSpeed = content.length > 120 ? 10 : 16;
       function tick() {
         try {
           if (i < content.length) {
             bub.textContent += content[i++];
             if (i % 5 === 0) messages.scrollTop = messages.scrollHeight;
-            setTimeout(tick, 14);
+            // Slight pause at punctuation for human feel
+            const ch = content[i - 1];
+            const pause = (ch === '.' || ch === '!' || ch === '?') ? baseSpeed * 8
+                        : (ch === ',') ? baseSpeed * 3
+                        : baseSpeed + Math.random() * 6;
+            setTimeout(tick, pause);
           } else {
             t.textContent = getTime();
             messages.scrollTop = messages.scrollHeight;
             isTyping = false;
+            // Track in session log
+            sessionLog.push({ role: 'bot', text: content });
+            if (sessionLog.length > 20) sessionLog.shift();
+            saveChatHistory();
             if (onDone) onDone();
             if (currentScreen === 'voiceScreen') speakText(content);
             const trend = getEmotionTrend();
             if (trend && Math.random() > 0.7) showMemoryBadge(trend);
+            // Show context chips after reply
+            setTimeout(() => injectContextChips(), 500);
           }
         } catch(err) {
           console.error('typeBot tick error:', err);
@@ -2235,7 +2576,7 @@ function typeBot(text, onDone, isIdlePing) {
       tick();
     }
 
-    if (content.includes('crisis line')) {
+    if (content.includes('crisis line') || content.includes('Kaan Pete Roi')) {
       const card = document.createElement('div');
       card.className = 'resource-card';
       card.innerHTML = '📞 <strong>Bangladesh Crisis Line:</strong> Kaan Pete Roi — <a href="tel:01779554391" style="color:#fca5a5">01779-554391</a><br>You are not alone.';
@@ -2252,6 +2593,267 @@ function showMemoryBadge(trend) {
   if (trend === 'stress') text.textContent = "You've been under a lot of stress recently";
   badge.classList.add('show');
   setTimeout(() => badge.classList.remove('show'), 5000);
+}
+
+// ==============================
+//  THEME TOGGLE
+// ==============================
+function toggleTheme() {
+  isLightMode = !isLightMode;
+  document.body.classList.toggle('light-mode', isLightMode);
+  document.getElementById('themeToggle').textContent = isLightMode ? '🌑' : '🌙';
+  localStorage.setItem('nexora_theme', isLightMode ? 'light' : 'dark');
+}
+
+// ==============================
+//  COPY TOAST
+// ==============================
+function showCopyToast() {
+  const t = document.getElementById('copyToast');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+// ==============================
+//  SCROLL BUTTON
+// ==============================
+function scrollToBottom() {
+  const m = document.getElementById('messages');
+  m.scrollTo({ top: m.scrollHeight, behavior: 'smooth' });
+}
+
+// ==============================
+//  EXPORT CHAT
+// ==============================
+function exportChat() {
+  toggleMenu();
+  const rows = document.querySelectorAll('#messages .msg-row');
+  if (!rows.length) { alert('No messages to export yet!'); return; }
+  let out = `Nexora Chat — ${new Date().toLocaleString()}\n${'='.repeat(40)}\n\n`;
+  rows.forEach(row => {
+    const bub = row.querySelector('.bubble');
+    const time = row.querySelector('.bubble-time');
+    if (!bub) return;
+    const who = row.classList.contains('user') ? (userName || 'You') : 'Nexora';
+    const txt = (bub.innerText || bub.textContent).trim();
+    const ts  = time ? time.textContent : '';
+    out += `[${ts}] ${who}: ${txt}\n\n`;
+  });
+  const blob = new Blob([out], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `nexora-chat-${Date.now()}.txt`;
+  a.click();
+}
+
+function clearChat() {
+  toggleMenu();
+  if (!confirm('Clear all chat history? This cannot be undone.')) return;
+  const messages = document.getElementById('messages');
+  // Keep the date divider
+  messages.innerHTML = '<div class="date-divider" id="dateDivider">' + getTodayLabel() + '</div>';
+  // Remove context chips
+  const chips = document.querySelector('.context-chips');
+  if (chips) chips.remove();
+  // Clear storage
+  localStorage.removeItem('nexora_chat_v2');
+  sessionLog = [];
+  document.getElementById('exportBtn').classList.remove('visible');
+  // Confirm message
+  setTimeout(() => typeBot("All cleared! Fresh start. 🌱 What's on your mind?"), 300);
+}
+
+// ==============================
+//  SEARCH CHAT
+// ==============================
+function openSearch() {
+  toggleMenu();
+  document.getElementById('searchOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('searchInput').focus(), 100);
+}
+function closeSearch() {
+  document.getElementById('searchOverlay').classList.remove('open');
+  document.getElementById('searchInput').value = '';
+  document.getElementById('searchResults').innerHTML = '';
+}
+function doSearch(query) {
+  const res = document.getElementById('searchResults');
+  res.innerHTML = '';
+  if (!query.trim()) return;
+  const q = query.toLowerCase();
+  const rows = document.querySelectorAll('#messages .msg-row');
+  let count = 0;
+  rows.forEach(row => {
+    const bub = row.querySelector('.bubble');
+    if (!bub) return;
+    const txt = (bub.innerText || bub.textContent).trim();
+    if (!txt.toLowerCase().includes(q)) return;
+    count++;
+    const who = row.classList.contains('user') ? (userName || 'You') : 'Nexora';
+    const hl = txt.replace(new RegExp('(' + query.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi'), '<mark>$1</mark>');
+    const item = document.createElement('div');
+    item.className = 'search-result-item';
+    item.innerHTML = `<strong style="color:var(--accent2);font-size:11px">${who}</strong><br>${hl}`;
+    res.appendChild(item);
+  });
+  if (!count) {
+    res.innerHTML = '<div class="search-no-result">No results found 🔍</div>';
+  }
+}
+
+// ==============================
+//  CHAT HISTORY PERSISTENCE
+// ==============================
+function saveChatHistory() {
+  try {
+    const rows = document.querySelectorAll('#messages .msg-row');
+    const data = [];
+    rows.forEach(row => {
+      const bub = row.querySelector('.bubble');
+      const time = row.querySelector('.bubble-time');
+      if (!bub) return;
+      data.push({
+        role: row.classList.contains('user') ? 'user' : 'bot',
+        html: bub.innerHTML,
+        time: time ? time.textContent : ''
+      });
+    });
+    if (data.length > 200) data.splice(0, data.length - 200); // keep last 200
+    localStorage.setItem('nexora_chat_v2', JSON.stringify(data));
+    // Show export button once there are messages
+    const eb = document.getElementById('exportBtn');
+    if (eb && data.length > 2) eb.classList.add('visible');
+  } catch(e) {}
+}
+
+function loadChatHistory() {
+  try {
+    const raw = localStorage.getItem('nexora_chat_v2');
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (!data || !data.length) return false;
+    const messages = document.getElementById('messages');
+    data.forEach(entry => {
+      const row = document.createElement('div');
+      row.className = 'msg-row' + (entry.role === 'user' ? ' user' : '');
+      const col = document.createElement('div');
+      const bub = document.createElement('div');
+      bub.className = 'bubble ' + (entry.role === 'user' ? 'user-bub' : 'bot-bub');
+      bub.innerHTML = entry.html;
+      bub.style.cursor = 'pointer';
+      bub.addEventListener('click', () => {
+        const plain = bub.innerText || bub.textContent;
+        navigator.clipboard.writeText(plain).then(() => showCopyToast()).catch(() => {});
+      });
+      const t = document.createElement('div');
+      t.className = 'bubble-time';
+      t.textContent = entry.time;
+      col.appendChild(bub); col.appendChild(t);
+      if (entry.role === 'user') {
+        const av = document.createElement('div');
+        av.className = 'msg-av user-av';
+        av.textContent = userInitials;
+        row.appendChild(col); row.appendChild(av);
+      } else {
+        const av = document.createElement('div');
+        av.className = 'msg-av'; av.textContent = '✨';
+        row.appendChild(av); row.appendChild(col);
+      }
+      messages.appendChild(row);
+    });
+    messages.scrollTop = messages.scrollHeight;
+    document.getElementById('exportBtn').classList.add('visible');
+    return true;
+  } catch(e) { return false; }
+}
+
+// ==============================
+//  CONTEXT CHIPS — smart follow-up suggestions
+// ==============================
+const chipSets = {
+  sad:        ['Tell me more 💬', 'I need advice', 'Just listen 🤍', 'I\'m okay now'],
+  stress:     ['Help me calm down', 'Give me a tip 💡', 'Let\'s break it down', 'I\'ll be fine'],
+  happy:      ['Tell me more! 🎉', 'Share the vibe ✨', 'Let\'s celebrate!'],
+  lonely:     ['Talk to me 💜', 'Distract me', 'Why do I feel this way?'],
+  heartbreak: ['What do I do now?', 'Tell me it gets better', 'I need to vent'],
+  anxious:    ['Help me breathe', 'Calm my thoughts', 'Is this normal?'],
+  hype:       ['Pump me up! 🔥', 'One more thing!', 'Keep going 💪'],
+  gossip:     ['Tell me more 👀', 'What should I do?', 'Who asked? 😂'],
+  motivation: ['Give me more 🔥', 'I needed this', 'What\'s my next step?'],
+  default:    ['Tell me more', 'Ask me something', 'Change topic', 'I\'m feeling…']
+};
+
+function injectContextChips() {
+  if (contextChipCooldown) return;
+  // Only in chat screen
+  if (currentScreen !== 'chatScreen') return;
+  // Don't show after HTML cards
+  const messages = document.getElementById('messages');
+  // Remove old chips
+  const old = messages.parentElement.querySelector('.context-chips');
+  if (old) old.remove();
+
+  const emotion = lastEmotionForVoice || 'default';
+  const set = chipSets[emotion] || chipSets.default;
+  // Only show 30% of the time to avoid feeling mechanical
+  if (Math.random() > 0.45) return;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'context-chips';
+  set.forEach(label => {
+    const chip = document.createElement('div');
+    chip.className = 'ctx-chip';
+    chip.textContent = label;
+    chip.addEventListener('click', () => {
+      wrap.remove();
+      contextChipCooldown = true;
+      setTimeout(() => { contextChipCooldown = false; }, 8000);
+      // Map chip labels to quick sends
+      const chipMap = {
+        'Tell me more 💬': 'I want to tell you more about how I feel',
+        'Tell me more': 'Tell me more about that',
+        'I need advice': 'Can you give me some advice on this?',
+        'Just listen 🤍': 'I just need you to listen right now',
+        'I\'m okay now': 'Thanks, I\'m feeling a bit better now',
+        'Help me calm down': 'Can you help me calm down?',
+        'Give me a tip 💡': 'Give me a practical tip for this',
+        'Let\'s break it down': 'Let\'s break this down step by step',
+        'I\'ll be fine': 'Thanks, I\'ll be fine',
+        'Tell me more! 🎉': 'I want to tell you more about my good news!',
+        'Share the vibe ✨': 'Let me share more about what happened',
+        'Let\'s celebrate!': 'Let\'s celebrate this moment!',
+        'Talk to me 💜': 'Just talk to me, I\'m feeling lonely',
+        'Distract me': 'Can you distract me with something fun?',
+        'Why do I feel this way?': 'Why do I keep feeling lonely?',
+        'What do I do now?': 'What should I do after a heartbreak?',
+        'Tell me it gets better': 'Does it really get better with time?',
+        'I need to vent': 'I really need to vent right now',
+        'Help me breathe': 'Help me with a breathing exercise',
+        'Calm my thoughts': 'My thoughts are racing, help me slow down',
+        'Is this normal?': 'Is it normal to feel this anxious?',
+        'Pump me up! 🔥': 'Pump me up, I need motivation!',
+        'One more thing!': 'Tell me one more thing',
+        'Keep going 💪': 'Keep going, I love this energy!',
+        'Tell me more 👀': 'Tell me more, I\'m curious!',
+        'What should I do?': 'What should I do about this?',
+        'Who asked? 😂': 'Nobody asked but I love it 😂',
+        'Give me more 🔥': 'Give me more motivation!',
+        'I needed this': 'I really needed to hear that, thank you',
+        'What\'s my next step?': 'What\'s my next step?',
+        'Ask me something': 'Ask me something interesting',
+        'Change topic': 'Let\'s change the topic',
+        'I\'m feeling…': 'I\'m feeling something I can\'t describe'
+      };
+      const msg = chipMap[label] || label;
+      document.getElementById('userInput').value = msg;
+      sendMessage();
+    });
+    wrap.appendChild(chip);
+  });
+
+  // Insert before input bar
+  const inputBar = document.getElementById('inputBar');
+  inputBar.parentElement.insertBefore(wrap, inputBar);
 }
 
 function sendMessage() {
@@ -4020,7 +4622,14 @@ async function generateSmartReply(input) {
   if (knowledgeReply) return knowledgeReply;
 
   // 7. Fall through to existing sync generateResponse
-  return generateResponse(input);
+  const reply = generateResponse(input);
+
+  // 8. If reply is truly generic default, sometimes inject a smart fallback instead
+  if (reply && emotionDB.default && emotionDB.default.includes(reply) && Math.random() > 0.5) {
+    return rand(smartFallbacks);
+  }
+
+  return reply;
 }
 
 </script>
