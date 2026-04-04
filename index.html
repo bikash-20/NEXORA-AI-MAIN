@@ -4,8 +4,9 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
 <title>Nexora — Your AI Companion</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
 <style>
   :root {
     --bg: #0a0a0f;
@@ -2466,13 +2467,29 @@ function parseCurrencyQuery(input) {
 // ==============================
 //  PHASE 3 — Vision / OCR (Tesseract.js)
 // ==============================
+let tesseractLoader = null;
+function ensureTesseract() {
+  if (tesseractLoader) return tesseractLoader;
+  tesseractLoader = new Promise((resolve, reject) => {
+    if (window.Tesseract) { resolve(window.Tesseract); return; }
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js';
+    s.defer = true;
+    s.onload = () => resolve(window.Tesseract);
+    s.onerror = (err) => reject(err || new Error('Tesseract failed to load'));
+    document.head.appendChild(s);
+  });
+  return tesseractLoader;
+}
+
 async function performOCR(file) {
   const camBtn = document.getElementById('cameraBtn');
   if (camBtn) camBtn.classList.add('scanning');
   addBotMsg("Looking at your image... reading the text now. 🧐");
 
   try {
-    const { data: { text } } = await Tesseract.recognize(file, 'eng', { logger: () => {} });
+    await ensureTesseract();
+    const { data: { text } } = await window.Tesseract.recognize(file, 'eng', { logger: () => {} });
     const cleanText = text.replace(/\n+/g, ' ').trim();
     if (!cleanText) return "I could see the image but couldn't read any text. Try a clearer photo! 📷";
 
