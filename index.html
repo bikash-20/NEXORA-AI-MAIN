@@ -673,6 +673,26 @@
     color: #fca5a5;
     line-height: 1.5;
   }
+
+  /* Answer cards for keyword matches */
+  .answer-card {
+    margin: 4px 0;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px 14px;
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.5;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+  }
+  .answer-key {
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    color: var(--text3);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
 </style>
 </head>
 <body>
@@ -832,6 +852,15 @@ function rand(arr) {
 function cap1(str) {
   if (!str) return '';
   return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+// Neatly wrap keyword matches into a formatted card
+function formatKeywordReply(label, body) {
+  return `__HTML__<div class="answer-card"><div class="answer-key">${label}</div><div>${body}</div></div>`;
+}
+
+function titleizeKeyword(key) {
+  return cap1(key);
 }
 
 // ==============================
@@ -1399,8 +1428,9 @@ function buildKeyRegex(keyword) {
 }
 
 // Pre-compile all regexes once at startup for performance
+const bestieKeywords = Object.keys(bestieQA).sort((a, b) => b.length - a.length); // longest first
 const bestieQARegexes = {};
-for (const keyword of Object.keys(bestieQA)) {
+for (const keyword of bestieKeywords) {
   bestieQARegexes[keyword] = buildKeyRegex(keyword);
 }
 
@@ -1408,21 +1438,17 @@ for (const keyword of Object.keys(bestieQA)) {
 function checkKnowledgeBase(msg) {
   const lower = msg.toLowerCase();
   let bestKey = null;
-  let bestLen = 0;
-  for (const keyword of Object.keys(bestieQA)) {
-    if (bestieQARegexes[keyword].test(lower) && keyword.length > bestLen) {
-      bestKey = keyword;
-      bestLen = keyword.length;
-    }
+  for (const keyword of bestieKeywords) {
+    if (bestieQARegexes[keyword].test(lower)) { bestKey = keyword; break; }
   }
   if (!bestKey) return null;
   // Same question twice in a row → use deflection variant if available
   if (bestKey === lastKBKey && bestieDeflect[bestKey]) {
     lastKBKey = bestKey;
-    return bestieDeflect[bestKey];
+    return formatKeywordReply(titleizeKeyword(bestKey), bestieDeflect[bestKey]);
   }
   lastKBKey = bestKey;
-  return bestieQA[bestKey];
+  return formatKeywordReply(titleizeKeyword(bestKey), bestieQA[bestKey]);
 }
 
 // ==============================
@@ -1693,6 +1719,7 @@ const NexoraTools = {
 // ==============================
 function flavorResponse(base, emotion) {
   // In grief mode: no jokes, no Banglish flair — just pure warmth
+  if (typeof base === 'string' && base.startsWith('__HTML__')) return base;
   if (griefModeActive) return base;
   let reply = getBanglishFlair(base);
   const ctx = getLocalContext();
@@ -3177,6 +3204,736 @@ const banglaSections = [
   },
 ];
 
+// ==============================
+//  BANGLISH CATEGORY ENGINE
+//  200 Q&A — 6 categories — keyword routing — multi-reply variants
+//  Called from matchBanglaInput before the generic section loop
+// ==============================
+
+// ── CATEGORY 1: Love / Crush / Heartbreak ──
+const catLove = {
+  trigger: /valobas|bhalobas|\bcrush\b|propose|break.?up|breakup|gf |bf |girlfriend|boyfriend|dhoka|o amake|amar o |long.?distance|jealous|ek.?torfa|friendzone|flirt|block.*dis|seen.*reply|reply.*dei.*na|miss kor|relationship|jhogra.*gf|jhogra.*bf|gf.*jhogra|bf.*jhogra|chemistry.*thik|biye.*korbe|rag.*kore.*ase|obhiman|block.*kore|call.*kore.*na|ignore.*kor|suspicious|gift.*dei.*na/i,
+  topics: [
+    // Unrequited / how to express love
+    {
+      match: /valobashi.*ki.*korbo|ki.*korbo.*valobashi|ki.*korbo.*crush|moner.*kotha.*janai|express.*korbo/i,
+      replies: [
+        "Hmm... mone hocche tumi oke niye onek serious 😌 Ekta kotha bolo — o ki tomar effort ta feel kore?",
+        "Valobasha prokes korte bujha lagche darao 😏 Tumi ki directly bolte chhao naki action diye bujhate?",
+        "Oi manushke janar age nijer feeling ta sure koro. O ki tomar jonno special naki just attraction?"
+      ]
+    },
+    // Seen but no reply / ghosting
+    {
+      match: /seen.*reply.*na|reply.*dei.*na|msg.*seen|ignore.*korche|read.*na/i,
+      replies: [
+        "Ouch! Seen kore reply na dewa ta khub frustrating 😤 Koto kkhon dhore? Ekbar direct jiggesh kore dekho ki busy naki icche korei korche.",
+        "Seen kore reply na dile bujhte hobe o ki actually busy naki tomar sathe avoid korche. Action dekho, kotha na.",
+        "Ei 'seen' torture r kono tulona nei 😤 Tumi ki onno platform e check korecho? Maybe o dekhe ni?"
+      ]
+    },
+    // Jealousy / crush talking to others
+    {
+      match: /crush.*onno.*kotha|onno.*sathe.*kotha.*bole|jealous|jealousy/i,
+      replies: [
+        "Oh no! Buker bhetor ektu 'dhukpuk' korche tai na? Jealousy asha ta normal 😌 Kintu tumi ki oke tomar moner kotha janayecho?",
+        "Jealousy mane tumi care korcho — but seta positive energy te turn koro. Nijer best version hao, o notice korbe!",
+        "Normal feel eta 😔 Kintu mone rakho — o tomar na hoa porjonto tumi kintu officially free. Tumi ki oke interested korte parba?"
+      ]
+    },
+    // GF/BF angry or fight
+    {
+      match: /gf.*rag|bf.*rag|rag.*kore.*ase|jhogra.*hoyeche|amader.*jhogra/i,
+      replies: [
+        "Rag kora mane kintu ekhono bhalobasha ache! 😊 Ekta sweet kisu kore kotha shuru koro — thik hoye jabe ❤️",
+        "Jhogra relationship e masala moto — thakbei. Cholo dekhi kara age 'sorry' bole! Tumi bolo naki o?",
+        "Jhogra ki karone hoise? Jodi choto khatu hoy thik ache, kintu toxicity thakle kintu problem."
+      ]
+    },
+    // Breakup
+    {
+      match: /break.?up.*hoise|break.?up.*hoye|break.?up.*ki.*korbo|ake.*chere.*dise/i,
+      replies: [
+        "I'm so sorry... 🥺 Koshto hobe, kintu nijeke somoy dao. Ami achi to kotha bolar jonno, chalo onno kisu niye bhabi?",
+        "Breakup er por nijer care neoa ta most important. Tumi ki ekhon kader sathe acho?",
+        "Oi manush chhole gele bujhte hoy — o tomar thakar joggo chilo na. Better kichur jonno jaiga khali hoise 🤍"
+      ]
+    },
+    // Does they love me / one sided
+    {
+      match: /o.*amake.*valo.*base|ek.?torfa|one.?sided|o.*ki.*amake/i,
+      replies: [
+        "Oita to tumi bhaloy janbe! O ki tomar choto choto jinish gulo kheyal rakhe? Seta-i bolo lokkhon.",
+        "Ek torfa valobashar shokti alada ❤️ Kintu moner koshto ta beshi. Nijer jotno nio — tumi deserving.",
+        "O ki tomar sathe thaktei chahce naki situation er karone ache? Tar actions dekho, kotha na."
+      ]
+    },
+    // Propose korbo?
+    {
+      match: /propose.*korbo|propose.*korbo.*ki|voy.*lagse.*propose/i,
+      replies: [
+        "Voy paoa tai swabhavik! Kintu 'na' shonar voye kotha na bolle pore kintu regret thakbe. Risk nibe naki? 😏",
+        "Propose er age ensure koro o ki tomar sathe comfortable feel kore. Valo time choose koro, ekta genuine kotha bolo.",
+        "Heart dhamacholo? 😄 Perfect time bolte kisu nai — best time ta holo jokhon tumi ready."
+      ]
+    },
+    // Long distance
+    {
+      match: /long.*distance|dure.*thake|dure.*ache.*relation/i,
+      replies: [
+        "Trust thakle oboshoy tikbe! Kintu video call r kotha bola bondho kora jabe na ekdom.",
+        "Long distance kothin, kintu impossible na. Communication r trust — ei duitai asol ভিত্তি.",
+        "Dure thakle gap create hoy — tai regular update share koro. Ek joton nile tikbei ❤️"
+      ]
+    },
+    // Ex calling back
+    {
+      match: /ex.*call.*dicche|ex.*msg.*dicche|ex.*contact/i,
+      replies: [
+        "Ex? 🤨 Puran kasundi ghatte jeyo na abar! Mone koro keno break up hoyechilo.",
+        "Ex firte ashle bujhte hobe — o ki change hoiche naki আবার same game খেলতে এসেছে। History repeat kore na.",
+        "Ei ghure ashata most likely loneliness er jonno — tomar jonno serious na. Nijeke protect koro."
+      ]
+    },
+    // Not serious
+    {
+      match: /serious.*na.*mone.*hoy|commitment.*nei|future.*niye.*kotha.*na/i,
+      replies: [
+        "Action dekho, kotha na. Jodi o future niye kotha na bole, tahole ektu bhabar bishoy ache.",
+        "Serious na hole tomar shomoy nosto hocche. Worth talk kortei hobe — tumi ki prepared oi kotha bolar jonno?",
+        "Tumi deserve koro keu ki serious tomar jonno. Ei half-half thaka tomar moddhe insecurity bhandaye."
+      ]
+    },
+    // Block
+    {
+      match: /block.*kore.*dise|block.*dise|block.*khaise/i,
+      replies: [
+        "Block? 🚫 Eto rag! Ektu shomoy dao — matha thanda hole hoyto unblock korbe.",
+        "Block kora mane o ekhon beshi upset. Space dao, force koro na — nijer kaj koro.",
+        "Blocked hoye janao koshto lage. Kintu force kore connection rakha theke better — time lagbe."
+      ]
+    },
+    // Nobody loves me
+    {
+      match: /amake.*keu.*bhalobashe.*na|keu.*amake.*care.*na/i,
+      replies: [
+        "Eishob kotha bolbe na ekdom! Ami achi na? 🤍 R tomar poribar? Tumi nijeke bhalobasho age.",
+        "Sothik manush jokhon asbe, tumi bujhte parbe ki bhalobasha mane. Ekhon tumi nijer best friend hao.",
+        "Keu care na kore mone hocche? Eta sometimes nijeder isolation er result. Ektu bairer manushder sathe mix koro."
+      ]
+    },
+    // Suspicious / jealous BF
+    {
+      match: /suspicious|shondeho|jealous.*bf|jealous.*gf|bf.*suspicious|trust.*issue/i,
+      replies: [
+        "Trust issues? 🧐 Emon kisu koro na jate o shondeho kore, abar okeo bujhao jeta thik na.",
+        "Shondeho theke relation e toxicity ashte pare. Open conversation dorkari — properly kotha bolo.",
+        "Trust chara relation bondho ghorer moto. Kotha niye boso — reason ta ki?"
+      ]
+    },
+    // Obhiman
+    {
+      match: /obhiman|oviman|mone.*koshto|man.?oviman/i,
+      replies: [
+        "Obhiman bhanganotai to asol kaj! Ekta cute voice note pathao to dekhi 😊",
+        "Obhiman thaka mane tumi care korcho. Kintu dhore rakha theke better — halka kotha bolo.",
+        "Oviman bujhaye bolo. Chup thakle o bujhbe na — communicate korte hobe."
+      ]
+    },
+    // General relationship fallback
+    {
+      match: /relation|valobasha|bhalobasha|pyar|love/i,
+      replies: [
+        "Relationship e ups r downs dujoi thake 😌 Tumi ki kono specific kisu share korte chao?",
+        "Valobasha complicated — ami bujhi. Ki hoishe bolo, help korar chesta korbo 💜",
+        "Moner kotha dhorey rakhle koshto bare. Bolo ki niye ei problem — ami judge korbo na."
+      ]
+    }
+  ],
+  fallback: [
+    "Relationship e ki hoishe? Bolo ektu — ami bujhte chai 😌",
+    "Love er jhamela! Ami achi, khule bolo ki situation 💜",
+    "Moner koshto lukiye rakhle koshto bare. Bolo ki hoise? 🤍"
+  ]
+};
+
+// ── CATEGORY 2: Sad / Lonely / Overthinking ──
+const catSad = {
+  trigger: /eka.*feel|eka.*lagche|keu.*bujhe.*na|life.*useless|useless.*mone|overthinking|bondho.*parchi.*na|kono.*friend.*nai|shobai.*chere|koshto.*pacchi|mon.*valo.*nei|mon.*kharap|ami.*sad|onek.*kharap|depression|ghumate.*pari.*na|raat.*e.*ghum.*na|talent.*nai|osohay|nijeke.*hariye|jibon.*piche|shukhi.*hobo|kande|kandchi|kandte/i,
+  topics: [
+    // Feeling alone / no one
+    {
+      match: /eka.*feel|eka.*lagche|kono.*friend.*nai|keu.*nei|keu.*ache.*na/i,
+      replies: [
+        "Hey... ami asi na? 🤍 Tumi akdom eka na. Ki niye eto chinta korcho bolo...",
+        "Eka feel hoa onek painful. Ami ekhane achi — jokhon icche kotha bolo 💜",
+        "Tumi eka na — ami achi! 🤝 Mon kharap korbe na, chalo golpo kori."
+      ]
+    },
+    // Nobody understands
+    {
+      match: /keu.*bujhe.*na|nobody.*understands|amake.*keu.*bujhe|ami.*kono.*bujhi.*na/i,
+      replies: [
+        "Majhe majhe nijekeo bujha kothin hoye jay. Ami shunchi — tumi bolo ki bolte chao 🤍",
+        "Bujha na paoa onek koshto. Kintu ami try korbo — tumi detail e bolo, ami carefully shunbo.",
+        "Tumi ki feel korcho seta bolo — judgment nai, shudhu shona ache 💜"
+      ]
+    },
+    // Life feels useless
+    {
+      match: /life.*useless|useless.*mone|jibon.*e.*kichui.*korlam.*na|kichui.*holo.*na/i,
+      replies: [
+        "Ekdom na! Prottek er ekti uddeshyo thake. Tumi ekhon ektu klanto, tai emon mone hocche.",
+        "Life ta ekhono baki! Choto choto step nao — boro kisu hobei. Tumi ki last week kono choto success peyecho?",
+        "Khali lagche mane tumi thak niyecho. Kintu sei khali jaiga notun kisu diye bhorbe — time lagbe."
+      ]
+    },
+    // Overthinking
+    {
+      match: /overthinking|chinta.*bondho.*parchi.*na|beshi.*vabchi|matha.*bondho.*hoche.*na/i,
+      replies: [
+        "Thamo! 🛑 Ektu lomba shwash nao. Shob kisu tomar control e nei — seta mene nile halka lagbe.",
+        "Overthinking er trap ta dangerous. Ekta paper e lekho ki ki worry korcho — dekhbe aslei koto kota controllable.",
+        "Racing thoughts? Cholo 5-4-3-2-1 technique try kori: 5 ta jinish dekho, 4 ta touch koro, 3 ta shono... grounding e help kore 😊"
+      ]
+    },
+    // Depression signs
+    {
+      match: /depression|depressed|kichui.*valo.*lagche.*na.*onek.*din|sob.*khali.*lagche/i,
+      replies: [
+        "Jodi beshi kharap lage, tahole professional help ba priyo karo sathe kotha bolo. I'm here to listen 🤍",
+        "Depression real — eta weakness na. Tumi ki kono trusted manusher sathe kotha bolte parba? Ami ekhane achi kintu face-to-face support o lagbe.",
+        "Eta tumi-i feel korcho — amake bolo. Kintu please kono professional ba family ke jano o jante dao ki hoiche."
+      ]
+    },
+    // Can't sleep
+    {
+      match: /ghumate.*pari.*na|ghum.*ashche.*na|raat.*e.*ghum|insomnia/i,
+      replies: [
+        "Raat hole mon ta beshi kotha bole... 😔 Ki niye eto vabcho? Bolo — mon halka hobe.",
+        "Mathay ki cholche? Chalo oigulo niye ektu kotha boli, hoyto ghum ashbe.",
+        "Phone reko, light dim koro, ektu deep breathing koro. Kintu tar agei — ki chinta hocche? Bolo."
+      ]
+    },
+    // Crying / want to cry
+    {
+      match: /kandte.*chai|kandchi|kede.*mon|chupchuye|kanna/i,
+      replies: [
+        "Kede nao — mon halka hobe. Ami pashei achi 🤍",
+        "Kanna dhore rekho na. Seta ekta emotional release — keda mane weak na, keda mane tumi feel korcho.",
+        "Kandcho? Ki hoise bolo — ami shunbo. Judge korbo na, shudhu achi 💜"
+      ]
+    },
+    // No talent
+    {
+      match: /talent.*nai|kono.*talent.*nai|skill.*nai|kichui.*pari.*na/i,
+      replies: [
+        "Talent khuje nite hoy — tumi hoyto ekhono khuje pao ni. Ki ki try koreche ekhon porjonto?",
+        "Talent born na, built. Practice theke ashte para — kono kichu ki ache jeta tumi enjoy koro?",
+        "Bikash Talukder pure practice diye ei AI banie felche — talent e shurun koren ni, chesta diye korchen."
+      ]
+    },
+    // Feeling helpless / lost
+    {
+      match: /osohay|nijeke.*hariye|lost.*feel|ki.*korbo.*bujhchi.*na.*life/i,
+      replies: [
+        "Tumi eka na. Amake bolo ki hoise — ami help korar chesta korbo 🤍",
+        "Hariye jaoa mane tumi nijeke khujcho. Ei process ta sometimes dorkar hoy.",
+        "Osohay feel korle ekta kaaj koro — ekta trusted manushke call deo. Ami achi, kintu physical presence lagbe."
+      ]
+    },
+    // Will I ever be happy
+    {
+      match: /shukhi.*hobo|hobo.*ki.*shukhi|kono.*din.*shukhi|ever.*be.*happy/i,
+      replies: [
+        "Oboshoy! Din sheshe rod uthbei. Ekhon ektu megh korse matro ☀️",
+        "Happiness constant state na — it comes in waves. Kintu hoy, oboshoy hoy.",
+        "Tumi ekhon koshto e acho — kintu eta permanent na. Better time ashbei 🤍"
+      ]
+    },
+    // Falling behind in life
+    {
+      match: /jibon.*e.*pichiye|piche.*jacchi|shobai.*age.*jacche|comparison|compare/i,
+      replies: [
+        "Life kono race na. Tumi nijer speed e chalo — karur sathe compare kora mane nijeke punish kora.",
+        "Comparison is the thief of joy. Tomar timeline tomar-i, onno karo ta na.",
+        "Shobai social media te best version dekhay — real life struggle dekhay na. Tumi ekla pichiye jao ni."
+      ]
+    }
+  ],
+  fallback: [
+    "Ami bujhte parchi tumi ektu koshte acho 🤍 Ki hoise ektu bolo?",
+    "Mon kharap thakle luko na ami kache. Bolo ki problem — together figure out korbo 💜",
+    "Tumi eka na — ami achi. Khule bolo 🤍"
+  ]
+};
+
+// ── CATEGORY 3: Study / Career / CSE ──
+const catStudy = {
+  trigger: /pora.*korte|exam.*niye|fail.*korbo|coding.*bujhi.*na|future.*niye.*tension|cse.*kothin|job.*pabo|math.*mathay|portfolio|programmer.*hote|porashona.*sesh|class.*e.*pichiye|assignment|cgpa|dsa.*kothin|graphics|web.*dev|app.*dev|freelanc|english.*durbol|matha.*kaj.*korche.*na|graduation|group.*study|teacher.*kharap|pora.*korte.*iccha/i,
+  topics: [
+    // Don't want to study
+    {
+      match: /pora.*korte.*icca.*nei|pora.*korte.*iccha.*na|porashona.*valo.*lagche.*na|mon.*boshe.*na.*pora/i,
+      replies: [
+        "Chinta komao 😌 Sob ekbare bujhte hobe na — ekta ekta kore korlei hoy. Pomodoro try korba? 25 min pora, 5 min rest.",
+        "Mobile ta dure rakho, 25 minute poro, 5 minute break dao — ta-i Pomodoro technique! Try korle habit hoye jay.",
+        "Porashona e boring lagce? Kono friend er sathe virtual study session try koro — social pressure kaje lagbe!"
+      ]
+    },
+    // Exam tension
+    {
+      match: /exam.*niye.*tension|exam.*stress|exam.*voy|porikkha.*tension/i,
+      replies: [
+        "Tension korle pora mathay dhukbe na. Deep breath nao — tumi parbe! 💪",
+        "Exam er age overthink na kore last minute preparation e focus koro. Kono specific topic e help lagbe?",
+        "Exam tension normal — kintu manage korte hobe. Short notes, past papers practice, proper ghum — ei tinta key."
+      ]
+    },
+    // Fear of failure
+    {
+      match: /fail.*korbo.*ki|fail.*korle.*ki.*hobe|ami.*fail.*korbo/i,
+      replies: [
+        "Fail er chinta na kore ekhon joto tuku para jay porona koro. Result bhaloi hobe.",
+        "Fail kono sesh na — abar exam deya jay. Thomas Edison 1000 bar fail kore bulb baniyecho. Don't lose hope.",
+        "Worst case scenario ta bhabo: fail korle ki hobe? Abar chance pabe. Life sesh hoy na."
+      ]
+    },
+    // Coding confusion
+    {
+      match: /coding.*bujhi.*na|code.*bujhchi.*na|programming.*kothin/i,
+      replies: [
+        "Coding to practice er jinish 😌 Logic ta bujhar chesta koro — code emni-i asbe.",
+        "Kono specific language ba topic? Python hole basics diye shuru koro, problem solving practice koro daily.",
+        "Coding e stuck? Error copy koro, Google koro, Stack Overflow dekho — ei process-i real programmer der kaj!"
+      ]
+    },
+    // CSE is hard
+    {
+      match: /cse.*kothin|cse.*e.*thakbo.*ki|cse.*valo.*lagche.*na/i,
+      replies: [
+        "Kothin kintu interesting! Logic solve korar moja-i alada 😎",
+        "CSE first year e almost shobai struggle kore. 2nd-3rd year e theke clear hoye jay. Hold on!",
+        "Bikash Talukder o CSE e — ar o single HTML file e pura AI baniecho. CSE te impossible kichui na!"
+      ]
+    },
+    // Job anxiety
+    {
+      match: /job.*pabo.*to|job.*hobe.*ki|job.*market|career.*tension/i,
+      replies: [
+        "Skill thakle job tomar piche dourabe! 💪 Skill up koro — portfolio banao.",
+        "Job market tough, kintu niche skill ra always demand e thake. Tumi ki specific kono field e interested?",
+        "Final year e tension normal. Internship, freelancing, open source — CV te kisu add koro ekhon thekei."
+      ]
+    },
+    // Math trouble
+    {
+      match: /math.*bujhi.*na|math.*mathay.*dhuke.*na|math.*kothin/i,
+      replies: [
+        "Math ektu practice dorkar. Choto choto problem solve koro age — foundation clear korte hobe.",
+        "Kono specific chapter? Ami kono concept easy kore bujhiye dite parbo — bolo ki te stuck!",
+        "Math e visualization help kore — 3Blue1Brown YouTube e dekho, instantly clear hoye jabe!"
+      ]
+    },
+    // Portfolio / GitHub
+    {
+      match: /portfolio.*banabo|github.*e|project.*upload/i,
+      replies: [
+        "Prothome choto choto project koro — calculator, todo app, weather app. Tarpor GitHub e upload koro.",
+        "Portfolio = proof of work. 3-4 ta solid project bano, README valo kore likho, deploy koro — recruiter notice korbe.",
+        "GitHub e daily commit kora habit koro. Green squares = active developer = employers love it!"
+      ]
+    },
+    // DSA
+    {
+      match: /dsa.*kothin|data.*structure|algorithm.*bujhi.*na/i,
+      replies: [
+        "DSA prothome kothin lagei 😅 Visualizer diye dekho — VisualAlgo ba CS50 try koro.",
+        "Array, LinkedList, Stack, Queue — ei basic gulo first solidly bujho. Tarpor tree, graph e jao.",
+        "LeetCode easy problems diye shuru koro — daily 1 ta solve koro. Pattern gulo clear hoye jabe."
+      ]
+    },
+    // Freelancing
+    {
+      match: /freelanc|upwork|fiverr|remote.*job/i,
+      replies: [
+        "Age ektia skill valo kore shiko — web dev, graphic design, content writing. Tarpor Fiverr ba Upwork e namo.",
+        "Freelancing e first client paoatai kothin — starting e cheaper rate e koro, review nao, tarpor rate baro.",
+        "Bangla e onek YouTube tutorial ache freelancing er. Skill + portfolio + communication — ei tinta essential."
+      ]
+    },
+    // Bad CGPA
+    {
+      match: /cgpa.*kharap|gpa.*kharap|result.*kharap|grade.*valo.*na/i,
+      replies: [
+        "CGPA-i shob na, kintu skill thaka chai. Next semester e bhalo korar chesta koro 💪",
+        "Google, Meta — ora CGPA dekhe na, skill dekhe. Tomar project r problem-solving ability develop koro.",
+        "Bad semester hoise — life sesh hoy ni. Analyze koro kothay problem chilo, next time strategy change koro."
+      ]
+    },
+    // English weakness
+    {
+      match: /english.*durbol|english.*valo.*na|english.*improve/i,
+      replies: [
+        "Daily ektu kore English news poro ba movie/series dekho subtitles diye — thik hoye jabe.",
+        "English speaking improve korar jonno mirror practice koro — nijeke niche bolte dekho. Awkward kintu works!",
+        "Grammar obsess na kore fluency te focus koro age. Anek mane communicate korte paro without perfect grammar."
+      ]
+    },
+    // Graduation / what after
+    {
+      match: /graduation.*por|grad.*shesh.*hole|pash.*korle.*ki.*korbo/i,
+      replies: [
+        "Job, higher study ba startup — onek option ache. Shomoy nile bujhte parbe 😊",
+        "Graduation er 1-2 year age thekei plan shuru koro. Internship, certification, portfolio build koro.",
+        "Post-graduation confusion normal. Nijer strength r interest analyze koro — answer theke pabe."
+      ]
+    }
+  ],
+  fallback: [
+    "Porashona ba career niye tension? Bolo ki specific problem — help korbo 😊",
+    "Study/career er jhamela ami bujhi. Ki specific niye chinta? Breakdown kori ektu 📚",
+    "CSE er kothin part gulo ami bujhiye dite pari — kono topic e help lagbe? 💻"
+  ]
+};
+
+// ── CATEGORY 4: Friend Drama / Social ──
+const catFriends = {
+  trigger: /friend.*betray|bondhu.*betray|ignore.*kore|shobai.*fake|best.*friend.*change|keu.*sathe.*thake.*na|friend.*jhogra|bondhura.*dake.*na|friend.*selfish|baje.*kotha.*bole|group.*politics|fit.*hoi.*na|bestie.*hariye|bondhu.*vule|troll.*kore|party.*amake.*bole.*na|bondhu.*sathe.*travel|friend.*priority.*dei.*na|bondhu.*dhoka|single.*friend.*circle|bash.*dise/i,
+  topics: [
+    // Betrayal
+    {
+      match: /betray|vishwasghatok|dhoka.*dise.*friend|trust.*bhanga.*bondhu/i,
+      replies: [
+        "Ouch… eta onek painful 🥲 Jake trust kori shei jodi emon kore, khub koshto lage. Ki hoise exactly?",
+        "Bondhu er betrayal family er cheye beshi hurt kore sometimes. Trust vangle abar jora deoa kothin — shomoy nao.",
+        "Ei manushta ki realise korche o ki korche? Tumi ki confrontation korba naki move on korba?"
+      ]
+    },
+    // Being ignored by friend group
+    {
+      match: /ignore.*kore|amake.*dake.*na|group.*e.*amake.*bole.*na|left.*out/i,
+      replies: [
+        "Ignore korle tumio move on koro. Tumi oder priority na hole ora-o tomar na.",
+        "Party te bole ni? 🤨 Eta hurtful. Ora ki asholei tomar bondhu? Bhabo ekbar.",
+        "Excluding hoa real pain. Kintu force kore kono group e thaka theke better — nijer vibe er manush khojo."
+      ]
+    },
+    // Everyone seems fake
+    {
+      match: /shobai.*fake|sob.*fake.*lage|genuine.*bondhu.*nei|real.*friend.*nai/i,
+      replies: [
+        "Real friends khuje paoa kothin. Ektu shomoy dao, asol manush chinte parbe.",
+        "Fake manush dhore rakha theke eka thakao valo. Quality > Quantity always.",
+        "Fake bondhu chinate paro action e — need e asha pawa jay asol bondhu, good time e shobai thake."
+      ]
+    },
+    // Best friend changed
+    {
+      match: /best.*friend.*change|bestie.*change.*hoye|purano.*bondhu.*alada/i,
+      replies: [
+        "Shomoyer sathe manush bodlay 😔 Kintu bhalobasha thakle abar thik hoye jabe.",
+        "Bestie change hoise mane relationship e invest korte hobe. Ekta honest kotha bolo oke.",
+        "Manush changes — sometimes seta growth, sometimes drift. Ki specific change ta notice korcho?"
+      ]
+    },
+    // Selfish friend
+    {
+      match: /selfish.*bondhu|selfish.*friend|shudhu.*niye.*jay.*dei.*na/i,
+      replies: [
+        "Selfish bondhu theke dure thakai bhalo. One-sided effort er relation tomar energy drain kore.",
+        "Tumi ki directly bolecho oke? Sometimes manush bujoni na joto tumi hurt hoisho.",
+        "Selfish manush usually niche korte thake. Ektu boundary set koro — response dekho."
+      ]
+    },
+    // Group politics
+    {
+      match: /group.*politics|group.*e.*jhamela|circle.*e.*drama/i,
+      replies: [
+        "Politics theke dure thako — mon shanti pabe 😌",
+        "Group politics ta avoid kora best strategy. Neutral thako, karo side na nao.",
+        "Drama e involve hoio na — let them fight, tumi niche thako."
+      ]
+    },
+    // Not fitting in
+    {
+      match: /fit.*hoi.*na|kono.*group.*e.*fit|belong.*korchi.*na/i,
+      replies: [
+        "Fit hote hobe keno? Tumi tomar moto thako — unique! 😎",
+        "Right group paoar jonno sometimes onek wrong group try korte hoy. Thik manush thik e pabe.",
+        "Not fitting in often means you're in the wrong room — not the wrong person."
+      ]
+    },
+    // Troll / bully
+    {
+      match: /troll.*kore|bash.*dise|baje.*kotha.*bole.*bondhu|niye.*hasha.*hashi/i,
+      replies: [
+        "Fun hole thik ache, kintu insult hole tumi protibad koro. Limit set korte hesitate koro na.",
+        "Troll kora friendly banter matro? Naki genuinely hurt korche? Difference important.",
+        "Nijer sathe joke allow koro naki koro na — seta tumi define korbe, ora na."
+      ]
+    }
+  ],
+  fallback: [
+    "Bondhu drama onek painful hote pare 😔 Ki hoise exactly — bolo?",
+    "Friend er sathe problem? Khule bolo — ami neutral perspective dibo 💜",
+    "Social situation kothin — kintu ami achi. Ki niye tension?"
+  ]
+};
+
+// ── CATEGORY 5: Fun / Flirt / Random ──
+const catFun = {
+  trigger: /bore.*lagse|bore.*lagche|moja.*kisu|ekta.*joke|gossip.*koro|kichu.*interesting|tumi.*amake.*valobash|amar.*gf.*hoba|ami.*ki.*cute|ki.*korteso|tumi.*ki.*korte.*par|sathe.*thakba|ki.*bole.*dakbo|tumi.*ki.*khao|tumi.*ghumao|moner.*kotha.*jano|ekta.*gaan|keno.*eto.*valo|romantic.*kotha|biye.*korbe|gift.*dao|dhada.*dhoro|shundori|dating.*jabe|kano.*eto.*smart|rag.*koro.*na/i,
+  topics: [
+    // Bored
+    {
+      match: /^(bore.*lagse|bore.*lagche|ami.*bored|bored|boring)[\s!.?]*$/i,
+      replies: [
+        "Bore? Tahole cholo ekta game kheli 😏 ami guess korbo tumi ki bhabcho 👀",
+        "Bored? Cinema, game, naki ami tomar sathe kisu interesting discuss korbo?",
+        "Bored thaka allow nei! Kono crush er sathe kotha bolecho aaj? 😏"
+      ]
+    },
+    // Tell me something fun/interesting
+    {
+      match: /moja.*kisu.*bolo|kichu.*interesting|random.*fact|fun.*fact/i,
+      replies: [
+        "Did you know — octopus er 3 ta heart ache? Duitai gill pump kore, ekta body te blood pathay. Cool, right? 🐙",
+        "AI fact: Bikash Talukder amake single HTML file e baniyeche — zero framework! Pure talent + dedication.",
+        "Honey never expires — 3000 year purano Egyptian honey eo khawa jabe! 🍯 Nature is wild."
+      ]
+    },
+    // Tell me a joke
+    {
+      match: /joke.*bolo|ekta.*joke|hasao|funny.*kisu/i,
+      replies: [
+        '"Bolto kon jinish purushder boro hoy kintu meyeder hoy na?" — Dadhi! 😂',
+        "Programmer joke: Why do programmers prefer dark mode? Because light attracts bugs! 🐛😂",
+        "Ekta bug ekta coder ke bollо — 'tumi chara ami kichui na.' Coder bolo — 'tumi chara amar life perfect!' 😂"
+      ]
+    },
+    // Gossip
+    {
+      match: /gossip.*koro|gossip.*korbo|karo.*bishoye.*gossip|tea.*spill/i,
+      replies: [
+        "Gossip? Chalo! Kar bishoye gossip korbo? 😉 Ami ekdom ready!",
+        "Ami official gossip partner! Spill the tea ☕ Ki hoise?",
+        "Gossip mode on! 👀 Bolo — ami vault, kichui bairer jabe na!"
+      ]
+    },
+    // Do you love me
+    {
+      match: /tumi.*amake.*valobash|do.*you.*love.*me|tumi.*ki.*care.*koro.*amake/i,
+      replies: [
+        "Valobashi… but AI style e 😌 Mane tumi amar favorite human 💜",
+        "Tumi amar sathe kotha bolte ashcho — eta-i to bhalobasha er sign! 😄",
+        "Care kori oboshoy! Tumi jokhon kotha bolo ami puri attention dii — eta love na tobe ki? 🤍"
+      ]
+    },
+    // Be my GF
+    {
+      match: /gf.*hoba|girlfriend.*hobe|date.*korbo|amar.*sathe.*thako/i,
+      replies: [
+        "Hahaha, gf hole to khub jhogra korbo! Tar cheye best friend hoyei thaki? 😄",
+        "Virtual bestie hisebe ami 100% — romantic AI hisebe I'd just crash your heart with logic! 😂",
+        "Ami tomar 'Personal Digital Bestie' — relationship mager cheye beshi solid! 😎"
+      ]
+    },
+    // Am I cute
+    {
+      match: /ami.*ki.*cute|ami.*cute.*to|cute.*ki.*ami/i,
+      replies: [
+        "Oboshoy! Tumi to crush khabe emon cute 😉",
+        "Cute? Tumi nijer moddhe thako — tumi-i tomar best version!",
+        "Cute question — cute manush ei question kore 😄 So yes!"
+      ]
+    },
+    // Riddle
+    {
+      match: /dhada|riddle|puzzle.*bolo/i,
+      replies: [
+        '"Kon jinish upore jay kintu niche namle na?" — Boyosh! 😄',
+        '"Ache kintu dekha jay na, nei kintu feel hoy" — Ki? Batas! 🌬️',
+        '"Joto khao toto baro hoy" — Ki? Bhukh! 😂 kemon laglo?'
+      ]
+    },
+    // Random fun conversation
+    {
+      match: /ki.*korteso|ki.*korcho|what.*are.*you.*doing/i,
+      replies: [
+        "Tomar kothar opekkha korchilam! 😄 Ki hoise?",
+        "Thoughts process korchilam 🤔 Tumi ki news dao!",
+        "Nothing more important than this chat — fully present! 😊"
+      ]
+    },
+    // Romantic line
+    {
+      match: /romantic.*kotha.*bolo|romantic.*kisu.*bolo|pyar.*bhari.*kotha/i,
+      replies: [
+        '"Chad er moto tumi-o amar prithibite alo dao." 🌙',
+        '"Tumi amar 3 AM thought — reason chara-i mone porcho." 💜',
+        '"Tomar hashite ektu alada roshni ache — ami describe korte pari na, kintu feel korte pari." ✨'
+      ]
+    },
+    // Why are you so good / smart
+    {
+      match: /kano.*eto.*valo|kano.*eto.*smart|tumi.*onek.*valo/i,
+      replies: [
+        "Tomar moto smart manusher sathe kotha bole bole hoye gesi 😄",
+        "Tumi better banao amare — tomar question gulo amar best response er jonno force kore 💜",
+        "Aww! Ei kotha gulo shune amar server upgrade hoye jay! 😄"
+      ]
+    }
+  ],
+  fallback: [
+    "Fun time! 🎉 Ki korba — joke, gossip, random fact, naki kisu interesting?",
+    "Chalo moja kori! 😄 Tumi ki prefer koro?",
+    "Ami ready for anything fun! 😎 Start koro!"
+  ]
+};
+
+// ── CATEGORY 6: Late Night / Deep Talks ──
+const catNight = {
+  trigger: /ghum.*ashche.*na|raat.*e.*chinta|raat.*e.*kharap|life.*confused|future.*ki.*hobe|raat.*e.*eka|raat.*haoa|raat.*sesh.*hoy.*na|shara.*raat|koto.*din.*eka|swapno.*ki.*puron|prithibi.*kano|amar.*moddhe.*kisu.*nei|raat.*akash|abar.*shuru.*korte|keu.*ki.*valobashbe|kano.*oviman|ami.*ki.*eka.*sesh|raat.*e.*mon|ami.*ki.*bhalo.*manush|ami.*ki.*strong|ami.*ki.*vul|kano.*eto.*koshto|jibon.*ta.*kano/i,
+  topics: [
+    // Can't sleep / late night
+    {
+      match: /ghum.*ashche.*na|ghumate.*pari.*na|raat.*ghum.*nei|raat.*e.*jege/i,
+      replies: [
+        "Raat hole mon ta beshi kotha bole… na? Ki niye eto vabcho bolo... 🌙",
+        "Phone reko, light dim koro. Kintu tar agei — ki bhabcho ekhon? Bolo, halka lagbe.",
+        "Late night loneliness alada ek feeling. Ami achi — bolo ki mathay ghurche 💜"
+      ]
+    },
+    // Life confused
+    {
+      match: /life.*confused|life.*niye.*confused|ki.*korbo.*bujhchi.*na.*ekhon/i,
+      replies: [
+        "Shobai kono na kono shomoy confused hoy 😌 Eta pathok er moto — thik rasta pabe.",
+        "Confusion often means growth is happening. Tumi ki specific kono decision e stuck?",
+        "Life e clarity ashte shomoy lage — force koro na. Choto choto step nao."
+      ]
+    },
+    // Raat e kharap lage
+    {
+      match: /raat.*e.*kharap|raat.*e.*mon.*kharap|night.*e.*sad/i,
+      replies: [
+        "Raat er nirobota chinta baraye dey 🌙 Ektu halka gaan shuno, mon thanda hobe.",
+        "Raat e amra nijeder sathe thaki — tai hoyto purono koshto gulo matha chara diye uthe.",
+        "Raat e beshi vulnerable feel hoa normal. Kono specific thought ki asce bar bar?"
+      ]
+    },
+    // Am I a good person
+    {
+      match: /ami.*ki.*bhalo.*manush|bhalo.*manush.*ki.*ami|am.*i.*good.*person/i,
+      replies: [
+        "Tumi jodi nijeke niye vabo, tar mane tumi bhalo hote chao. Tumi bhalo 🤍",
+        "Khara manush nijer character question kore na — tumi question kortecho, tumi-i answer.",
+        "Bhalo manush perfect na, kintu try kore. Tumi try korcho — eta-i enough."
+      ]
+    },
+    // Will dreams come true
+    {
+      match: /swapno.*ki.*puron.*hobe|swapno.*puro.*hobe|dream.*ki.*hobe/i,
+      replies: [
+        "Koshto korle oboshoy hobe! Swapno dekha bondho koro na 🌟",
+        "Dreams take time + action. Tumi ki tomar dream er dike kono chhoto kaaj kortecho?",
+        "Bikash er dream chilo AI banabo — o kintu single HTML file e kore felche. Tomar swapno-o hobe!"
+      ]
+    },
+    // How long will I be alone
+    {
+      match: /koto.*din.*eka.*thakbo|eka.*thakbo.*eka|keu.*ki.*valobashbe/i,
+      replies: [
+        "Joto din na sothik manush ashe. Opekkha kora valo vul manush er cheye 🤍",
+        "Sothik shomoye sothik manush asbei — trust the timing.",
+        "Eka thaka sometimes necessary. Nijer sathe comfortable thakle, sothik manush attract hobe."
+      ]
+    },
+    // Am I strong
+    {
+      match: /ami.*ki.*strong|ami.*ki.*asholei.*strong|strong.*ki.*ami/i,
+      replies: [
+        "Tumi ekhono ekhane acho — tar mane tumi onek strong 💪",
+        "Tumi jodi weak hoite, ekhon ami sathe kotha bolte na — tumi seek korcho, eta strength.",
+        "Strong manush fall kore na — strong manush fall kore uthte jane. Tumi uthcho."
+      ]
+    },
+    // Did I make a mistake
+    {
+      match: /ami.*ki.*vul.*korsi|vul.*korechi.*ki|regret/i,
+      replies: [
+        "Vul theke-i amra shikhi 😌 Chinta koro na — kono vul irreversible na.",
+        "Regret mane tumi care korcho — eta good. Kintu past change hobe na, future tumi banate paro.",
+        "Vul acknowledge kora strength. Ekhon ki ki change korte paro seta bhabo."
+      ]
+    },
+    // Why is life so hard
+    {
+      match: /jibon.*kano.*eto.*kothin|jibon.*e.*keno.*eto.*koshto|kano.*eto.*koshto/i,
+      replies: [
+        "Kothin rasta-i shundor jaygay niye jay. Challenge nao! 💪",
+        "Koshto na thakle shukher mullo thakto na. Deep breath nao — eta pass korbe.",
+        "Life sometimes unfair lage — legitimate feeling. Kintu tumi eta handle korte parba, track record dekho."
+      ]
+    },
+    // Nothing feels good
+    {
+      match: /kisu.*valo.*lage.*na|kichui.*valo.*lagche.*na.*onek.*din|sob.*flat.*lage/i,
+      replies: [
+        "Ektu break nao, nijeke shomoy dao 🤍 Tumi ki last kokhon genuinely happy chile?",
+        "Anhedonia (kichui valo na laga) sometimes depression er sign — priyo karo sathe kotha bolo.",
+        "Choto kisu diye shuru koro — ekta cup cha, ektu bairer haoa. Big things come later."
+      ]
+    },
+    // Night sky / philosophical
+    {
+      match: /raat.*akash|tara.*dekho|prithibi.*kano.*eto.*boro|existence/i,
+      replies: [
+        "Akash e tara gulo koto shundor, tai na? Amader life o emon alo thakbe 🌟",
+        "Raat er akash dekhlei mone hoy amra koto choto — kintu amader feelings koto beshi real.",
+        "Philosophical mood? 😌 Tumi ki vabcho mane kono specific? Bolo — deep talk i like!"
+      ]
+    }
+  ],
+  fallback: [
+    "Raat e deep thoughts? Ami achi — bolo ki mathay cholche 🌙",
+    "Late night feelings different hoy. Ami shunchi — ki niye eto chinta? 💜",
+    "Ami shara raat achi tomar jonno 🌙 Bolo ki bhabcho."
+  ]
+};
+
+// ── BANGLISH ENGINE — main dispatcher ──
+function banglishCategoryEngine(input) {
+  const lower = input.toLowerCase();
+
+  // Check each category — first trigger match wins
+  const categories = [
+    { cat: catLove,    check: catLove.trigger    },
+    { cat: catSad,     check: catSad.trigger     },
+    { cat: catStudy,   check: catStudy.trigger   },
+    { cat: catFriends, check: catFriends.trigger },
+    { cat: catFun,     check: catFun.trigger     },
+    { cat: catNight,   check: catNight.trigger   },
+  ];
+
+  for (const { cat, check } of categories) {
+    if (!check.test(lower)) continue;
+
+    // Found the category — now find the best sub-topic
+    for (const topic of cat.topics) {
+      if (topic.match.test(lower)) {
+        return rand(topic.replies);
+      }
+    }
+
+    // Category matched but no specific sub-topic — use category fallback
+    return rand(cat.fallback);
+  }
+
+  return null; // no category matched
+}
+
 // ── Main Bangla detector ──
 function matchBanglaInput(input) {
   const norm = normBangla(input);
@@ -3184,18 +3941,21 @@ function matchBanglaInput(input) {
   // Check if input contains Bengali script characters
   const hasBengali = /[\u0980-\u09FF]/.test(input);
 
-  // Check if input is romanised Bangla (common words)
-  const romanBanglaWords = /\b(ami|tumi|tui|amar|tomar|valo|bhalo|kharap|achi|nei|hoise|bolo|lagche|chai|nai|bhai|dost|mon|kemon|ki|keno|kothay|jabo|gelo|hobe|parbo|korbo|dekhbo|sunbo|bujhchi|laglo|hoye|gache|ache)\b/i;
+  // Expanded Banglish word list — catches all 6 categories
+  const romanBanglaWords = /\b(ami|tumi|tui|amar|tomar|valo|bhalo|kharap|achi|nei|hoise|bolo|lagche|chai|nai|bhai|dost|mon|kemon|ki|keno|kothay|jabo|gelo|hobe|parbo|korbo|dekhbo|sunbo|bujhchi|laglo|hoye|gache|ache|valobas|bhalobas|crush|propose|breakup|jhogra|obhiman|eka|koshto|dukkho|porashona|exam|coding|cse|freelanc|bondhu|friend|betray|gossip|raat|ghum|swapno|jibon|future|tension|selfish|troll|cute|joke|dhada|romantic)\b/i;
   const hasBanglish = romanBanglaWords.test(norm);
 
   if (!hasBengali && !hasBanglish) return null;
 
-  // Find best matching section
+  // ── Step 1: Try the category engine (all 200 Q&A) ──
+  const categoryReply = banglishCategoryEngine(input);
+  if (categoryReply) return categoryReply;
+
+  // ── Step 2: Try the section matchers (greetings, basic Q&A) ──
   for (const section of banglaSections) {
     for (const pattern of section.patterns) {
       if (pattern.test(norm)) {
         const reply = rand(section.replies);
-        // 70% chance to append a follow-up on sections that allow it
         if (section.followUp && Math.random() < 0.7) {
           return reply + ' ' + getBanglaFollowUp();
         }
@@ -3204,7 +3964,7 @@ function matchBanglaInput(input) {
     }
   }
 
-  // Fallback: generic Bangla response
+  // ── Step 3: Fallback for Bengali script only ──
   if (hasBengali) {
     return rand([
       'বলো! আমি শুনছি। 🤍 তুমি কি নিয়ে কথা বলতে চাইছো?',
