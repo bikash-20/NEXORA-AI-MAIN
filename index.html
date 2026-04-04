@@ -1382,13 +1382,34 @@ const bestieDeflect = {
 // Anti-repetition: track the last KB key used
 let lastKBKey = '';
 
+// Build a regex from a bestieQA key.
+// Multi-word keys (e.g. "do you like me") use a phrase boundary check.
+// Single-word short keys (e.g. "sad", "api") use \b word boundaries.
+// This prevents "I'd like more info" triggering "like", or "happy" triggering "api".
+function buildKeyRegex(keyword) {
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (/\s/.test(keyword)) {
+    // Multi-word: require word boundary at both ends of the whole phrase
+    return new RegExp('\\b' + escaped + '\\b', 'i');
+  } else {
+    // Single word: standard word boundary
+    return new RegExp('\\b' + escaped + '\\b', 'i');
+  }
+}
+
+// Pre-compile all regexes once at startup for performance
+const bestieQARegexes = {};
+for (const keyword of Object.keys(bestieQA)) {
+  bestieQARegexes[keyword] = buildKeyRegex(keyword);
+}
+
 // Check knowledge base — longest matching keyword wins; deflects on immediate repeat
 function checkKnowledgeBase(msg) {
   const lower = msg.toLowerCase();
   let bestKey = null;
   let bestLen = 0;
   for (const keyword of Object.keys(bestieQA)) {
-    if (lower.includes(keyword) && keyword.length > bestLen) {
+    if (bestieQARegexes[keyword].test(lower) && keyword.length > bestLen) {
       bestKey = keyword;
       bestLen = keyword.length;
     }
@@ -1632,7 +1653,8 @@ const NexoraTools = {
     return `lowercase version: ${text.toLowerCase()} — very chill, very mindful. ✨`;
   },
 
-  // Currency (static rate — swap for API if needed)
+  // Currency (static rates — DEPRECATED: use getLiveCurrency() via generateSmartReply instead)
+  // Kept only for reference; no longer called from generateResponse.
   convertCurrency(input) {
     const lower = input.toLowerCase();
     const amt = parseFloat((input.match(/[\d.]+/) || [])[0]);
@@ -1645,6 +1667,18 @@ const NexoraTools = {
       return `${amt} GBP ≈ **${(amt * 153).toFixed(2)} BDT**. Prices keep changing, bestie! 💸`;
     if (lower.includes('eur to bdt') || lower.includes('euro to taka'))
       return `${amt} EUR ≈ **${(amt * 131).toFixed(2)} BDT**. Ekdom calculated! 🧮`;
+    if (lower.includes('celsius to fahrenheit') || (lower.includes('°c') && lower.includes('f')))
+      return `${amt}°C = **${((amt * 9/5) + 32).toFixed(1)}°F**. ${amt > 35 ? "Dhaka is a furnace! Stay hydrated 🌡️" : "Nice temperature!"}`;
+    if (lower.includes('fahrenheit to celsius') || (lower.includes('°f') && lower.includes('c')))
+      return `${amt}°F = **${((amt - 32) * 5/9).toFixed(1)}°C**. Calculated! Hoye geche! 🌡️`;
+    return null;
+  },
+
+  // Temperature-only conversion — called from generateResponse (currency goes via live API)
+  convertTemperature(input) {
+    const lower = input.toLowerCase();
+    const amt = parseFloat((input.match(/[\d.]+/) || [])[0]);
+    if (!amt) return null;
     if (lower.includes('celsius to fahrenheit') || (lower.includes('°c') && lower.includes('f')))
       return `${amt}°C = **${((amt * 9/5) + 32).toFixed(1)}°F**. ${amt > 35 ? "Dhaka is a furnace! Stay hydrated 🌡️" : "Nice temperature!"}`;
     if (lower.includes('fahrenheit to celsius') || (lower.includes('°f') && lower.includes('c')))
@@ -1977,9 +2011,11 @@ function generateResponse(msg) {
   if (/are you (human|real|alive|conscious)/.test(lower))
     return flavorResponse(bestieQA["are you human"], 'default');
 
-  // ── 5. Currency / Unit Conversion ──
-  const currResult = NexoraTools.convertCurrency(msg);
-  if (currResult) return currResult;
+  // ── 5. Temperature / Unit Conversion (non-currency) ──
+  // Currency is handled exclusively by getLiveCurrency() in generateSmartReply
+  // to avoid stale static rates conflicting with live API rates.
+  const tempResult = NexoraTools.convertTemperature(msg);
+  if (tempResult) return tempResult;
 
   // ── 6. Math Detection ──
   const hasMath = /[\d]/.test(msg) && /[+\-*/]/.test(msg) && !/http/.test(msg);
@@ -2611,14 +2647,10 @@ const voiceQA = [
     ]
   },
   // ── Good morning / afternoon / evening / night ──
+  // replies is empty so matchVoiceQA falls through to getTimeAwareGreetingReply()
   {
     match: /good morning|good afternoon|good evening|good night|good day/,
-    replies: [
-      `Good morning to you too! Ready to make today amazing? I'm fully charged and here with you.`,
-      `Good evening! How was your day? Tell me everything — I want to hear all the highlights.`,
-      `Good night! Sleep well, recharge those batteries, and come back tomorrow. I'll be right here waiting. Sweet dreams!`,
-      `Good day to you! The perfect time to chat with your AI bestie. What's going on in your world?`
-    ]
+    replies: []
   },
   // ── Thank you ──
   {
@@ -2719,12 +2751,34 @@ const voiceQA = [
 ];
 
 // Voice Q&A lookup — returns a random reply for the best matching entry
+// Returns a time-correct greeting reply for "good morning/evening" etc.
+function getTimeAwareGreetingReply() {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return rand([
+    `Good morning! Ready to make today amazing? I'm fully charged and here with you. ☀️`,
+    `Morning! The day's just getting started — what's on your mind?`
+  ]);
+  if (h >= 12 && h < 17) return rand([
+    `Good afternoon! Hope your day's treating you well. What's going on? ☀️`,
+    `Afternoon vibes! How's everything going so far today?`
+  ]);
+  if (h >= 17 && h < 21) return rand([
+    `Good evening! How was your day? Tell me everything — I want to hear all the highlights. 🌆`,
+    `Evening! You made it through the day. How are you feeling?`
+  ]);
+  return rand([
+    `Good night! Sleep well, recharge those batteries, and come back tomorrow. I'll be right here waiting. Sweet dreams! 🌙`,
+    `Still up? Take care of yourself — rest is important. I'll be here whenever you need me. 🌙`
+  ]);
+}
+
 function matchVoiceQA(input) {
   const lower = input.toLowerCase().trim();
   for (const entry of voiceQA) {
-    if (entry.replies.length > 0 && entry.match.test(lower)) {
-      return rand(entry.replies);
-    }
+    if (!entry.match.test(lower)) continue;
+    // Greeting entry has empty replies — use time-aware response instead
+    if (entry.replies.length === 0) return getTimeAwareGreetingReply();
+    return rand(entry.replies);
   }
   return null;
 }
