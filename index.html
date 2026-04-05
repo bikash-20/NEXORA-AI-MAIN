@@ -1006,31 +1006,46 @@
   <!-- API Key Setup Panel -->
   <div id="apiPanel">
     <div style="display:flex;align-items:center;justify-content:space-between;">
-      <div class="api-panel-title">🔑 Connect AI</div>
+      <div class="api-panel-title">🔑 API Key Setup</div>
       <button class="api-close-btn" onclick="closeApiPanel()">✕ Close</button>
     </div>
-    <div class="api-panel-sub">
-      Paste your <strong>OpenRouter API key</strong> to unlock real AI responses.<br>
-      Get one free at <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a>
-    </div>
+
+    <!-- Current key status card -->
     <div class="api-status-row" id="apiStatusRow">
-      <span id="apiStatusText">No key saved</span>
-      <span class="api-model-tag" id="apiModelTag">auto-select</span>
+      <span id="apiStatusText">No key saved — using rule-based mode</span>
+      <span class="api-model-tag" id="apiModelTag">offline</span>
     </div>
-    <div style="font-size:12px;color:var(--text3);padding:0 2px;">
-      💡 <strong style="color:var(--text2)">Free option:</strong> No credits needed with Llama or Gemini Flash.<br>
-      <strong style="color:var(--accent2)">Best quality:</strong> Claude Haiku needs ~$1 OpenRouter credit.
+
+    <!-- Info tips -->
+    <div style="font-size:12px;color:var(--text3);padding:0 2px;line-height:1.7;">
+      Paste your <strong style="color:var(--text2)">OpenRouter API key</strong> below to unlock live AI.<br>
+      Get one free at <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--accent)">openrouter.ai/keys</a><br>
+      💡 <strong style="color:var(--text2)">Free models:</strong> Llama 3.1, Gemini Flash — no credits needed.<br>
+      ⚡ <strong style="color:var(--accent2)">Best quality:</strong> Claude Haiku (~$1 credit on OpenRouter).
     </div>
+
+    <!-- Key input -->
     <div class="api-input-wrap">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2">
         <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
       </svg>
-      <input id="apiKeyInput" type="password" placeholder="sk-or-v1-..." autocomplete="off" maxlength="120"/>
+      <input id="apiKeyInput" type="password" placeholder="Paste new key here (sk-or-v1-...)" autocomplete="off" maxlength="200"/>
     </div>
-    <button class="api-save-btn" onclick="saveApiKey()">Save & Activate AI ✨</button>
+
+    <!-- Replace hint — shown only when a key already exists -->
+    <div id="apiReplaceHint" style="display:none;font-size:12px;color:#f59e0b;padding:0 2px;">
+      ⚠️ A key is already saved. Pasting a new one will <strong>replace it immediately</strong>.
+    </div>
+
+    <!-- Buttons -->
+    <button class="api-save-btn" onclick="saveApiKey()">Save & Activate ✨</button>
+    <button id="apiDeleteBtn" onclick="deleteApiKey()" style="display:none;background:none;border:1px solid rgba(239,68,68,0.3);color:#f87171;border-radius:12px;padding:10px;font-size:13px;cursor:pointer;width:100%;">
+      🗑️ Remove saved key
+    </button>
+
     <div style="font-size:11px;color:var(--text3);text-align:center;line-height:1.6;">
-      Your key is stored only in your browser's localStorage.<br>
-      It is never sent anywhere except directly to OpenRouter.
+      Stored only in <em>your</em> browser's localStorage.<br>
+      Never sent anywhere except directly to OpenRouter.
     </div>
   </div>
 
@@ -1861,8 +1876,8 @@ function checkBikashKB(msg) {
   if (/vegan|vegetarian|diet|why.*not.*meat|no meat|tapasya|krishna.*food|bhagavad|why.*vegetarian/.test(q)) return "🌱 Bikash is vegetarian for 3 reasons:<br>🐾 <strong>Ethics</strong> — animals feel pain; plants are more compassionate<br>🕉️ <strong>Bhagavad Gita</strong> — Lord Krishna accepts only pure vegetarian offerings. Eating what can be offered to Him aligns daily life with devotion<br>🔥 <strong>Tapasya</strong> — <em>\"Life means sacrifice for others, not my own happiness.\"</em> Every meal is a small act of austerity. 🙏";
   if (/sport|football|gym|workout|fitness|hobby|free time/.test(q)) return "⚽ Football (favourite) · 🏏 Cricket · 💪 Gym. The same focus that makes him a great engineer makes him competitive on the field. 🔥";
   if (/marry|marriage|wife|girlfriend|relationship|love life|romantic/.test(q)) return "Bikash has made a clear choice — he <strong>does not plan to marry</strong>. His life is devoted to his craft, family, and technology. Some build relationships. He builds systems. 💻";
-  if (/hometown|ramdigha|sunamganj|madhyanagar|village life|grew up|childhood/.test(q)) return "🏡 Bikash is from <strong>Madhyanagar Upazila, Sunamganj, Sylhet</strong> — <strong>Ramdigha village</strong>. Open fields, cricket with Glucose Biscuit stakes, his grandmother's warmth. <em>Ramdigha will always be where his heart returns.</em> 💙";
-  if (/\bsylhet\b/.test(q) && !/sust|metropolitan|leading|mc college|scholars|jalalabad/.test(q)) return "🌿 <strong>Sylhet</strong> — NE Bangladesh, near Meghalaya. ☕ Tea gardens (Sreemangal), 🏔️ Jaflong, 🌊 Ratargul Swamp Forest, 💧 Bisnakandi, 🌧️ Tanguar Haor, 🕌 Shah Jalal Mazar, 🍲 Shatkora beef, Seven-layer tea. Greenest, most spiritual city in Bangladesh. ✦";
+  if (/hometown|ramdigha|sunamganj.*bikash|bikash.*sunamganj|madhyanagar|village life|grew up|childhood/.test(q)) return "🏡 Bikash is from <strong>Madhyanagar Upazila, Sunamganj, Sylhet</strong> — <strong>Ramdigha village</strong>. Open fields, cricket with Glucose Biscuit stakes, his grandmother's warmth. <em>Ramdigha will always be where his heart returns.</em> 💙";
+  if (/\bsylhet\b/.test(q) && /bikash|his city|from sylhet|your home|grew up/.test(q) && !/sust|metropolitan|leading|mc college|scholars|jalalabad/.test(q)) return "🌿 <strong>Sylhet</strong> — NE Bangladesh, near Meghalaya. ☕ Tea gardens (Sreemangal), 🏔️ Jaflong, 🌊 Ratargul Swamp Forest, 💧 Bisnakandi, 🌧️ Tanguar Haor, 🕌 Shah Jalal Mazar, 🍲 Shatkora beef, Seven-layer tea. Greenest, most spiritual city in Bangladesh. ✦";
   if (/contact.*bikash|reach.*bikash|bikash.*phone|bikash.*social/.test(q)) return "📬 +880 1926 240 062 · <a href='https://github.com/bikash-20' target='_blank' style='color:var(--accent)'>GitHub</a> · <a href='https://linkedin.com/in/bikash-talukder-6497633b8' target='_blank' style='color:var(--accent)'>LinkedIn</a> · Instagram: @talukder_20 · Codeforces: talukder_20 · LeetCode: bikashtalukder";
   if (/codeforces|competitive programming|leetcode|dsa.*bikash/.test(q)) return "⚡ Codeforces: <strong>talukder_20</strong> · LeetCode: <strong>bikashtalukder</strong> (75% DSA). Testing algorithms under real pressure. 🧩";
   if (/research interest|quantum computing|\bllm\b|machine learning|big data|hadoop|spark|\bnlp\b|embedded system/.test(q)) return "🔬 Bikash's research: ⚛️ Quantum Algorithms · 🤖 AI & LLMs · 📊 ML & model optimization · 🔌 Embedded Systems & IoT · 💬 NLP · 📦 Big Data (Hadoop, Spark). He doesn't just study the future — he builds it. ✦";
@@ -3240,30 +3255,115 @@ function ensureTesseract() {
   return tesseractLoader;
 }
 
-async function performOCR(file) {
-  const camBtn = document.getElementById('cameraBtn');
-  if (camBtn) camBtn.classList.add('scanning');
-  addBotMsg("Looking at your image... reading the text now. 🧐");
+// Vision-capable models (support base64 image input)
+const VISION_MODELS = [
+  'anthropic/claude-3-5-haiku',
+  'anthropic/claude-3-haiku',
+  'google/gemini-flash-1.5:free',
+  'meta-llama/llama-3.2-11b-vision-instruct:free',
+];
 
+// Convert File to base64 data URL
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload  = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+// Call OpenRouter with image — full vision AI
+async function callVisionAI(file) {
+  const activeKey = getActiveKey();
+  if (!activeKey) return null;
+
+  let dataUrl;
+  try { dataUrl = await fileToBase64(file); }
+  catch(e) { return null; }
+
+  const base64Data = dataUrl.split(',')[1];
+  const mimeType   = dataUrl.split(';')[0].split(':')[1] || 'image/jpeg';
+
+  const systemPrompt = `You are Nexora, a brilliant AI companion built by Bikash Talukder.
+When given an image you MUST:
+- Describe what you see clearly
+- Read and transcribe ANY text (printed or handwritten) exactly
+- Solve math problems or equations step by step with the final answer
+- Read code, explain what it does, spot bugs, suggest fixes
+- Explain diagrams, charts, graphs
+- Identify real-world objects or scenes in detail
+- Answer any question written in the image
+Be direct — tell the user what you found, then help them with it.`;
+
+  for (const model of VISION_MODELS) {
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${activeKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://nexora.ai',
+          'X-Title': 'Nexora Vision'
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 1000,
+          temperature: 0.3,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: [
+              { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64Data}`, detail: 'high' } },
+              { type: 'text', text: 'Please analyse this image fully — describe what you see, read any text, solve any math or code, and help me with whatever is shown.' }
+            ]}
+          ]
+        })
+      });
+      if (res.status === 401) return '__KEY_INVALID__';
+      if (res.status === 429) return '__KEY_LIMIT__';
+      if (!res.ok) continue;
+      const data = await res.json();
+      const reply = data?.choices?.[0]?.message?.content?.trim();
+      if (reply) return reply;
+    } catch(e) { continue; }
+  }
+  return null;
+}
+
+// OCR fallback — text extraction only (when no API key)
+async function performOCRFallback(file) {
   try {
     await ensureTesseract();
     const { data: { text } } = await window.Tesseract.recognize(file, 'eng', { logger: () => {} });
     const cleanText = text.replace(/\n+/g, ' ').trim();
-    if (!cleanText) return "I could see the image but couldn't read any text. Try a clearer photo! 📷";
-
-    // Try to solve as math first
+    if (!cleanText) return "I could see the image but couldn't read any text 📷<br><small style='opacity:0.5'>💡 Add an API key (Menu → API Key Setup) for full image understanding!</small>";
     const mathResult = solveComplexMath(cleanText);
     if (mathResult) return `📖 I read: <em>"${cleanText}"</em><br><br>${mathResult}`;
-
-    // Check password strength
-    if (/password/i.test(cleanText) || cleanText.length < 30) {
-      const pwStrength = checkPasswordStrength(cleanText.replace(/\s/g,''));
-      if (pwStrength) return `📖 I read: <em>"${cleanText}"</em><br><br>🔐 Password strength: ${pwStrength}`;
-    }
-
-    return `📖 I read from the image:<br><br><em>"${cleanText}"</em><br><br>What would you like me to do with this? I can solve math, check a password, or just discuss it! 💬`;
+    return `📖 Text extracted:<br><br><em>"${cleanText}"</em><br><br>What would you like me to do with this?<br><small style='opacity:0.5'>💡 With an API key I can understand photos, handwriting, diagrams and code!</small>`;
   } catch(e) {
     return "😓 I had trouble reading that image. Make sure the text is clear and well-lit!";
+  }
+}
+
+// Main image handler — Vision AI first, OCR fallback
+async function performOCR(file) {
+  const camBtn = document.getElementById('cameraBtn');
+  if (camBtn) camBtn.classList.add('scanning');
+  try {
+    const hasKey = !!getActiveKey();
+    if (hasKey) {
+      addBotMsg("🔍 Analysing your image with Vision AI...");
+      const vision = await callVisionAI(file);
+      if (vision === '__KEY_INVALID__') { return '❌ Invalid API key — go to Menu → API Key Setup to fix it.'; }
+      if (vision === '__KEY_LIMIT__')   { return '⚠️ API key hit its limit. Paste a new key via Menu → API Key Setup. 🔑'; }
+      if (vision) return vision;
+      // All vision models failed — fall back to OCR
+      addBotMsg("⚠️ Vision AI unavailable, falling back to text extraction...");
+      return await performOCRFallback(file);
+    } else {
+      addBotMsg("📖 Reading text from image... (add an API key for full image understanding!)");
+      return await performOCRFallback(file);
+    }
   } finally {
     if (camBtn) camBtn.classList.remove('scanning');
   }
@@ -3272,11 +3372,15 @@ async function performOCR(file) {
 function handleImageUpload(event) {
   const file = event.target.files[0];
   if (!file) return;
-  event.target.value = ''; // reset so same file can be re-uploaded
+  event.target.value = '';
   addUserMsg(`📷 [Image: ${file.name}]`);
   isTyping = true;
   performOCR(file).then(reply => {
-    typeBot(reply);
+    if (reply) typeBot(reply);
+    else isTyping = false;
+  }).catch(() => {
+    isTyping = false;
+    typeBot("😓 Something went wrong reading that image. Try again!");
   });
 }
 
@@ -4672,8 +4776,7 @@ function matchBanglaInput(input) {
   // Check if input contains Bengali script characters
   const hasBengali = /[\u0980-\u09FF]/.test(input);
 
-  // If this is an information/knowledge query (not personal/emotional),
-  // let shouldGoToAI handle it — don't swallow it with Bangla patterns
+  // If it's a knowledge/info query without Bengali script, let shouldGoToAI handle it
   if (!hasBengali && shouldGoToAI(input)) return null;
 
   // Expanded Banglish word list — catches all 6 categories
@@ -4771,6 +4874,10 @@ async function callOpenRouter(userMessage) {
         // Invalid key — no point trying other models
         console.warn('OpenRouter 401: invalid key');
         return '__KEY_INVALID__';
+      } else if (res.status === 429) {
+        // Out of credits / rate-limited
+        console.warn('OpenRouter 429: usage limit hit');
+        return '__KEY_LIMIT__';
       }
     }
 
@@ -4800,19 +4907,11 @@ async function callOpenRouter(userMessage) {
 // ==============================
 
 // ==============================
-//  SMART AI ROUTER
-//  Decides whether a message should go directly to the live AI,
+//  SMART AI ROUTER — shouldGoToAI()
+//  Routes info/knowledge queries directly to live AI,
 //  bypassing all hardcoded KBs.
-//
-//  Catches:
-//  - "tell me about X" / "tell about X"
-//  - "who is X" / "what is X" / "explain X"
-//  - Known topic keywords: sports figures, CS concepts, places, events
-//  - Any proper-noun-looking word after a search intent phrase
-//  - Single/multi word topic queries like "neymar", "dsa", "messi", "ml"
 // ==============================
 
-// Phrases that clearly signal "I want information about something"
 const AI_INTENT_PHRASES = [
   /\btell\s+(me\s+)?(about|more about|everything about|something about|regarding)\b/i,
   /\btell\s+about\b/i,
@@ -4828,14 +4927,12 @@ const AI_INTENT_PHRASES = [
   /\bwhat\s+do\s+you\s+know\s+about\b/i,
 ];
 
-// High-confidence topic words — if message is short and contains one of these,
-// treat as an info query even without an intent phrase
 const KNOWN_TOPIC_WORDS = new Set([
   // Sports people
   'neymar','messi','ronaldo','mbappe','haaland','salah','benzema','lewandowski',
   'federer','nadal','djokovic','serena','lebron','kobe','jordan','shaquille',
   'sachin','kohli','dhoni','bumrah','shakib','mushfiqur','tamim',
-  'tyson','ali','mayweather','mcgregor','fury',
+  'tyson','ali','mayweather','mcgregor','fury','usain','bolt',
   // Sports
   'cricket','football','soccer','basketball','tennis','baseball','hockey',
   'formula1','f1','ufc','mma','wwe','nba','nfl','ipl','bpl','world cup',
@@ -4843,85 +4940,75 @@ const KNOWN_TOPIC_WORDS = new Set([
   'dsa','ml','ai','nlp','llm','api','oop','sql','nosql','blockchain',
   'javascript','python','java','cpp','rust','golang','typescript','react',
   'nodejs','django','flutter','kotlin','swift','linux','docker','kubernetes',
-  'algorithm','recursion','sorting','binary search','linked list','graph','tree',
+  'algorithm','recursion','sorting','graph','tree','linked list','binary search',
   'machine learning','deep learning','neural network','data structure',
-  'cybersecurity','networking','operating system','compiler','database',
+  'cybersecurity','networking','compiler','database','operating system',
   // Science
   'quantum','relativity','evolution','gravity','photosynthesis','dna','rna',
-  'atom','electron','proton','neutron','entropy','thermodynamics',
+  'atom','electron','proton','thermodynamics','entropy','climate','ecosystem',
   // Places
   'sylhet','sunamganj','dhaka','chittagong','rajshahi','khulna',
   'india','pakistan','china','usa','uk','japan','korea','germany','france',
-  'amazon','sahara','himalaya','everest','nile','ganges',
+  'amazon','sahara','himalaya','everest','nile','ganges','padma',
   // History / culture
   'mughal','ottoman','roman','greek','egypt','pyramid','renaissance',
   'independence','revolution','democracy','constitution','parliament',
   // Entertainment
-  'netflix','youtube','spotify','tiktok','instagram','facebook',
-  'marvel','dc','anime','manga','bollywood','hollywood','bts','blackpink',
+  'netflix','youtube','spotify','tiktok','marvel','dc','anime','manga',
+  'bollywood','hollywood','bts','blackpink','taylor','beyonce','drake',
   // General knowledge
-  'bitcoin','ethereum','nft','metaverse','tesla','spacex','nasa','isro',
+  'bitcoin','ethereum','tesla','spacex','nasa','isro','who','unicef','un',
   'climate change','global warming','covid','vaccine','cancer','diabetes',
 ]);
 
-// Words that look like proper nouns (capitalised mid-sentence or all-caps short words)
-// Used when the input doesn't match known topics but still looks like a name/topic query
 function looksLikeProperNounQuery(input) {
-  const trimmed = input.trim();
-  // Single word, first-letter uppercase (not at sentence start)
-  if (/^[A-Z][a-z]{2,}$/.test(trimmed)) return true;
-  // Short all-caps (acronym like DSA, ML, AI)
-  if (/^[A-Z]{2,5}$/.test(trimmed)) return true;
-  // "about [Capitalised Word]" pattern
-  if (/\babout\s+[A-Z][a-zA-Z]+/.test(trimmed)) return true;
+  const t = input.trim();
+  if (/^[A-Z][a-z]{2,}$/.test(t)) return true;          // "Neymar"
+  if (/^[A-Z]{2,5}$/.test(t)) return true;               // "DSA" "ML"
+  if (/\babout\s+[A-Z][a-zA-Z]+/.test(t)) return true;   // "about Messi"
   return false;
 }
 
-// Emotions and short personal messages that should NEVER go to AI bypass
-// (these belong to the empathy/emotion engine)
 const PERSONAL_PATTERNS = [
   /\b(i('m| am| feel| felt)|my (heart|life|day|mood|friend|family|mom|dad|sister|brother))\b/i,
   /\b(sad|happy|lonely|scared|angry|stressed|anxious|bored|tired|depressed|excited|nervous)\b/i,
-  /\b(help me|i need|can you|please|advice|what should i)\b/i,
+  /\b(help me|i need|please|what should i)\b/i,
 ];
 
 function shouldGoToAI(input) {
   const lower = input.toLowerCase().trim();
   const wordCount = input.trim().split(/\s+/).length;
 
-  // ── Never bypass: Bikash / Nexora / creator queries → local KB ──
+  // Never bypass Bikash/Nexora — local KB handles those
   if (/\b(bikash|nexora|who (made|built|created) you|your (creator|developer|maker))\b/i.test(lower)) return false;
 
-  // ── Never bypass: personal/emotional messages → empathy engine ──
+  // Never bypass personal/emotional — empathy engine handles those
   if (PERSONAL_PATTERNS.some(p => p.test(lower))) return false;
 
-  // ── Never bypass: very short messages (1-2 words) unless known topic ──
-  // (greetings, yes/no, casual chat — keep in normal flow)
+  // Short messages — only bypass if it's a known topic word or proper noun
   if (wordCount <= 2) {
-    // Exception: known topic single word → AI (e.g. "neymar", "dsa")
     const stripped = lower.replace(/[^a-z0-9\s]/g, '').trim();
     if (KNOWN_TOPIC_WORDS.has(stripped)) return true;
     if (looksLikeProperNounQuery(input.trim())) return true;
     return false;
   }
 
-  // ── Check intent phrases — most reliable signal ──
-  for (const pattern of AI_INTENT_PHRASES) {
-    if (pattern.test(lower)) return true;
+  // Match intent phrase → always go to AI
+  for (const p of AI_INTENT_PHRASES) {
+    if (p.test(lower)) return true;
   }
 
-  // ── Check if any known topic word appears in the message ──
+  // Known topic word in message → go to AI
   const words = lower.replace(/[^a-z0-9\s]/g, '').split(/\s+/);
   for (const w of words) {
     if (KNOWN_TOPIC_WORDS.has(w)) return true;
   }
-  // Also check two-word combos (e.g. "machine learning", "data structure")
+  // Two-word combos ("machine learning", "data structure")
   for (let i = 0; i < words.length - 1; i++) {
-    const bigram = words[i] + ' ' + words[i+1];
-    if (KNOWN_TOPIC_WORDS.has(bigram)) return true;
+    if (KNOWN_TOPIC_WORDS.has(words[i] + ' ' + words[i+1])) return true;
   }
 
-  // ── Proper noun heuristic for messages 3+ words ──
+  // Proper noun heuristic for 3+ word messages
   if (looksLikeProperNounQuery(input.trim())) return true;
 
   return false;
@@ -4938,20 +5025,13 @@ async function generateSmartReply(input) {
   const banglaReply = matchBanglaInput(input);
   if (banglaReply) return banglaReply;
 
-  // 0.7 SMART AI BYPASS — info queries, named topics, "tell me about X" etc.
+  // 0.7 SMART AI BYPASS — info/knowledge queries go direct to live AI
+  //  Catches "tell me about X", "who is X", "what is DSA", "neymar", etc.
   //  Runs BEFORE all KBs so hardcoded data never blocks real knowledge.
   if (shouldGoToAI(input)) {
     const ai = await callOpenRouter(input);
-    if (ai && ai !== '__KEY_INVALID__') return ai;
-    if (ai === '__KEY_INVALID__') {
-      if (!window._keyInvalidNotified) {
-        window._keyInvalidNotified = true;
-        const badge = document.getElementById('aiBadge');
-        if (badge) { badge.className = 'ai-badge offline'; badge.innerHTML = '<span class="ai-dot"></span>Key Invalid'; }
-      }
-      // Fall through to KB on invalid key so user still gets something
-    }
-    // No key / all models failed → fall through to KB/rule engine
+    if (ai && ai !== '__KEY_INVALID__' && ai !== '__KEY_LIMIT__') return ai;
+    // Key invalid/limit → fall through, error already shown at step 10
   }
 
   // 1. Live weather
@@ -5001,10 +5081,17 @@ async function generateSmartReply(input) {
     // Key is wrong — notify user once
     if (!window._keyInvalidNotified) {
       window._keyInvalidNotified = true;
-      setTimeout(() => {
-        const badge = document.getElementById('aiBadge');
-        if (badge) { badge.className = 'ai-badge offline'; badge.innerHTML = '<span class="ai-dot"></span>Key Invalid'; }
-      }, 100);
+      const badge = document.getElementById('aiBadge');
+      if (badge) { badge.className = 'ai-badge offline'; badge.innerHTML = '<span class="ai-dot"></span>Key Invalid'; }
+      setTimeout(() => typeBot('❌ Your API key is invalid. Go to Menu → API Key Setup and paste a fresh key from <strong>openrouter.ai/keys</strong>. 🔑'), 100);
+    }
+  } else if (aiReply === '__KEY_LIMIT__') {
+    // Key hit usage/credit limit — notify once and prompt to replace
+    if (!window._keyLimitNotified) {
+      window._keyLimitNotified = true;
+      const badge = document.getElementById('aiBadge');
+      if (badge) { badge.className = 'ai-badge offline'; badge.innerHTML = '<span class="ai-dot"></span>Limit Hit'; }
+      setTimeout(() => typeBot('⚠️ Your API key has hit its usage limit. You can:<br>1. Add credits at <strong>openrouter.ai</strong><br>2. Or paste a new key via <strong>Menu → API Key Setup</strong> — it replaces the old one instantly. 🔑'), 100);
     }
   } else if (aiReply) return aiReply;
 
@@ -5018,18 +5105,47 @@ async function generateSmartReply(input) {
 
 // ==============================
 //  API KEY MANAGEMENT — OpenRouter
+//
+//  Design:
+//  - Any user can paste their own OpenRouter key at any time
+//  - A new key always overwrites the old one — no conflict, no interference
+//  - Out-of-limit (429) is detected and user is prompted to replace the key
+//  - getActiveKey() always reads localStorage first — hardcoded key is last resort
+//  - Removing a key cleanly wipes localStorage and resets all runtime state
 // ==============================
+
+// Single source of truth — always read from localStorage
+function getActiveKey() {
+  const stored = localStorage.getItem('nexora_or_key');
+  // Ignore the placeholder if someone accidentally saved it
+  if (stored && stored !== 'PASTE_YOUR_NEW_KEY_HERE') return stored;
+  // Fall back to hardcoded key only if it's been properly set
+  if (OPENROUTER_KEY && OPENROUTER_KEY !== 'PASTE_YOUR_NEW_KEY_HERE') return OPENROUTER_KEY;
+  return null;
+}
+
 function openApiPanel() {
   toggleMenu();
-  const panel = document.getElementById('apiPanel');
-  panel.classList.add('open');
-  // Show current key status
+  document.getElementById('apiPanel').classList.add('open');
   updateApiStatusDisplay();
-  // Pre-fill with masked existing key if saved
-  const saved = localStorage.getItem('nexora_or_key');
+
+  const saved = getActiveKey();
+  const input = document.getElementById('apiKeyInput');
+  const hint  = document.getElementById('apiReplaceHint');
+  const delBtn = document.getElementById('apiDeleteBtn');
+
+  // Clear input so user gets a clean field to paste into
+  input.value = '';
+
   if (saved) {
-    document.getElementById('apiKeyInput').value = '';
-    document.getElementById('apiKeyInput').placeholder = saved.slice(0, 10) + '...' + saved.slice(-4) + ' (saved)';
+    // Show masked version of current key as placeholder
+    input.placeholder = saved.slice(0, 10) + '...' + saved.slice(-4) + '  ← paste new key to replace';
+    hint.style.display  = 'block';
+    delBtn.style.display = 'block';
+  } else {
+    input.placeholder = 'Paste your key here (sk-or-v1-...)';
+    hint.style.display  = 'none';
+    delBtn.style.display = 'none';
   }
 }
 
@@ -5038,59 +5154,78 @@ function closeApiPanel() {
 }
 
 function saveApiKey() {
-  const input = document.getElementById('apiKeyInput').value.trim();
-  if (!input) {
-    // If empty and there's a saved key, just close
-    if (localStorage.getItem('nexora_or_key')) { closeApiPanel(); return; }
-    alert('Please paste your OpenRouter API key first.');
-    return;
-  }
-  if (!input.startsWith('sk-or-')) {
-    alert('That doesn\'t look like an OpenRouter key. It should start with sk-or-...');
+  const raw = document.getElementById('apiKeyInput').value.trim();
+
+  // Empty input — if key already exists just close
+  if (!raw) {
+    if (getActiveKey()) { closeApiPanel(); return; }
+    typeBot('Paste your OpenRouter key in the field first! Get one free at openrouter.ai/keys 🔑');
+    closeApiPanel();
     return;
   }
 
-  localStorage.setItem('nexora_or_key', input);
-  // Update the live variable
-  // eslint-disable-next-line no-global-assign
-  Object.defineProperty(window, '_nexoraKey', { value: input, writable: true, configurable: true });
-  window._nexoraKey = input;
+  // Accept any non-empty key — OpenRouter currently uses sk-or- prefix
+  // but we don't hard-reject other formats in case they change it
+  if (raw.length < 20) {
+    typeBot("That key looks too short. Make sure you copied the full key from openrouter.ai/keys 🔑");
+    return;
+  }
+
+  // ── Save new key — completely replaces any previous key ──
+  localStorage.setItem('nexora_or_key', raw);
+  // Reset invalid-key notification flag so new key gets a fresh test
+  window._keyInvalidNotified = false;
 
   updateApiStatusDisplay();
   closeApiPanel();
 
-  // Test the connection
-  testOpenRouterKey(input);
+  typeBot("🔄 New key saved! Testing connection...");
+  testOpenRouterKey(raw);
 }
 
 function deleteApiKey() {
-  if (!confirm('Remove saved API key?')) return;
+  const saved = getActiveKey();
+  if (!saved) { typeBot("No key is saved right now."); return; }
+
+  // No confirm() dialog — just wipe it cleanly
   localStorage.removeItem('nexora_or_key');
-  window._nexoraKey = null;
+  window._keyInvalidNotified = false;
+
   updateApiStatusDisplay();
-  document.getElementById('apiKeyInput').value = '';
-  document.getElementById('apiKeyInput').placeholder = 'sk-or-v1-...';
+  closeApiPanel();
+
+  // Reset input field
+  const input = document.getElementById('apiKeyInput');
+  if (input) { input.value = ''; input.placeholder = 'Paste your key here (sk-or-v1-...)'; }
+
+  typeBot("🗑️ API key removed. Nexora is back to rule-based mode. Paste a new key anytime via Menu → API Key Setup.");
 }
 
 function updateApiStatusDisplay() {
-  const saved = localStorage.getItem('nexora_or_key') || window._nexoraKey;
+  const saved  = getActiveKey();
   const badge  = document.getElementById('aiBadge');
   const statusText = document.getElementById('apiStatusText');
+  const modelTag   = document.getElementById('apiModelTag');
+  const delBtn     = document.getElementById('apiDeleteBtn');
+  const hint       = document.getElementById('apiReplaceHint');
 
-  if (saved && saved !== 'PASTE_YOUR_NEW_KEY_HERE') {
+  if (saved) {
     if (badge) { badge.className = 'ai-badge online'; badge.innerHTML = '<span class="ai-dot"></span>AI Online'; }
-    if (statusText) statusText.textContent = '✅ Key saved — AI active (' + saved.slice(0,10) + '...' + saved.slice(-4) + ')';
+    if (statusText) statusText.textContent = '✅ Key active: ' + saved.slice(0,10) + '...' + saved.slice(-4);
+    if (modelTag)   modelTag.textContent = 'auto-select';
+    if (delBtn)     delBtn.style.display = 'block';
+    if (hint)       hint.style.display   = 'block';
   } else {
     if (badge) { badge.className = 'ai-badge offline'; badge.innerHTML = '<span class="ai-dot"></span>Rule-based'; }
-    if (statusText) statusText.textContent = 'No key saved — using rule-based responses';
+    if (statusText) statusText.textContent = 'No key saved — rule-based mode';
+    if (modelTag)   modelTag.textContent = 'offline';
+    if (delBtn)     delBtn.style.display = 'none';
+    if (hint)       hint.style.display   = 'none';
   }
 }
 
 async function testOpenRouterKey(key) {
   try {
-    let success = false;
-    let workingModel = '';
-
     for (const model of OPENROUTER_MODELS) {
       const res = await fetch(OPENROUTER_ENDPOINT, {
         method: 'POST',
@@ -5108,34 +5243,36 @@ async function testOpenRouterKey(key) {
       });
 
       if (res.status === 401) {
-        setTimeout(() => typeBot('❌ Invalid API key. Please go to Menu → API Key Setup and paste a valid OpenRouter key (starts with sk-or-...).'), 400);
+        // Invalid key
+        localStorage.removeItem('nexora_or_key');
         updateApiStatusDisplay();
+        typeBot('❌ That key is invalid (401). Please go to <strong>openrouter.ai/keys</strong> and get a fresh one, then paste it via Menu → API Key Setup.');
+        return;
+      }
+
+      if (res.status === 429) {
+        // Out of credits / rate limited — key is real but exhausted
+        updateApiStatusDisplay(); // keep key saved — it's just out of credits
+        typeBot('⚠️ Your key hit its usage limit (429). You can:<br>1. Add credits at <strong>openrouter.ai</strong><br>2. Or paste a different key via Menu → API Key Setup — the new key will replace this one immediately. 🔑');
         return;
       }
 
       if (res.ok) {
         const data = await res.json();
         const reply = data?.choices?.[0]?.message?.content?.trim();
-        if (reply) { success = true; workingModel = model; break; }
+        if (reply) {
+          updateApiStatusDisplay();
+          typeBot('🟢 Connected! Nexora is now powered by <strong>' + model + '</strong>. Ask me anything! 🎉');
+          return;
+        }
       }
     }
 
-    if (success) {
-      updateApiStatusDisplay();
-      setTimeout(() => typeBot('🟢 Nexora AI is online! Connected via <strong>' + workingModel + '</strong>. Ask me anything — I\'m now powered by real AI! 🎉'), 400);
-    } else {
-      setTimeout(() => {
-        typeBot('⚠️ Key saved but no model responded. Two possible fixes:\n\n1. Add credits at <strong>openrouter.ai</strong> (even $1 works)\n2. Or use a FREE model — tap Menu → API Key Setup to switch to the free Llama model.');
-      }, 400);
-    }
+    // All models failed but no clear error code
+    typeBot('⚠️ Key saved but all models failed to respond. Try adding credits at <strong>openrouter.ai</strong>, or paste a new key via Menu → API Key Setup.');
   } catch(e) {
-    setTimeout(() => typeBot('⚠️ Couldn\'t reach OpenRouter — check your internet connection.'), 400);
+    typeBot("⚠️ Couldn't reach OpenRouter — check your internet and try again.");
   }
-}
-
-// ── Override OPENROUTER_KEY to read from localStorage at runtime ──
-function getActiveKey() {
-  return localStorage.getItem('nexora_or_key') || OPENROUTER_KEY;
 }
 
 
