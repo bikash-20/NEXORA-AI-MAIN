@@ -6,32 +6,32 @@
 <title>Nexora — Your AI Companion</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet"/>
 <style>
   :root {
-    --bg: #04080f;
-    --surface: #080e1a;
-    --surface2: #0d1625;
-    --surface3: #111e30;
-    --accent: #38bdf8;
-    --accent2: #0ea5e9;
-    --accent-glow: rgba(56,189,248,0.22);
-    --accent-dim: rgba(56,189,248,0.10);
-    --user-bubble: linear-gradient(135deg, #0284c7, #0369a1);
-    --text: #e8f4ff;
-    --text2: #7fafd4;
-    --text3: #3d5a78;
-    --border: rgba(56,189,248,0.08);
-    --border2: rgba(56,189,248,0.18);
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #1a1a24;
+    --surface3: #22222e;
+    --accent: #d94ff5;
+    --accent2: #a855f7;
+    --accent-glow: rgba(217,79,245,0.25);
+    --accent-dim: rgba(217,79,245,0.12);
+    --user-bubble: linear-gradient(135deg, #c026d3, #7c3aed);
+    --text: #f0f0f8;
+    --text2: #9090b0;
+    --text3: #55556a;
+    --border: rgba(255,255,255,0.06);
+    --border2: rgba(217,79,245,0.2);
     --radius: 24px;
-    --orb-size: 200px;
+    --orb-size: 180px;
   }
 
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 
   body {
     background: var(--bg);
-    font-family: 'Inter', sans-serif;
+    font-family: 'DM Sans', sans-serif;
     color: var(--text);
     min-height: 100vh;
     min-height: 100dvh;
@@ -41,12 +41,12 @@
     overflow: hidden;
   }
 
-  /* ===== SUBTLE NOISE ===== */
+  /* ===== GRAIN OVERLAY ===== */
   body::before {
     content: '';
     position: fixed; inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
-    pointer-events: none; z-index: 999; opacity: 0.25;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 999; opacity: 0.4;
   }
 
   /* ===== APP SHELL — works on phone, tablet, laptop, desktop ===== */
@@ -55,15 +55,15 @@
     height: min(860px, 100dvh);
     background: var(--bg);
     border-radius: 28px;
-    border: 1px solid rgba(56,189,248,0.08);
+    border: 1px solid rgba(255,255,255,0.07);
     overflow: hidden;
     position: relative;
     display: flex;
     flex-direction: column;
     box-shadow:
-      0 0 0 1px rgba(0,0,0,0.5),
-      0 32px 80px rgba(0,0,0,0.8),
-      0 0 80px rgba(14,165,233,0.06);
+      0 0 0 1px rgba(0,0,0,0.4),
+      0 32px 80px rgba(0,0,0,0.7),
+      0 0 60px rgba(217,79,245,0.07);
   }
 
   /* Tablet: give a bit more breathing room */
@@ -111,15 +111,15 @@
 
   .header-avatar {
     width: 36px; height: 36px; border-radius: 12px;
-    background: linear-gradient(135deg, #0284c7, #38bdf8);
+    background: linear-gradient(135deg, #7c3aed, #c026d3);
     display: flex; align-items: center; justify-content: center;
     font-size: 18px;
-    box-shadow: 0 0 16px rgba(56,189,248,0.35);
+    box-shadow: 0 0 16px rgba(217,79,245,0.4);
     flex-shrink: 0;
   }
 
   .header-text h2 {
-    font-family: 'Outfit', sans-serif;
+    font-family: 'Sora', sans-serif;
     font-size: 15px; font-weight: 600;
     color: var(--text);
   }
@@ -161,139 +161,119 @@
 
   /* ===== NAME SCREEN ===== */
   #nameScreen {
-    align-items: center; justify-content: space-between;
-    padding: 0 0 36px; gap: 0;
-    background: radial-gradient(ellipse 100% 60% at 50% 20%, rgba(14,165,233,0.14) 0%, transparent 60%);
-  }
-
-  .name-top-area {
-    flex: 1;
-    display: flex; flex-direction: column;
     align-items: center; justify-content: center;
-    padding: 28px 28px 0;
-    width: 100%;
+    padding: 32px 28px; gap: 0;
   }
 
-  .name-bottom-area {
-    width: 100%;
-    padding: 0 24px 0;
-    display: flex; flex-direction: column; gap: 12px;
-  }
-
-  /* ===== FLUID ORB CANVAS ===== */
   .orb-container {
     position: relative;
-    width: 220px; height: 220px;
-    margin-bottom: 0px;
-    flex-shrink: 0;
+    width: var(--orb-size);
+    height: var(--orb-size);
+    margin-bottom: 32px;
   }
 
-  #orbCanvas {
+  .orb {
     width: 100%; height: 100%;
     border-radius: 50%;
-    display: block;
-    filter: blur(0px);
+    background: radial-gradient(circle at 38% 36%, #e879f9 0%, #9333ea 40%, #4f1787 75%, #1a0533 100%);
+    box-shadow:
+      0 0 40px rgba(217,79,245,0.5),
+      0 0 80px rgba(168,85,247,0.3),
+      0 0 120px rgba(217,79,245,0.15),
+      inset 0 0 30px rgba(255,255,255,0.08);
+    animation: orb-breathe 4s ease-in-out infinite;
+    position: relative;
   }
 
-  .orb-halo {
-    position: absolute; inset: -20px;
+  .orb::before {
+    content: '';
+    position: absolute;
+    top: 12%; left: 18%;
+    width: 30%; height: 20%;
+    background: radial-gradient(ellipse, rgba(255,255,255,0.35) 0%, transparent 70%);
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(56,189,248,0.12) 0%, transparent 70%);
-    animation: halo-pulse 3.5s ease-in-out infinite;
-    pointer-events: none;
-  }
-  .orb-halo2 {
-    position: absolute; inset: -40px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(14,165,233,0.07) 0%, transparent 70%);
-    animation: halo-pulse 3.5s ease-in-out infinite 1s;
-    pointer-events: none;
+    transform: rotate(-30deg);
   }
 
-  @keyframes halo-pulse {
+  .orb-ring {
+    position: absolute; inset: -12px;
+    border-radius: 50%;
+    border: 1px solid rgba(217,79,245,0.2);
+    animation: orb-ring 4s ease-in-out infinite;
+  }
+  .orb-ring2 {
+    position: absolute; inset: -24px;
+    border-radius: 50%;
+    border: 1px solid rgba(217,79,245,0.08);
+    animation: orb-ring 4s ease-in-out infinite 0.5s;
+  }
+
+  @keyframes orb-breathe {
+    0%,100% { transform: scale(1); box-shadow: 0 0 40px rgba(217,79,245,0.5), 0 0 80px rgba(168,85,247,0.3), 0 0 120px rgba(217,79,245,0.15), inset 0 0 30px rgba(255,255,255,0.08); }
+    50% { transform: scale(1.04); box-shadow: 0 0 60px rgba(217,79,245,0.65), 0 0 100px rgba(168,85,247,0.4), 0 0 150px rgba(217,79,245,0.2), inset 0 0 40px rgba(255,255,255,0.1); }
+  }
+  @keyframes orb-ring {
     0%,100% { transform: scale(1); opacity: 1; }
-    50%      { transform: scale(1.08); opacity: 0.6; }
-  }
-
-  /* Dummy rules kept for JS refs to .orb .orb-ring .orb-ring2 */
-  .orb { display: none; }
-  .orb-ring { display: none; }
-  .orb-ring2 { display: none; }
-  @keyframes orb-breathe { 0%,100%{} }
-  @keyframes orb-ring { 0%,100%{} }
-
-  .welcome-greeting {
-    font-family: 'Outfit', sans-serif;
-    font-size: 13px; font-weight: 400; letter-spacing: 2px;
-    color: var(--text2);
-    text-transform: uppercase;
-    text-align: center;
-    margin-bottom: 10px;
-    opacity: 0.8;
+    50% { transform: scale(1.06); opacity: 0.6; }
   }
 
   .welcome-title {
-    font-family: 'Outfit', sans-serif;
-    font-size: 30px; font-weight: 700;
-    background: linear-gradient(160deg, #e8f4ff 0%, #38bdf8 50%, #0ea5e9 100%);
+    font-family: 'Sora', sans-serif;
+    font-size: 26px; font-weight: 600;
+    background: linear-gradient(135deg, #f0f0f8, #c084fc);
     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     text-align: center;
-    margin-bottom: 8px;
-    line-height: 1.2;
+    margin-bottom: 10px;
   }
 
   .welcome-sub {
-    font-size: 13.5px; color: var(--text2);
-    text-align: center; line-height: 1.65;
-    margin-bottom: 16px;
-    max-width: 270px;
-    opacity: 0.85;
+    font-size: 14px; color: var(--text2);
+    text-align: center; line-height: 1.6;
+    margin-bottom: 20px;
+    max-width: 260px;
   }
 
   .welcome-byline {
     font-size: 11px;
-    color: #2d5f80;
+    color: #7070a0;
     text-align: center;
     margin-bottom: 28px;
     letter-spacing: 0.4px;
     display: flex; align-items: center; gap: 7px;
     justify-content: center;
-    font-family: 'Inter', sans-serif;
+    font-family: 'DM Sans', sans-serif;
   }
   .welcome-byline::before,
   .welcome-byline::after {
     content: '';
     width: 30px; height: 1px;
-    background: rgba(56,189,248,0.2);
+    background: rgba(168,85,247,0.25);
     display: inline-block;
   }
   .welcome-byline .byline-name {
-    color: #38bdf8;
+    color: #c084fc;
     font-weight: 500;
     letter-spacing: 0.2px;
   }
 
   .name-input-wrap {
     width: 100%;
-    background: rgba(13,22,37,0.8);
-    border: 1px solid rgba(56,189,248,0.2);
+    background: var(--surface2);
+    border: 1px solid var(--border2);
     border-radius: 20px;
-    padding: 15px 20px;
-    display: flex; align-items: center; gap: 12px;
-    transition: border-color 0.25s, box-shadow 0.25s;
-    backdrop-filter: blur(10px);
+    padding: 14px 20px;
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 14px;
+    transition: border-color 0.2s;
   }
-  .name-input-wrap:focus-within {
-    border-color: rgba(56,189,248,0.5);
-    box-shadow: 0 0 0 3px rgba(56,189,248,0.08);
-  }
+  .name-input-wrap:focus-within { border-color: var(--accent); }
   .name-input-wrap svg { width: 18px; height: 18px; stroke: var(--text3); fill: none; flex-shrink: 0; }
 
   #nameInput {
     flex: 1;
     background: transparent;
     border: none; outline: none;
-    font-family: 'Inter', sans-serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 15px; color: var(--text);
   }
   #nameInput::placeholder { color: var(--text3); }
@@ -302,15 +282,15 @@
     width: 100%;
     padding: 15px;
     border-radius: 20px;
-    background: linear-gradient(135deg, #0284c7, #0ea5e9);
+    background: linear-gradient(135deg, #c026d3, #7c3aed);
     border: none; cursor: pointer;
-    font-family: 'Outfit', sans-serif;
+    font-family: 'Sora', sans-serif;
     font-size: 15px; font-weight: 500;
     color: white;
-    box-shadow: 0 8px 32px rgba(14,165,233,0.35);
+    box-shadow: 0 8px 32px rgba(192,38,211,0.4);
     transition: transform 0.15s, box-shadow 0.15s;
   }
-  .start-btn:active { transform: scale(0.98); box-shadow: 0 4px 16px rgba(14,165,233,0.25); }
+  .start-btn:active { transform: scale(0.98); box-shadow: 0 4px 16px rgba(192,38,211,0.3); }
 
   /* ===== VOICE SCREEN ===== */
   #voiceScreen {
@@ -331,8 +311,8 @@
   .voice-orb {
     width: 200px; height: 200px;
     border-radius: 50%;
-    background: radial-gradient(circle at 38% 36%, #bae6fd 0%, #0ea5e9 40%, #075985 75%, #0c1a2e 100%);
-    box-shadow: 0 0 60px rgba(14,165,233,0.5), 0 0 120px rgba(56,189,248,0.3);
+    background: radial-gradient(circle at 38% 36%, #e879f9 0%, #9333ea 40%, #4f1787 75%, #1a0533 100%);
+    box-shadow: 0 0 60px rgba(217,79,245,0.5), 0 0 120px rgba(168,85,247,0.3);
     animation: orb-breathe 3s ease-in-out infinite;
     position: relative;
     display: flex; align-items: center; justify-content: center;
@@ -347,7 +327,7 @@
   }
   .voice-orb.listening {
     animation: orb-listen 0.6s ease-in-out infinite alternate;
-    box-shadow: 0 0 80px rgba(14,165,233,0.7), 0 0 150px rgba(56,189,248,0.5);
+    box-shadow: 0 0 80px rgba(217,79,245,0.7), 0 0 150px rgba(168,85,247,0.5);
   }
   @keyframes orb-listen {
     from { transform: scale(1); }
@@ -361,7 +341,7 @@
   .v-ring {
     position: absolute;
     border-radius: 50%;
-    border: 1px solid rgba(56,189,248,0.2);
+    border: 1px solid rgba(217,79,245,0.2);
     animation: v-ring-pulse 2.5s ease-out infinite;
   }
   .v-ring:nth-child(1) { width: 240px; height: 240px; animation-delay: 0s; }
@@ -374,7 +354,7 @@
   }
 
   .voice-prompt {
-    font-family: 'Outfit', sans-serif;
+    font-family: 'Sora', sans-serif;
     font-size: 20px; font-weight: 500;
     text-align: center;
     line-height: 1.4;
@@ -400,10 +380,10 @@
 
   .mic-btn {
     width: 64px; height: 64px; border-radius: 50%;
-    background: linear-gradient(135deg, #0284c7, #0ea5e9);
+    background: linear-gradient(135deg, #c026d3, #7c3aed);
     border: none; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 0 30px rgba(14,165,233,0.4);
+    box-shadow: 0 0 30px rgba(192,38,211,0.5);
     transition: transform 0.15s;
   }
   .mic-btn.active { background: linear-gradient(135deg, #ef4444, #dc2626); box-shadow: 0 0 30px rgba(239,68,68,0.5); }
@@ -445,10 +425,10 @@
   .msg-av {
     width: 30px; height: 30px; border-radius: 10px;
     flex-shrink: 0; align-self: flex-end;
-    background: linear-gradient(135deg, #0284c7, #38bdf8);
+    background: linear-gradient(135deg, #7c3aed, #c026d3);
     display: flex; align-items: center; justify-content: center;
     font-size: 15px;
-    box-shadow: 0 0 12px rgba(56,189,248,0.25);
+    box-shadow: 0 0 12px rgba(217,79,245,0.3);
   }
   .user-av {
     background: linear-gradient(135deg, #1e3a5f, #1d4ed8);
@@ -457,28 +437,24 @@
   }
 
   .bubble {
-    max-width: 74%;
-    padding: 12px 16px;
-    border-radius: 20px;
-    font-size: 14px; line-height: 1.6;
+    max-width: 72%;
+    padding: 11px 15px;
+    border-radius: 18px;
+    font-size: 14px; line-height: 1.55;
     position: relative;
-    letter-spacing: 0.01em;
   }
 
   .bot-bub {
-    background: rgba(13,22,37,0.85);
-    border: 0.5px solid rgba(56,189,248,0.12);
-    border-bottom-left-radius: 4px;
+    background: var(--surface2);
+    border: 0.5px solid var(--border);
+    border-bottom-left-radius: 5px;
     color: var(--text);
-    backdrop-filter: blur(8px);
-    box-shadow: 0 2px 12px rgba(0,0,0,0.3);
   }
 
   .user-bub {
-    background: linear-gradient(135deg, #0369a1, #0284c7);
-    border-bottom-right-radius: 4px;
+    background: linear-gradient(135deg, #c026d3, #7c3aed);
+    border-bottom-right-radius: 5px;
     color: white;
-    box-shadow: 0 2px 12px rgba(3,105,161,0.3);
   }
 
   .bubble-time {
@@ -505,7 +481,7 @@
   .dot:nth-child(3) { animation-delay: 0.4s; }
   @keyframes dot-bounce {
     0%,60%,100% { transform: translateY(0); }
-    30% { transform: translateY(-6px); background: #38bdf8; }
+    30% { transform: translateY(-6px); background: var(--accent); }
   }
 
   /* ===== MOOD CHIPS ===== */
@@ -518,43 +494,38 @@
 
   .chip {
     display: flex; align-items: center; gap: 5px;
-    padding: 7px 14px;
+    padding: 6px 13px;
     border-radius: 20px;
-    background: rgba(13,22,37,0.7);
-    border: 0.5px solid rgba(56,189,248,0.15);
+    background: var(--surface2);
+    border: 0.5px solid var(--border);
     font-size: 12px; color: var(--text2);
     cursor: pointer; white-space: nowrap;
-    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    transition: background 0.15s, border-color 0.15s;
     flex-shrink: 0;
-    backdrop-filter: blur(6px);
   }
-  .chip:active { background: rgba(14,165,233,0.12); border-color: rgba(56,189,248,0.35); transform: scale(0.97); }
+  .chip:active { background: var(--surface3); border-color: var(--border2); }
 
   /* ===== INPUT BAR ===== */
   #inputBar {
     display: flex; align-items: center; gap: 10px;
-    padding: 10px 16px 22px;
+    padding: 10px 16px 20px;
     flex-shrink: 0;
   }
 
   .input-wrap {
     flex: 1;
     display: flex; align-items: center; gap: 8px;
-    background: rgba(13,22,37,0.75);
-    border: 1px solid rgba(56,189,248,0.15);
-    border-radius: 26px;
-    padding: 11px 16px;
-    transition: border-color 0.25s, box-shadow 0.25s;
-    backdrop-filter: blur(12px);
+    background: var(--surface2);
+    border: 0.5px solid var(--border);
+    border-radius: 24px;
+    padding: 10px 14px;
+    transition: border-color 0.2s;
   }
-  .input-wrap:focus-within {
-    border-color: rgba(56,189,248,0.4);
-    box-shadow: 0 0 0 3px rgba(56,189,248,0.07);
-  }
+  .input-wrap:focus-within { border-color: rgba(217,79,245,0.4); }
 
   #userInput {
     flex: 1; background: transparent; border: none; outline: none;
-    font-family: 'Inter', sans-serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 14px; color: var(--text);
     resize: none; max-height: 80px;
   }
@@ -582,11 +553,11 @@
 
   .send-btn {
     width: 44px; height: 44px; border-radius: 50%;
-    background: linear-gradient(135deg, #0284c7, #38bdf8);
+    background: linear-gradient(135deg, #c026d3, #7c3aed);
     border: none; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
-    box-shadow: 0 4px 16px rgba(14,165,233,0.3);
+    box-shadow: 0 4px 16px rgba(192,38,211,0.35);
     transition: transform 0.15s, box-shadow 0.15s;
   }
   .send-btn:active { transform: scale(0.93); }
@@ -678,7 +649,7 @@
     animation: gossip-flicker 1.8s ease-in-out infinite;
   }
   @keyframes gossip-flicker {
-    0%,100% { box-shadow: 0 0 16px rgba(56,189,248,0.35); }
+    0%,100% { box-shadow: 0 0 16px rgba(217,79,245,0.4); }
     40%     { box-shadow: 0 0 28px rgba(244,114,182,0.8), 0 0 50px rgba(217,79,245,0.4); }
     60%     { box-shadow: 0 0 12px rgba(217,79,245,0.3); }
   }
@@ -860,7 +831,7 @@
     border: 1px solid var(--border2);
     border-radius: 14px;
     padding: 10px 14px;
-    font-family: 'Inter', sans-serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 14px;
     color: var(--text);
     outline: none;
@@ -923,7 +894,7 @@
   }
   #apiPanel.open { display: flex; }
   .api-panel-title {
-    font-family: 'Outfit', sans-serif;
+    font-family: 'Sora', sans-serif;
     font-size: 17px; font-weight: 600;
     color: var(--text);
   }
@@ -941,7 +912,7 @@
   }
   #apiKeyInput {
     flex: 1; background: transparent; border: none; outline: none;
-    font-family: 'Inter', sans-serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 13px; color: var(--text);
     letter-spacing: 0.5px;
   }
@@ -951,7 +922,7 @@
     border-radius: 16px;
     background: linear-gradient(135deg, #c026d3, #7c3aed);
     border: none; cursor: pointer;
-    font-family: 'Outfit', sans-serif;
+    font-family: 'Sora', sans-serif;
     font-size: 14px; font-weight: 500; color: white;
     box-shadow: 0 6px 24px rgba(192,38,211,0.35);
     transition: transform 0.15s;
@@ -976,6 +947,29 @@
     padding: 2px 8px; border-radius: 8px;
     margin-left: auto;
   }
+  .api-remove-btn {
+    width: 100%; padding: 13px;
+    border-radius: 16px;
+    background: transparent;
+    border: 1px solid rgba(239,68,68,0.4);
+    cursor: pointer;
+    font-family: 'Sora', sans-serif;
+    font-size: 14px; font-weight: 500;
+    color: #f87171;
+    transition: background 0.15s, transform 0.15s;
+  }
+  .api-remove-btn:active { transform: scale(0.98); background: rgba(239,68,68,0.08); }
+  .api-remove-btn:hover  { background: rgba(239,68,68,0.08); }
+  .api-warn-row {
+    display: flex; align-items: flex-start; gap: 8px;
+    font-size: 12px; color: #fbbf24;
+    background: rgba(251,191,36,0.08);
+    border: 0.5px solid rgba(251,191,36,0.25);
+    border-radius: 12px;
+    padding: 10px 13px;
+    line-height: 1.5;
+  }
+  .api-warn-row strong { color: #f59e0b; }
 </style>
 </head>
 <body>
@@ -1035,55 +1029,67 @@
 
   <!-- API Key Setup Panel -->
   <div id="apiPanel">
-    <div style="display:flex;align-items:center;justify-content:space-between;">
-      <div class="api-panel-title">🔑 Connect AI</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+      <div class="api-panel-title">🔑 API Key Setup</div>
       <button class="api-close-btn" onclick="closeApiPanel()">✕ Close</button>
     </div>
-    <div class="api-panel-sub">
-      Paste your <strong>OpenRouter API key</strong> to unlock real AI responses.<br>
-      Get one free at <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a>
-    </div>
+
+    <!-- Status row -->
     <div class="api-status-row" id="apiStatusRow">
       <span id="apiStatusText">No key saved</span>
       <span class="api-model-tag" id="apiModelTag">auto-select</span>
     </div>
-    <div style="font-size:12px;color:var(--text3);padding:0 2px;">
-      💡 <strong style="color:var(--text2)">Free option:</strong> No credits needed with Llama or Gemini Flash.<br>
-      <strong style="color:var(--accent2)">Best quality:</strong> Claude Haiku needs ~$1 OpenRouter credit.
+
+    <!-- Description -->
+    <div class="api-panel-sub">
+      Paste your <strong>OpenRouter API key</strong> below to unlock live AI.<br>
+      Get one free at <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a><br>
+      💡 <strong>Free models:</strong> Llama 3.1, Gemini Flash — no credits needed.<br>
+      ⚡ <strong style="color:var(--accent2)">Best quality:</strong> Claude Haiku (~$1 credit on OpenRouter).
     </div>
+
+    <!-- Input -->
     <div class="api-input-wrap">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2">
         <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
       </svg>
       <input id="apiKeyInput" type="password" placeholder="sk-or-v1-..." autocomplete="off" maxlength="120"/>
     </div>
-    <button class="api-save-btn" onclick="saveApiKey()">Save & Activate AI ✨</button>
+
+    <!-- Warning row (shown only when a key already exists) -->
+    <div class="api-warn-row" id="apiWarnRow" style="display:none;">
+      ⚠️ A key is already saved. Pasting a new one will <strong>replace it immediately</strong>.
+    </div>
+
+    <!-- Save button -->
+    <button class="api-save-btn" onclick="saveApiKey()">Save & Activate ✨</button>
+
+    <!-- Remove button (shown only when a key exists) -->
+    <button class="api-remove-btn" id="apiRemoveBtn" style="display:none;" onclick="deleteApiKey()">
+      🗑️ Remove saved key
+    </button>
+
     <div style="font-size:11px;color:var(--text3);text-align:center;line-height:1.6;">
-      Your key is stored only in your browser's localStorage.<br>
-      It is never sent anywhere except directly to OpenRouter.
+      Stored only in <em>your</em> browser's localStorage.<br>
+      Never sent anywhere except directly to OpenRouter.
     </div>
   </div>
 
   <!-- NAME SCREEN -->
   <div class="screen active" id="nameScreen">
-    <div class="name-top-area">
-      <div class="orb-container">
-        <div class="orb-halo2"></div>
-        <div class="orb-halo"></div>
-        <canvas id="orbCanvas" width="220" height="220"></canvas>
-      </div>
-      <p class="welcome-greeting">Meet Nexora</p>
-      <p class="welcome-title">How can I help<br>you today?</p>
-      <p class="welcome-sub">Your personal AI companion — here to listen, support, and vibe with you 24/7.</p>
-      <p class="welcome-byline">Designed &amp; Developed by <span class="byline-name">BIKASH TALUKDER</span></p>
+    <div class="orb-container">
+      <div class="orb-ring2"></div>
+      <div class="orb-ring"></div>
+      <div class="orb"></div>
     </div>
-    <div class="name-bottom-area">
-      <div class="name-input-wrap">
-        <svg viewBox="0 0 24 24" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        <input id="nameInput" placeholder="What's your name?" maxlength="24" autocomplete="off"/>
-      </div>
-      <button class="start-btn" onclick="startApp()">Begin ✨</button>
+    <p class="welcome-title">Meet Nexora</p>
+    <p class="welcome-sub">Your personal AI companion — here to listen, support, and vibe with you 24/7.</p>
+    <p class="welcome-byline">Designed &amp; Developed by <span class="byline-name">Bikash Talukder</span></p>
+    <div class="name-input-wrap">
+      <svg viewBox="0 0 24 24" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <input id="nameInput" placeholder="What's your name?" maxlength="24" autocomplete="off"/>
     </div>
+    <button class="start-btn" onclick="startApp()">Begin ✨</button>
   </div>
 
   <!-- CHAT SCREEN -->
@@ -5138,13 +5144,27 @@ function openApiPanel() {
   toggleMenu();
   const panel = document.getElementById('apiPanel');
   panel.classList.add('open');
-  // Show current key status
   updateApiStatusDisplay();
-  // Pre-fill with masked existing key if saved
+  refreshApiPanelState();
+}
+
+function refreshApiPanelState() {
   const saved = localStorage.getItem('nexora_or_key');
-  if (saved) {
-    document.getElementById('apiKeyInput').value = '';
-    document.getElementById('apiKeyInput').placeholder = saved.slice(0, 10) + '...' + saved.slice(-4) + ' (saved)';
+  const hasKey = saved && saved.startsWith('sk-or-');
+  const warnRow   = document.getElementById('apiWarnRow');
+  const removeBtn = document.getElementById('apiRemoveBtn');
+  const inputEl   = document.getElementById('apiKeyInput');
+
+  // Show warning + remove button only if a key already exists
+  if (warnRow)   warnRow.style.display   = hasKey ? 'flex' : 'none';
+  if (removeBtn) removeBtn.style.display = hasKey ? 'block' : 'none';
+
+  // Pre-fill placeholder with masked key
+  if (inputEl) {
+    inputEl.value = '';
+    inputEl.placeholder = hasKey
+      ? saved.slice(0, 10) + '...' + saved.slice(-4) + '  ← paste new key to replace'
+      : 'sk-or-v1-...';
   }
 }
 
@@ -5172,6 +5192,7 @@ function saveApiKey() {
   window._nexoraKey = input;
 
   updateApiStatusDisplay();
+  refreshApiPanelState();
   closeApiPanel();
 
   // Test the connection
@@ -5179,12 +5200,13 @@ function saveApiKey() {
 }
 
 function deleteApiKey() {
-  if (!confirm('Remove saved API key?')) return;
+  if (!confirm('Remove saved key? The hardcoded shared key will be used instead.')) return;
   localStorage.removeItem('nexora_or_key');
   window._nexoraKey = null;
   updateApiStatusDisplay();
-  document.getElementById('apiKeyInput').value = '';
-  document.getElementById('apiKeyInput').placeholder = 'sk-or-v1-...';
+  refreshApiPanelState();
+  typeBot('🗑️ Personal key removed. Using the shared key now — AI is still active. 🤍');
+  closeApiPanel();
 }
 
 function updateApiStatusDisplay() {
@@ -5258,156 +5280,6 @@ function getActiveKey() {
   return localStorage.getItem('nexora_or_key') || OPENROUTER_KEY;
 }
 
-
-// ==============================
-//  FLUID BLUE ORB — Canvas Animation
-// ==============================
-(function initFluidOrb() {
-  const canvas = document.getElementById('orbCanvas');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const W = canvas.width, H = canvas.height;
-  const cx = W / 2, cy = H / 2;
-  let t = 0;
-
-  // Fluid blob parameters
-  const NUM_POINTS = 8;
-  const BASE_R = 78;
-
-  function noise(x) {
-    // Simple smooth noise using sin harmonics
-    return Math.sin(x * 1.3) * 0.5 +
-           Math.sin(x * 2.1 + 1.2) * 0.3 +
-           Math.sin(x * 3.7 + 2.4) * 0.15 +
-           Math.sin(x * 5.3 + 0.8) * 0.05;
-  }
-
-  function getBlobPoints(time, layer) {
-    const pts = [];
-    for (let i = 0; i < NUM_POINTS; i++) {
-      const angle = (i / NUM_POINTS) * Math.PI * 2;
-      const n = noise(angle * 0.8 + time * (0.4 + layer * 0.15));
-      const r = BASE_R + n * (18 + layer * 8);
-      pts.push({ x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r });
-    }
-    return pts;
-  }
-
-  function drawBlobPath(pts) {
-    ctx.beginPath();
-    for (let i = 0; i < pts.length; i++) {
-      const p0 = pts[(i - 1 + pts.length) % pts.length];
-      const p1 = pts[i];
-      const p2 = pts[(i + 1) % pts.length];
-      const p3 = pts[(i + 2) % pts.length];
-      if (i === 0) ctx.moveTo(p1.x, p1.y);
-      // Catmull-Rom to cubic bezier
-      const cp1x = p1.x + (p2.x - p0.x) / 6;
-      const cp1y = p1.y + (p2.y - p0.y) / 6;
-      const cp2x = p2.x - (p3.x - p1.x) / 6;
-      const cp2y = p2.y - (p3.y - p1.y) / 6;
-      ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
-    }
-    ctx.closePath();
-  }
-
-  function drawFrame() {
-    ctx.clearRect(0, 0, W, H);
-
-    // ── Outer ambient glow ──
-    const outerGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, W * 0.52);
-    outerGlow.addColorStop(0, 'rgba(14,165,233,0.08)');
-    outerGlow.addColorStop(0.5, 'rgba(56,189,248,0.04)');
-    outerGlow.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = outerGlow;
-    ctx.fillRect(0, 0, W, H);
-
-    // ── Layer 3 — deep core shadow ──
-    const pts3 = getBlobPoints(t * 0.7, 2);
-    drawBlobPath(pts3);
-    const g3 = ctx.createRadialGradient(cx - 10, cy - 10, 5, cx, cy, BASE_R + 26);
-    g3.addColorStop(0, 'rgba(2,132,199,0.9)');
-    g3.addColorStop(0.4, 'rgba(3,105,161,0.7)');
-    g3.addColorStop(0.8, 'rgba(1,65,105,0.5)');
-    g3.addColorStop(1, 'rgba(4,8,15,0.3)');
-    ctx.fillStyle = g3;
-    ctx.fill();
-
-    // ── Layer 2 — mid fluid ──
-    const pts2 = getBlobPoints(t * 0.9 + 1.5, 1);
-    drawBlobPath(pts2);
-    const g2 = ctx.createRadialGradient(cx - 5, cy - 15, 4, cx + 5, cy, BASE_R + 18);
-    g2.addColorStop(0, 'rgba(125,211,252,0.85)');
-    g2.addColorStop(0.3, 'rgba(56,189,248,0.7)');
-    g2.addColorStop(0.65, 'rgba(14,165,233,0.45)');
-    g2.addColorStop(1, 'rgba(2,132,199,0.0)');
-    ctx.fillStyle = g2;
-    ctx.fill();
-
-    // ── Layer 1 — bright energy surface ──
-    const pts1 = getBlobPoints(t + 0.8, 0);
-    drawBlobPath(pts1);
-    const g1 = ctx.createRadialGradient(cx - 20, cy - 22, 2, cx, cy, BASE_R + 12);
-    g1.addColorStop(0, 'rgba(224,242,254,0.95)');
-    g1.addColorStop(0.15, 'rgba(186,230,253,0.85)');
-    g1.addColorStop(0.4, 'rgba(56,189,248,0.6)');
-    g1.addColorStop(0.75, 'rgba(14,165,233,0.2)');
-    g1.addColorStop(1, 'rgba(14,165,233,0)');
-    ctx.fillStyle = g1;
-    ctx.fill();
-
-    // ── Specular highlight ──
-    const spec = ctx.createRadialGradient(cx - 28, cy - 30, 1, cx - 22, cy - 24, 32);
-    spec.addColorStop(0, 'rgba(255,255,255,0.65)');
-    spec.addColorStop(0.5, 'rgba(255,255,255,0.15)');
-    spec.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = spec;
-    ctx.beginPath();
-    ctx.ellipse(cx - 22, cy - 24, 22, 14, -0.5, 0, Math.PI * 2);
-    ctx.fill();
-
-    // ── Trailing light tendrils ──
-    for (let i = 0; i < 3; i++) {
-      const angle = t * (0.6 + i * 0.25) + (i * Math.PI * 2 / 3);
-      const dist = BASE_R - 8 + Math.sin(t * 1.2 + i) * 10;
-      const tx = cx + Math.cos(angle) * dist;
-      const ty = cy + Math.sin(angle) * dist;
-      const tendril = ctx.createRadialGradient(tx, ty, 0, tx, ty, 14 + i * 4);
-      tendril.addColorStop(0, `rgba(${i === 0 ? '125,211,252' : i === 1 ? '56,189,248' : '186,230,253'},${0.3 - i * 0.05})`);
-      tendril.addColorStop(1, 'rgba(56,189,248,0)');
-      ctx.fillStyle = tendril;
-      ctx.beginPath();
-      ctx.arc(tx, ty, 14 + i * 4, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // ── Rim light arc ──
-    ctx.save();
-    ctx.globalAlpha = 0.18 + Math.sin(t * 1.5) * 0.06;
-    const rim = ctx.createLinearGradient(cx - BASE_R, cy, cx + BASE_R, cy);
-    rim.addColorStop(0, 'rgba(125,211,252,0)');
-    rim.addColorStop(0.4, 'rgba(125,211,252,0.8)');
-    rim.addColorStop(0.6, 'rgba(56,189,248,0.8)');
-    rim.addColorStop(1, 'rgba(56,189,248,0)');
-    ctx.strokeStyle = rim;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(cx, cy, BASE_R + 2, Math.PI * 0.7, Math.PI * 1.8);
-    ctx.stroke();
-    ctx.restore();
-
-    t += 0.012;
-    requestAnimationFrame(drawFrame);
-  }
-
-  drawFrame();
-
-  // ── React to orb mood (called from reactOrb in main code) ──
-  window.setOrbMood = function(mood) {
-    // mood: 'calm' | 'excited' | 'default'
-    // The orb already adapts via animation speed; this is a hook for future use
-  };
-})();
 
 </script>
 </body>
