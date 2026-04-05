@@ -947,6 +947,29 @@
     padding: 2px 8px; border-radius: 8px;
     margin-left: auto;
   }
+  .api-remove-btn {
+    width: 100%; padding: 13px;
+    border-radius: 16px;
+    background: transparent;
+    border: 1px solid rgba(239,68,68,0.4);
+    cursor: pointer;
+    font-family: 'Sora', sans-serif;
+    font-size: 14px; font-weight: 500;
+    color: #f87171;
+    transition: background 0.15s, transform 0.15s;
+  }
+  .api-remove-btn:active { transform: scale(0.98); background: rgba(239,68,68,0.08); }
+  .api-remove-btn:hover  { background: rgba(239,68,68,0.08); }
+  .api-warn-row {
+    display: flex; align-items: flex-start; gap: 8px;
+    font-size: 12px; color: #fbbf24;
+    background: rgba(251,191,36,0.08);
+    border: 0.5px solid rgba(251,191,36,0.25);
+    border-radius: 12px;
+    padding: 10px 13px;
+    line-height: 1.5;
+  }
+  .api-warn-row strong { color: #f59e0b; }
 </style>
 </head>
 <body>
@@ -1006,32 +1029,49 @@
 
   <!-- API Key Setup Panel -->
   <div id="apiPanel">
-    <div style="display:flex;align-items:center;justify-content:space-between;">
-      <div class="api-panel-title">🔑 Connect AI</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+      <div class="api-panel-title">🔑 API Key Setup</div>
       <button class="api-close-btn" onclick="closeApiPanel()">✕ Close</button>
     </div>
-    <div class="api-panel-sub">
-      Paste your <strong>OpenRouter API key</strong> to unlock real AI responses.<br>
-      Get one free at <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a>
-    </div>
+
+    <!-- Status row -->
     <div class="api-status-row" id="apiStatusRow">
       <span id="apiStatusText">No key saved</span>
       <span class="api-model-tag" id="apiModelTag">auto-select</span>
     </div>
-    <div style="font-size:12px;color:var(--text3);padding:0 2px;">
-      💡 <strong style="color:var(--text2)">Free option:</strong> No credits needed with Llama or Gemini Flash.<br>
-      <strong style="color:var(--accent2)">Best quality:</strong> Claude Haiku needs ~$1 OpenRouter credit.
+
+    <!-- Description -->
+    <div class="api-panel-sub">
+      Paste your <strong>OpenRouter API key</strong> below to unlock live AI.<br>
+      Get one free at <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a><br>
+      💡 <strong>Free models:</strong> Llama 3.1, Gemini Flash — no credits needed.<br>
+      ⚡ <strong style="color:var(--accent2)">Best quality:</strong> Claude Haiku (~$1 credit on OpenRouter).
     </div>
+
+    <!-- Input -->
     <div class="api-input-wrap">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2">
         <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
       </svg>
       <input id="apiKeyInput" type="password" placeholder="sk-or-v1-..." autocomplete="off" maxlength="120"/>
     </div>
-    <button class="api-save-btn" onclick="saveApiKey()">Save & Activate AI ✨</button>
+
+    <!-- Warning row (shown only when a key already exists) -->
+    <div class="api-warn-row" id="apiWarnRow" style="display:none;">
+      ⚠️ A key is already saved. Pasting a new one will <strong>replace it immediately</strong>.
+    </div>
+
+    <!-- Save button -->
+    <button class="api-save-btn" onclick="saveApiKey()">Save & Activate ✨</button>
+
+    <!-- Remove button (shown only when a key exists) -->
+    <button class="api-remove-btn" id="apiRemoveBtn" style="display:none;" onclick="deleteApiKey()">
+      🗑️ Remove saved key
+    </button>
+
     <div style="font-size:11px;color:var(--text3);text-align:center;line-height:1.6;">
-      Your key is stored only in your browser's localStorage.<br>
-      It is never sent anywhere except directly to OpenRouter.
+      Stored only in <em>your</em> browser's localStorage.<br>
+      Never sent anywhere except directly to OpenRouter.
     </div>
   </div>
 
@@ -5104,13 +5144,27 @@ function openApiPanel() {
   toggleMenu();
   const panel = document.getElementById('apiPanel');
   panel.classList.add('open');
-  // Show current key status
   updateApiStatusDisplay();
-  // Pre-fill with masked existing key if saved
+  refreshApiPanelState();
+}
+
+function refreshApiPanelState() {
   const saved = localStorage.getItem('nexora_or_key');
-  if (saved) {
-    document.getElementById('apiKeyInput').value = '';
-    document.getElementById('apiKeyInput').placeholder = saved.slice(0, 10) + '...' + saved.slice(-4) + ' (saved)';
+  const hasKey = saved && saved.startsWith('sk-or-');
+  const warnRow   = document.getElementById('apiWarnRow');
+  const removeBtn = document.getElementById('apiRemoveBtn');
+  const inputEl   = document.getElementById('apiKeyInput');
+
+  // Show warning + remove button only if a key already exists
+  if (warnRow)   warnRow.style.display   = hasKey ? 'flex' : 'none';
+  if (removeBtn) removeBtn.style.display = hasKey ? 'block' : 'none';
+
+  // Pre-fill placeholder with masked key
+  if (inputEl) {
+    inputEl.value = '';
+    inputEl.placeholder = hasKey
+      ? saved.slice(0, 10) + '...' + saved.slice(-4) + '  ← paste new key to replace'
+      : 'sk-or-v1-...';
   }
 }
 
@@ -5138,6 +5192,7 @@ function saveApiKey() {
   window._nexoraKey = input;
 
   updateApiStatusDisplay();
+  refreshApiPanelState();
   closeApiPanel();
 
   // Test the connection
@@ -5145,12 +5200,13 @@ function saveApiKey() {
 }
 
 function deleteApiKey() {
-  if (!confirm('Remove saved API key?')) return;
+  if (!confirm('Remove saved key? The hardcoded shared key will be used instead.')) return;
   localStorage.removeItem('nexora_or_key');
   window._nexoraKey = null;
   updateApiStatusDisplay();
-  document.getElementById('apiKeyInput').value = '';
-  document.getElementById('apiKeyInput').placeholder = 'sk-or-v1-...';
+  refreshApiPanelState();
+  typeBot('🗑️ Personal key removed. Using the shared key now — AI is still active. 🤍');
+  closeApiPanel();
 }
 
 function updateApiStatusDisplay() {
