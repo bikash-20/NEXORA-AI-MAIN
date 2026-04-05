@@ -1076,7 +1076,7 @@
     <div id="inputBar">
       <div class="input-wrap">
         <textarea id="userInput" placeholder="Tell Nexora how you feel…" rows="1" maxlength="400"></textarea>
-        <button class="camera-btn" id="cameraBtn" onclick="document.getElementById('cameraInput').click()" title="Vision AI — describe, read, solve from image 📷">
+        <button class="camera-btn" id="cameraBtn" onclick="document.getElementById('cameraInput').click()" title="Solve from image 📷">
           <svg viewBox="0 0 24 24" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
         </button>
         <button class="voice-toggle" id="voiceToggle" onclick="toggleVoiceInput()" title="Voice input">
@@ -1166,15 +1166,6 @@ const OPENROUTER_MODELS = [
   'anthropic/claude-3-haiku',
   'meta-llama/llama-3.1-8b-instruct:free',
   'google/gemini-flash-1.5:free'
-];
-
-// Vision-capable models (support image input via base64)
-// Tried in order — first success wins
-const VISION_MODELS = [
-  'anthropic/claude-3-5-haiku',      // best vision + reasoning
-  'anthropic/claude-3-haiku',        // fallback Claude vision
-  'google/gemini-flash-1.5:free',    // free vision model
-  'meta-llama/llama-3.2-11b-vision-instruct:free' // free Llama vision
 ];
 const OPENROUTER_MODEL = OPENROUTER_MODELS[0]; // default
 const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
@@ -3165,7 +3156,7 @@ const NexoraKnowledge = {
   "what is dijkstra": "Dijkstra's algorithm finds the shortest path between nodes in a graph. Bikash actually built a Google Maps Navigator using it! 🗺️",
 
   // Capabilities
-  "what can you do": "I'm your Multimodal AI! Here's what I can do:\n📷 See & understand images (Vision AI) — describe objects, read text, solve math/code from photos\n🧮 Solve complex math\n💱 Convert currency live\n🌤️ Fetch live weather\n🔐 Check password strength\n🧠 Teach Computer Science\n💬 Support your emotions\n🔥 Hype you up or spill gossip!",
+  "what can you do": "I'm your Multimodal AI! Here's what I can do:\n📷 Read text from images (OCR)\n🧮 Solve complex math\n💱 Convert currency live\n🌤️ Fetch live weather\n🔐 Check password strength\n🧠 Teach Computer Science\n💬 Support your emotions\n🔥 Hype you up or spill gossip!",
   "your features": "I can: talk like your bestie, solve math, convert currency, read images (OCR), check password strength, fetch live weather/time, teach CS concepts, and support you emotionally. Mode menu (☰) for Gossip / Hype / Support vibes! ✨",
 };
 
@@ -3232,106 +3223,8 @@ function parseCurrencyQuery(input) {
 }
 
 // ==============================
-//  PHASE 3 — Vision AI + OCR fallback
-//
-//  Priority flow:
-//  1. If API key is set → send image as base64 to vision-capable AI model
-//     → AI describes, reads text, solves math/code, identifies objects — anything
-//  2. If no key → fall back to Tesseract OCR (text extraction only)
+//  PHASE 3 — Vision / OCR (Tesseract.js)
 // ==============================
-
-// ── Convert File to base64 data URL ──
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result); // full data URL: "data:image/jpeg;base64,..."
-    reader.onerror = () => reject(new Error('Failed to read image file'));
-    reader.readAsDataURL(file);
-  });
-}
-
-// ── Call OpenRouter with image (vision API) ──
-async function callVisionAI(file, userPrompt) {
-  const activeKey = getActiveKey();
-  if (!activeKey || activeKey === 'PASTE_YOUR_NEW_KEY_HERE') return null;
-
-  let base64DataUrl;
-  try {
-    base64DataUrl = await fileToBase64(file);
-  } catch(e) {
-    console.warn('Image read failed:', e);
-    return null;
-  }
-
-  // Strip the "data:image/xxx;base64," prefix to get raw base64
-  const base64Data = base64DataUrl.split(',')[1];
-  const mimeType   = base64DataUrl.split(';')[0].split(':')[1] || 'image/jpeg';
-
-  const systemPrompt = `You are Nexora, a warm and brilliant AI companion created by Bikash Talukder.
-When given an image, you MUST:
-- Describe what you see clearly and helpfully
-- If there is text (printed or handwritten): read and transcribe it exactly
-- If there is a math problem or equation: solve it step by step and give the final answer
-- If there is code: read it, explain what it does, find bugs if any, and suggest improvements
-- If it is a diagram, chart, or graph: explain what it shows
-- If it is a real-world object or scene: describe it in detail
-- If it is a question written on paper: answer it fully
-Always be direct — tell the user what you found, then help them with it.`;
-
-  const visionMessage = {
-    role: 'user',
-    content: [
-      {
-        type: 'image_url',
-        image_url: {
-          url: `data:${mimeType};base64,${base64Data}`,
-          detail: 'high'
-        }
-      },
-      {
-        type: 'text',
-        text: userPrompt || 'Please look at this image carefully. Describe what you see, read any text, solve any math or code problems, and help me with whatever is shown.'
-      }
-    ]
-  };
-
-  // Try each vision model in order
-  for (const model of VISION_MODELS) {
-    try {
-      const res = await fetch(OPENROUTER_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${activeKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://nexora.ai',
-          'X-Title': 'Nexora Vision'
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: 1000,
-          temperature: 0.4,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            visionMessage
-          ]
-        })
-      });
-
-      if (res.status === 401) return '__KEY_INVALID__';
-      if (!res.ok) continue; // try next model
-
-      const data = await res.json();
-      const reply = data?.choices?.[0]?.message?.content?.trim();
-      if (reply) return reply;
-    } catch(e) {
-      console.warn(`Vision model ${model} failed:`, e);
-      continue;
-    }
-  }
-  return null; // all vision models failed
-}
-
-// ── Tesseract OCR loader (fallback when no API key) ──
 let tesseractLoader = null;
 function ensureTesseract() {
   if (tesseractLoader) return tesseractLoader;
@@ -3347,54 +3240,30 @@ function ensureTesseract() {
   return tesseractLoader;
 }
 
-// ── OCR fallback — text extraction only ──
-async function performOCRFallback(file) {
+async function performOCR(file) {
+  const camBtn = document.getElementById('cameraBtn');
+  if (camBtn) camBtn.classList.add('scanning');
+  addBotMsg("Looking at your image... reading the text now. 🧐");
+
   try {
     await ensureTesseract();
     const { data: { text } } = await window.Tesseract.recognize(file, 'eng', { logger: () => {} });
     const cleanText = text.replace(/\n+/g, ' ').trim();
-    if (!cleanText) return "I could see the image but couldn't read any text. Try a clearer photo! 📷<br><br><small style=\"opacity:0.5\">💡 Add an OpenRouter API key (Menu → API Key Setup) so I can actually <em>understand</em> images!</small>";
+    if (!cleanText) return "I could see the image but couldn't read any text. Try a clearer photo! 📷";
 
-    // Try local math solve on extracted text
+    // Try to solve as math first
     const mathResult = solveComplexMath(cleanText);
-    if (mathResult) return `📖 I read: <em>"${cleanText}"</em><br><br>${mathResult}<br><br><small style=\"opacity:0.5\">💡 With an API key I can solve handwritten math too!</small>`;
+    if (mathResult) return `📖 I read: <em>"${cleanText}"</em><br><br>${mathResult}`;
 
-    return `📖 I extracted this text from the image:<br><br><em>"${cleanText}"</em><br><br>What would you like me to do with it?<br><small style=\"opacity:0.5\">💡 Add an API key (Menu → API Key Setup) so I can fully understand images!</small>`;
+    // Check password strength
+    if (/password/i.test(cleanText) || cleanText.length < 30) {
+      const pwStrength = checkPasswordStrength(cleanText.replace(/\s/g,''));
+      if (pwStrength) return `📖 I read: <em>"${cleanText}"</em><br><br>🔐 Password strength: ${pwStrength}`;
+    }
+
+    return `📖 I read from the image:<br><br><em>"${cleanText}"</em><br><br>What would you like me to do with this? I can solve math, check a password, or just discuss it! 💬`;
   } catch(e) {
     return "😓 I had trouble reading that image. Make sure the text is clear and well-lit!";
-  }
-}
-
-// ── Main image handler — Vision AI first, OCR fallback ──
-async function performOCR(file) {
-  const camBtn = document.getElementById('cameraBtn');
-  if (camBtn) camBtn.classList.add('scanning');
-
-  try {
-    const activeKey = getActiveKey();
-    const hasKey = activeKey && activeKey !== 'PASTE_YOUR_NEW_KEY_HERE';
-
-    if (hasKey) {
-      // PATH 1: Vision AI — full image understanding
-      addBotMsg("🔍 Analysing your image with Vision AI...");
-      const visionReply = await callVisionAI(file);
-
-      if (visionReply === '__KEY_INVALID__') {
-        addBotMsg("❌ Invalid API key. Go to Menu → API Key Setup to fix it.");
-        return null;
-      }
-
-      if (visionReply) return visionReply;
-
-      // Vision models all failed — try OCR as fallback with a note
-      addBotMsg("⚠️ Vision AI unavailable, falling back to text extraction...");
-      return await performOCRFallback(file);
-
-    } else {
-      // PATH 2: No key — OCR only
-      addBotMsg("📖 Reading your image... (add an API key for full image understanding!)");
-      return await performOCRFallback(file);
-    }
   } finally {
     if (camBtn) camBtn.classList.remove('scanning');
   }
@@ -3407,12 +3276,7 @@ function handleImageUpload(event) {
   addUserMsg(`📷 [Image: ${file.name}]`);
   isTyping = true;
   performOCR(file).then(reply => {
-    if (reply) typeBot(reply);
-    else isTyping = false;
-  }).catch(err => {
-    console.error('Image handling error:', err);
-    isTyping = false;
-    typeBot("😓 Something went wrong reading that image. Try again!");
+    typeBot(reply);
   });
 }
 
@@ -4808,6 +4672,10 @@ function matchBanglaInput(input) {
   // Check if input contains Bengali script characters
   const hasBengali = /[\u0980-\u09FF]/.test(input);
 
+  // If this is an information/knowledge query (not personal/emotional),
+  // let shouldGoToAI handle it — don't swallow it with Bangla patterns
+  if (!hasBengali && shouldGoToAI(input)) return null;
+
   // Expanded Banglish word list — catches all 6 categories
   const romanBanglaWords = /\b(ami|tumi|tui|amar|tomar|valo|bhalo|kharap|achi|nei|hoise|bolo|lagche|chai|nai|bhai|dost|mon|kemon|ki|keno|kothay|jabo|gelo|hobe|parbo|korbo|dekhbo|sunbo|bujhchi|laglo|hoye|gache|ache|valobas|bhalobas|crush|propose|breakup|jhogra|obhiman|eka|koshto|dukkho|porashona|exam|coding|cse|freelanc|bondhu|friend|betray|gossip|raat|ghum|swapno|jibon|future|tension|selfish|troll|cute|joke|dhada|romantic)\b/i;
   const hasBanglish = romanBanglaWords.test(norm);
@@ -4930,6 +4798,135 @@ async function callOpenRouter(userMessage) {
 //  MASTER ASYNC ROUTER
 //  Fast-path handlers run first. Anything unmatched → real AI via OpenRouter.
 // ==============================
+
+// ==============================
+//  SMART AI ROUTER
+//  Decides whether a message should go directly to the live AI,
+//  bypassing all hardcoded KBs.
+//
+//  Catches:
+//  - "tell me about X" / "tell about X"
+//  - "who is X" / "what is X" / "explain X"
+//  - Known topic keywords: sports figures, CS concepts, places, events
+//  - Any proper-noun-looking word after a search intent phrase
+//  - Single/multi word topic queries like "neymar", "dsa", "messi", "ml"
+// ==============================
+
+// Phrases that clearly signal "I want information about something"
+const AI_INTENT_PHRASES = [
+  /\btell\s+(me\s+)?(about|more about|everything about|something about|regarding)\b/i,
+  /\btell\s+about\b/i,
+  /\bwhat\s+(is|are|was|were|do you know about|can you tell me about)\b/i,
+  /\bwho\s+(is|was|are|were)\b/i,
+  /\b(explain|describe|define|summarize|summarise|elaborate)\b/i,
+  /\b(search|look up|find out|give me info|info on|information (on|about)|details (on|about))\b/i,
+  /\bhow\s+(does|did|do|is|was|are|were|can|could|works?)\b/i,
+  /\bwhere\s+(is|was|are|were)\b/i,
+  /\bwhen\s+(did|was|is|were|will)\b/i,
+  /\bwhy\s+(is|was|are|were|did|does|do)\b/i,
+  /\b(history|biography|facts|story|origin|background)\s+(of|about|on)\b/i,
+  /\bwhat\s+do\s+you\s+know\s+about\b/i,
+];
+
+// High-confidence topic words — if message is short and contains one of these,
+// treat as an info query even without an intent phrase
+const KNOWN_TOPIC_WORDS = new Set([
+  // Sports people
+  'neymar','messi','ronaldo','mbappe','haaland','salah','benzema','lewandowski',
+  'federer','nadal','djokovic','serena','lebron','kobe','jordan','shaquille',
+  'sachin','kohli','dhoni','bumrah','shakib','mushfiqur','tamim',
+  'tyson','ali','mayweather','mcgregor','fury',
+  // Sports
+  'cricket','football','soccer','basketball','tennis','baseball','hockey',
+  'formula1','f1','ufc','mma','wwe','nba','nfl','ipl','bpl','world cup',
+  // Tech / CS
+  'dsa','ml','ai','nlp','llm','api','oop','sql','nosql','blockchain',
+  'javascript','python','java','cpp','rust','golang','typescript','react',
+  'nodejs','django','flutter','kotlin','swift','linux','docker','kubernetes',
+  'algorithm','recursion','sorting','binary search','linked list','graph','tree',
+  'machine learning','deep learning','neural network','data structure',
+  'cybersecurity','networking','operating system','compiler','database',
+  // Science
+  'quantum','relativity','evolution','gravity','photosynthesis','dna','rna',
+  'atom','electron','proton','neutron','entropy','thermodynamics',
+  // Places
+  'sylhet','sunamganj','dhaka','chittagong','rajshahi','khulna',
+  'india','pakistan','china','usa','uk','japan','korea','germany','france',
+  'amazon','sahara','himalaya','everest','nile','ganges',
+  // History / culture
+  'mughal','ottoman','roman','greek','egypt','pyramid','renaissance',
+  'independence','revolution','democracy','constitution','parliament',
+  // Entertainment
+  'netflix','youtube','spotify','tiktok','instagram','facebook',
+  'marvel','dc','anime','manga','bollywood','hollywood','bts','blackpink',
+  // General knowledge
+  'bitcoin','ethereum','nft','metaverse','tesla','spacex','nasa','isro',
+  'climate change','global warming','covid','vaccine','cancer','diabetes',
+]);
+
+// Words that look like proper nouns (capitalised mid-sentence or all-caps short words)
+// Used when the input doesn't match known topics but still looks like a name/topic query
+function looksLikeProperNounQuery(input) {
+  const trimmed = input.trim();
+  // Single word, first-letter uppercase (not at sentence start)
+  if (/^[A-Z][a-z]{2,}$/.test(trimmed)) return true;
+  // Short all-caps (acronym like DSA, ML, AI)
+  if (/^[A-Z]{2,5}$/.test(trimmed)) return true;
+  // "about [Capitalised Word]" pattern
+  if (/\babout\s+[A-Z][a-zA-Z]+/.test(trimmed)) return true;
+  return false;
+}
+
+// Emotions and short personal messages that should NEVER go to AI bypass
+// (these belong to the empathy/emotion engine)
+const PERSONAL_PATTERNS = [
+  /\b(i('m| am| feel| felt)|my (heart|life|day|mood|friend|family|mom|dad|sister|brother))\b/i,
+  /\b(sad|happy|lonely|scared|angry|stressed|anxious|bored|tired|depressed|excited|nervous)\b/i,
+  /\b(help me|i need|can you|please|advice|what should i)\b/i,
+];
+
+function shouldGoToAI(input) {
+  const lower = input.toLowerCase().trim();
+  const wordCount = input.trim().split(/\s+/).length;
+
+  // ── Never bypass: Bikash / Nexora / creator queries → local KB ──
+  if (/\b(bikash|nexora|who (made|built|created) you|your (creator|developer|maker))\b/i.test(lower)) return false;
+
+  // ── Never bypass: personal/emotional messages → empathy engine ──
+  if (PERSONAL_PATTERNS.some(p => p.test(lower))) return false;
+
+  // ── Never bypass: very short messages (1-2 words) unless known topic ──
+  // (greetings, yes/no, casual chat — keep in normal flow)
+  if (wordCount <= 2) {
+    // Exception: known topic single word → AI (e.g. "neymar", "dsa")
+    const stripped = lower.replace(/[^a-z0-9\s]/g, '').trim();
+    if (KNOWN_TOPIC_WORDS.has(stripped)) return true;
+    if (looksLikeProperNounQuery(input.trim())) return true;
+    return false;
+  }
+
+  // ── Check intent phrases — most reliable signal ──
+  for (const pattern of AI_INTENT_PHRASES) {
+    if (pattern.test(lower)) return true;
+  }
+
+  // ── Check if any known topic word appears in the message ──
+  const words = lower.replace(/[^a-z0-9\s]/g, '').split(/\s+/);
+  for (const w of words) {
+    if (KNOWN_TOPIC_WORDS.has(w)) return true;
+  }
+  // Also check two-word combos (e.g. "machine learning", "data structure")
+  for (let i = 0; i < words.length - 1; i++) {
+    const bigram = words[i] + ' ' + words[i+1];
+    if (KNOWN_TOPIC_WORDS.has(bigram)) return true;
+  }
+
+  // ── Proper noun heuristic for messages 3+ words ──
+  if (looksLikeProperNounQuery(input.trim())) return true;
+
+  return false;
+}
+
 async function generateSmartReply(input) {
   const lower = input.toLowerCase().trim();
 
@@ -4940,6 +4937,22 @@ async function generateSmartReply(input) {
   // 0.5 Bangla / Banglish Engine — Bengali script + romanised Bangla
   const banglaReply = matchBanglaInput(input);
   if (banglaReply) return banglaReply;
+
+  // 0.7 SMART AI BYPASS — info queries, named topics, "tell me about X" etc.
+  //  Runs BEFORE all KBs so hardcoded data never blocks real knowledge.
+  if (shouldGoToAI(input)) {
+    const ai = await callOpenRouter(input);
+    if (ai && ai !== '__KEY_INVALID__') return ai;
+    if (ai === '__KEY_INVALID__') {
+      if (!window._keyInvalidNotified) {
+        window._keyInvalidNotified = true;
+        const badge = document.getElementById('aiBadge');
+        if (badge) { badge.className = 'ai-badge offline'; badge.innerHTML = '<span class="ai-dot"></span>Key Invalid'; }
+      }
+      // Fall through to KB on invalid key so user still gets something
+    }
+    // No key / all models failed → fall through to KB/rule engine
+  }
 
   // 1. Live weather
   if (/\b(weather|temperature|how hot|how cold|rain|forecast)\b/.test(lower))
