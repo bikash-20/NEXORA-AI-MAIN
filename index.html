@@ -1861,8 +1861,9 @@ function checkBikashKB(msg) {
   if (/vegan|vegetarian|diet|why.*not.*meat|no meat|tapasya|krishna.*food|bhagavad|why.*vegetarian/.test(q)) return "🌱 Bikash is vegetarian for 3 reasons:<br>🐾 <strong>Ethics</strong> — animals feel pain; plants are more compassionate<br>🕉️ <strong>Bhagavad Gita</strong> — Lord Krishna accepts only pure vegetarian offerings. Eating what can be offered to Him aligns daily life with devotion<br>🔥 <strong>Tapasya</strong> — <em>\"Life means sacrifice for others, not my own happiness.\"</em> Every meal is a small act of austerity. 🙏";
   if (/sport|football|gym|workout|fitness|hobby|free time/.test(q)) return "⚽ Football (favourite) · 🏏 Cricket · 💪 Gym. The same focus that makes him a great engineer makes him competitive on the field. 🔥";
   if (/marry|marriage|wife|girlfriend|relationship|love life|romantic/.test(q)) return "Bikash has made a clear choice — he <strong>does not plan to marry</strong>. His life is devoted to his craft, family, and technology. Some build relationships. He builds systems. 💻";
-  if (/hometown|ramdigha|sunamganj|madhyanagar|village life|grew up|childhood/.test(q)) return "🏡 Bikash is from <strong>Madhyanagar Upazila, Sunamganj, Sylhet</strong> — <strong>Ramdigha village</strong>. Open fields, cricket with Glucose Biscuit stakes, his grandmother's warmth. <em>Ramdigha will always be where his heart returns.</em> 💙";
-  if (/\bsylhet\b/.test(q) && !/sust|metropolitan|leading|mc college|scholars|jalalabad/.test(q)) return "🌿 <strong>Sylhet</strong> — NE Bangladesh, near Meghalaya. ☕ Tea gardens (Sreemangal), 🏔️ Jaflong, 🌊 Ratargul Swamp Forest, 💧 Bisnakandi, 🌧️ Tanguar Haor, 🕌 Shah Jalal Mazar, 🍲 Shatkora beef, Seven-layer tea. Greenest, most spiritual city in Bangladesh. ✦";
+  if (/hometown|ramdigha|sunamganj.*bikash|bikash.*sunamganj|madhyanagar|village life|grew up|childhood/.test(q)) return "🏡 Bikash is from <strong>Madhyanagar Upazila, Sunamganj, Sylhet</strong> — <strong>Ramdigha village</strong>. Open fields, cricket with Glucose Biscuit stakes, his grandmother's warmth. <em>Ramdigha will always be where his heart returns.</em> 💙";
+  // Sylhet general info now handled by live AI — only respond if explicitly about Bikash+Sylhet
+  if (/\bsylhet\b/.test(q) && /bikash|his|your (home|city|place)|grew up|from sylhet/.test(q) && !/sust|metropolitan|leading|mc college|scholars|jalalabad/.test(q)) return "🌿 <strong>Sylhet</strong> — NE Bangladesh, near Meghalaya. ☕ Tea gardens (Sreemangal), 🏔️ Jaflong, 🌊 Ratargul Swamp Forest, 💧 Bisnakandi, 🌧️ Tanguar Haor, 🕌 Shah Jalal Mazar, 🍲 Shatkora beef, Seven-layer tea. Greenest, most spiritual city in Bangladesh. ✦";
   if (/contact.*bikash|reach.*bikash|bikash.*phone|bikash.*social/.test(q)) return "📬 +880 1926 240 062 · <a href='https://github.com/bikash-20' target='_blank' style='color:var(--accent)'>GitHub</a> · <a href='https://linkedin.com/in/bikash-talukder-6497633b8' target='_blank' style='color:var(--accent)'>LinkedIn</a> · Instagram: @talukder_20 · Codeforces: talukder_20 · LeetCode: bikashtalukder";
   if (/codeforces|competitive programming|leetcode|dsa.*bikash/.test(q)) return "⚡ Codeforces: <strong>talukder_20</strong> · LeetCode: <strong>bikashtalukder</strong> (75% DSA). Testing algorithms under real pressure. 🧩";
   if (/research interest|quantum computing|\bllm\b|machine learning|big data|hadoop|spark|\bnlp\b|embedded system/.test(q)) return "🔬 Bikash's research: ⚛️ Quantum Algorithms · 🤖 AI & LLMs · 📊 ML & model optimization · 🔌 Embedded Systems & IoT · 💬 NLP · 📦 Big Data (Hadoop, Spark). He doesn't just study the future — he builds it. ✦";
@@ -4794,6 +4795,48 @@ async function callOpenRouter(userMessage) {
 //  MASTER ASYNC ROUTER
 //  Fast-path handlers run first. Anything unmatched → real AI via OpenRouter.
 // ==============================
+
+// ==============================
+//  LIVE SEARCH BYPASS DETECTOR
+//  "tell me about X", "what is X", "explain X" etc. go STRAIGHT to the AI.
+//  This prevents hardcoded KBs from swallowing general knowledge queries.
+// ==============================
+const LIVE_SEARCH_PATTERNS = [
+  /\btell me (about|more about|everything about|something about)\b/i,
+  /\bwhat (is|are|was|were) (a |an |the )?\w/i,
+  /\bwho (is|was|are|were) (a |an |the )?\w/i,
+  /\b(explain|describe|define|summarize|summarise|elaborate on)\b/i,
+  /\b(search (for|about)?|look up|find (info|information|details)|give me info(rmation)? (on|about))\b/i,
+  /\bwhat do you know about\b/i,
+  /\bhow (does|did|do|is|was|are|were|can|could|should|would)\b/i,
+  /\bwhere (is|was|are|were)\b/i,
+  /\bwhen (did|was|is|were|are|will)\b/i,
+  /\bwhy (is|was|are|were|did|does|do|would|should|can)\b/i,
+];
+
+const LIVE_TOPIC_PATTERNS = [
+  /\b(sylhet|sunamganj|dhaka|chittagong|rajshahi|khulna|barisal|rangpur|mymensingh|comilla|jessore|bogura|narayanganj|gazipur|tangail|habiganj|moulvibazar|sreemangal|jaflong|ratargul|bisnakandi|tanguar)\b/i,
+  /\b(india|pakistan|myanmar|nepal|bhutan|sri lanka|china|usa|uk|australia|canada|france|germany|japan|korea)\b/i,
+  /\b(history|historical|independence|war|revolution|politics|government|constitution|election|parliament)\b/i,
+  /\b(science|physics|chemistry|biology|mathematics|algorithm|programming|artificial intelligence|machine learning|quantum)\b/i,
+  /\b(mosque|temple|church|monument|museum|festival|culture|tradition|cuisine|food|river|mountain|forest|beach|sea|ocean|lake)\b/i,
+];
+
+function isLiveSearchQuery(input) {
+  const lower = input.toLowerCase().trim();
+  // Never bypass Bikash-specific queries — keep those in local KB
+  if (/\b(bikash|nexora|who (made|built|created) you|your creator|your developer)\b/i.test(lower)) return false;
+  // Never bypass short messages (greetings, emotions)
+  if (input.trim().split(/\s+/).length <= 2) return false;
+  // Match any live-search intent pattern
+  for (const p of LIVE_SEARCH_PATTERNS) { if (p.test(lower)) return true; }
+  // Match place/topic + query intent together
+  const hasTopic = LIVE_TOPIC_PATTERNS.some(p => p.test(lower));
+  const hasIntent = /\?$|\b(tell|show|give|find|search|explain|describe|info|about|details|history|facts)\b/i.test(lower);
+  if (hasTopic && hasIntent) return true;
+  return false;
+}
+
 async function generateSmartReply(input) {
   const lower = input.toLowerCase().trim();
 
@@ -4804,6 +4847,15 @@ async function generateSmartReply(input) {
   // 0.5 Bangla / Banglish Engine — Bengali script + romanised Bangla
   const banglaReply = matchBanglaInput(input);
   if (banglaReply) return banglaReply;
+
+  // 0.7 LIVE SEARCH BYPASS — "tell me about X", "what is X", "explain X" etc.
+  //  These go STRAIGHT to the AI, skipping all hardcoded KBs, so users
+  //  always get fresh, accurate info on places, events, and general knowledge.
+  if (isLiveSearchQuery(input)) {
+    const liveAI = await callOpenRouter(input);
+    if (liveAI && liveAI !== '__KEY_INVALID__') return liveAI;
+    // No key or API failure → fall through to KB as graceful fallback
+  }
 
   // 1. Live weather
   if (/\b(weather|temperature|how hot|how cold|rain|forecast)\b/.test(lower))
