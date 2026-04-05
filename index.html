@@ -985,6 +985,7 @@
     <div class="mode-item" onclick="setMode('gossip')" id="mode-gossip"><span>✨</span> Gossip Mode</div>
     <div class="mode-item" onclick="setMode('hype')" id="mode-hype"><span>🔥</span> Hype Mode</div>
     <div class="mode-item" onclick="switchToVoice()" id="mode-voice"><span>🎙️</span> Voice Mode</div>
+    <div class="mode-item" onclick="toggleResponseMode()" id="mode-response-toggle"><span>🌐</span> Online Priority</div>
     <div class="mode-item" onclick="openSearch()"><span>🔍</span> Search Chat</div>
     <div class="mode-item" onclick="exportChat()"><span>💾</span> Export Chat</div>
     <div class="mode-item" onclick="clearChat()" style="color:#f87171"><span>🗑️</span> Clear Chat</div>
@@ -1006,46 +1007,31 @@
   <!-- API Key Setup Panel -->
   <div id="apiPanel">
     <div style="display:flex;align-items:center;justify-content:space-between;">
-      <div class="api-panel-title">🔑 API Key Setup</div>
+      <div class="api-panel-title">🔑 Connect AI</div>
       <button class="api-close-btn" onclick="closeApiPanel()">✕ Close</button>
     </div>
-
-    <!-- Current key status card -->
+    <div class="api-panel-sub">
+      Paste your <strong>OpenRouter API key</strong> to unlock real AI responses.<br>
+      Get one free at <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a>
+    </div>
     <div class="api-status-row" id="apiStatusRow">
-      <span id="apiStatusText">No key saved — using rule-based mode</span>
-      <span class="api-model-tag" id="apiModelTag">offline</span>
+      <span id="apiStatusText">No key saved</span>
+      <span class="api-model-tag" id="apiModelTag">auto-select</span>
     </div>
-
-    <!-- Info tips -->
-    <div style="font-size:12px;color:var(--text3);padding:0 2px;line-height:1.7;">
-      Paste your <strong style="color:var(--text2)">OpenRouter API key</strong> below to unlock live AI.<br>
-      Get one free at <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--accent)">openrouter.ai/keys</a><br>
-      💡 <strong style="color:var(--text2)">Free models:</strong> Llama 3.1, Gemini Flash — no credits needed.<br>
-      ⚡ <strong style="color:var(--accent2)">Best quality:</strong> Claude Haiku (~$1 credit on OpenRouter).
+    <div style="font-size:12px;color:var(--text3);padding:0 2px;">
+      💡 <strong style="color:var(--text2)">Free option:</strong> No credits needed with Llama or Gemini Flash.<br>
+      <strong style="color:var(--accent2)">Best quality:</strong> Claude Haiku needs ~$1 OpenRouter credit.
     </div>
-
-    <!-- Key input -->
     <div class="api-input-wrap">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2">
         <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
       </svg>
-      <input id="apiKeyInput" type="password" placeholder="Paste new key here (sk-or-v1-...)" autocomplete="off" maxlength="200"/>
+      <input id="apiKeyInput" type="password" placeholder="sk-or-v1-..." autocomplete="off" maxlength="120"/>
     </div>
-
-    <!-- Replace hint — shown only when a key already exists -->
-    <div id="apiReplaceHint" style="display:none;font-size:12px;color:#f59e0b;padding:0 2px;">
-      ⚠️ A key is already saved. Pasting a new one will <strong>replace it immediately</strong>.
-    </div>
-
-    <!-- Buttons -->
-    <button class="api-save-btn" onclick="saveApiKey()">Save & Activate ✨</button>
-    <button id="apiDeleteBtn" onclick="deleteApiKey()" style="display:none;background:none;border:1px solid rgba(239,68,68,0.3);color:#f87171;border-radius:12px;padding:10px;font-size:13px;cursor:pointer;width:100%;">
-      🗑️ Remove saved key
-    </button>
-
+    <button class="api-save-btn" onclick="saveApiKey()">Save & Activate AI ✨</button>
     <div style="font-size:11px;color:var(--text3);text-align:center;line-height:1.6;">
-      Stored only in <em>your</em> browser's localStorage.<br>
-      Never sent anywhere except directly to OpenRouter.
+      Your key is stored only in your browser's localStorage.<br>
+      It is never sent anywhere except directly to OpenRouter.
     </div>
   </div>
 
@@ -1147,6 +1133,12 @@
 let userName = '';
 let userInitials = 'ME';
 let currentMode = 'support'; // support | gossip | hype
+
+// ── Response priority mode ──
+// 'online'  = API key active → AI answers EVERYTHING first, KBs are fallback only
+// 'offline' = no key / user chose offline → KBs + rule engine handle everything
+// Auto-detected from API key presence; user can override via menu
+let nexoraResponseMode = 'offline'; // set properly on init
 let isTyping = false;
 let isMicOn = false;
 let recognition = null;
@@ -1212,6 +1204,7 @@ function titleizeKeyword(key) {
 //  INIT
 // ==============================
 window.addEventListener('load', () => {
+  initResponseMode(); // set online/offline mode based on saved key
   updateClock();
   setInterval(updateClock, 30000);
 
@@ -3263,7 +3256,6 @@ const VISION_MODELS = [
   'meta-llama/llama-3.2-11b-vision-instruct:free',
 ];
 
-// Convert File to base64 data URL
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -3273,48 +3265,27 @@ function fileToBase64(file) {
   });
 }
 
-// Call OpenRouter with image — full vision AI
 async function callVisionAI(file) {
-  const activeKey = getActiveKey();
-  if (!activeKey) return null;
-
+  const activeKey = getActiveKey ? getActiveKey() : localStorage.getItem('nexora_or_key');
+  if (!activeKey || activeKey === 'PASTE_YOUR_NEW_KEY_HERE') return null;
   let dataUrl;
-  try { dataUrl = await fileToBase64(file); }
-  catch(e) { return null; }
-
+  try { dataUrl = await fileToBase64(file); } catch(e) { return null; }
   const base64Data = dataUrl.split(',')[1];
   const mimeType   = dataUrl.split(';')[0].split(':')[1] || 'image/jpeg';
-
-  const systemPrompt = `You are Nexora, a brilliant AI companion built by Bikash Talukder.
-When given an image you MUST:
-- Describe what you see clearly
-- Read and transcribe ANY text (printed or handwritten) exactly
-- Solve math problems or equations step by step with the final answer
-- Read code, explain what it does, spot bugs, suggest fixes
-- Explain diagrams, charts, graphs
-- Identify real-world objects or scenes in detail
-- Answer any question written in the image
-Be direct — tell the user what you found, then help them with it.`;
-
+  const sysPrompt  = `You are Nexora, a brilliant AI built by Bikash Talukder.
+When given an image: describe what you see, read all text (printed or handwritten), solve any math step by step, read/explain/debug any code, explain diagrams and charts, identify real-world objects. Be direct and helpful.`;
   for (const model of VISION_MODELS) {
     try {
       const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${activeKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://nexora.ai',
-          'X-Title': 'Nexora Vision'
-        },
+        headers: { 'Authorization': `Bearer ${activeKey}`, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://nexora.ai', 'X-Title': 'Nexora Vision' },
         body: JSON.stringify({
-          model,
-          max_tokens: 1000,
-          temperature: 0.3,
+          model, max_tokens: 1000, temperature: 0.3,
           messages: [
-            { role: 'system', content: systemPrompt },
+            { role: 'system', content: sysPrompt },
             { role: 'user', content: [
               { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64Data}`, detail: 'high' } },
-              { type: 'text', text: 'Please analyse this image fully — describe what you see, read any text, solve any math or code, and help me with whatever is shown.' }
+              { type: 'text', text: 'Analyse this image fully. Describe what you see, read any text, solve any math or code, and help me with whatever is shown.' }
             ]}
           ]
         })
@@ -3330,38 +3301,36 @@ Be direct — tell the user what you found, then help them with it.`;
   return null;
 }
 
-// OCR fallback — text extraction only (when no API key)
 async function performOCRFallback(file) {
   try {
     await ensureTesseract();
     const { data: { text } } = await window.Tesseract.recognize(file, 'eng', { logger: () => {} });
     const cleanText = text.replace(/\n+/g, ' ').trim();
-    if (!cleanText) return "I could see the image but couldn't read any text 📷<br><small style='opacity:0.5'>💡 Add an API key (Menu → API Key Setup) for full image understanding!</small>";
+    if (!cleanText) return "I could see the image but couldn't read any text 📷<br><small style='opacity:0.5'>💡 Switch to Online Mode + add an API key for full image understanding!</small>";
     const mathResult = solveComplexMath(cleanText);
     if (mathResult) return `📖 I read: <em>"${cleanText}"</em><br><br>${mathResult}`;
-    return `📖 Text extracted:<br><br><em>"${cleanText}"</em><br><br>What would you like me to do with this?<br><small style='opacity:0.5'>💡 With an API key I can understand photos, handwriting, diagrams and code!</small>`;
+    return `📖 Text extracted from image:<br><br><em>"${cleanText}"</em><br><br>What would you like me to do with this?`;
   } catch(e) {
     return "😓 I had trouble reading that image. Make sure the text is clear and well-lit!";
   }
 }
 
-// Main image handler — Vision AI first, OCR fallback
 async function performOCR(file) {
   const camBtn = document.getElementById('cameraBtn');
   if (camBtn) camBtn.classList.add('scanning');
   try {
-    const hasKey = !!getActiveKey();
-    if (hasKey) {
-      addBotMsg("🔍 Analysing your image with Vision AI...");
+    const key = getActiveKey ? getActiveKey() : localStorage.getItem('nexora_or_key');
+    const hasKey = key && key !== 'PASTE_YOUR_NEW_KEY_HERE';
+    if (hasKey && nexoraResponseMode === 'online') {
+      addBotMsg("🔍 Analysing image with Vision AI...");
       const vision = await callVisionAI(file);
-      if (vision === '__KEY_INVALID__') { return '❌ Invalid API key — go to Menu → API Key Setup to fix it.'; }
-      if (vision === '__KEY_LIMIT__')   { return '⚠️ API key hit its limit. Paste a new key via Menu → API Key Setup. 🔑'; }
+      if (vision === '__KEY_INVALID__') return '❌ Invalid API key — fix it via Menu → API Key Setup.';
+      if (vision === '__KEY_LIMIT__')   return '⚠️ API key hit its limit. Paste a new key via Menu → API Key Setup. 🔑';
       if (vision) return vision;
-      // All vision models failed — fall back to OCR
       addBotMsg("⚠️ Vision AI unavailable, falling back to text extraction...");
       return await performOCRFallback(file);
     } else {
-      addBotMsg("📖 Reading text from image... (add an API key for full image understanding!)");
+      addBotMsg("📖 Extracting text from image... (switch to Online Mode for full image AI!)");
       return await performOCRFallback(file);
     }
   } finally {
@@ -3376,12 +3345,8 @@ function handleImageUpload(event) {
   addUserMsg(`📷 [Image: ${file.name}]`);
   isTyping = true;
   performOCR(file).then(reply => {
-    if (reply) typeBot(reply);
-    else isTyping = false;
-  }).catch(() => {
-    isTyping = false;
-    typeBot("😓 Something went wrong reading that image. Try again!");
-  });
+    if (reply) typeBot(reply); else isTyping = false;
+  }).catch(() => { isTyping = false; typeBot("😓 Something went wrong reading that image. Try again!"); });
 }
 
 // ==============================
@@ -4776,8 +4741,12 @@ function matchBanglaInput(input) {
   // Check if input contains Bengali script characters
   const hasBengali = /[\u0980-\u09FF]/.test(input);
 
-  // If it's a knowledge/info query without Bengali script, let shouldGoToAI handle it
-  if (!hasBengali && shouldGoToAI(input)) return null;
+  // In online mode, info/knowledge queries skip Bangla engine → go to AI
+  // Only personal/emotional Bangla is handled here
+  if (!hasBengali && nexoraResponseMode === 'online') {
+    const isInfo = /\\btell\\s+(me\\s+)?about\\b|\\bwhat\\s+(is|are|was)\\b|\\bwho\\s+(is|was)\\b|\\b(explain|describe|define|how does|where is|when did|why is)\\b/i.test(input);
+    if (isInfo) return null;
+  }
 
   // Expanded Banglish word list — catches all 6 categories
   const romanBanglaWords = /\b(ami|tumi|tui|amar|tomar|valo|bhalo|kharap|achi|nei|hoise|bolo|lagche|chai|nai|bhai|dost|mon|kemon|ki|keno|kothay|jabo|gelo|hobe|parbo|korbo|dekhbo|sunbo|bujhchi|laglo|hoye|gache|ache|valobas|bhalobas|crush|propose|breakup|jhogra|obhiman|eka|koshto|dukkho|porashona|exam|coding|cse|freelanc|bondhu|friend|betray|gossip|raat|ghum|swapno|jibon|future|tension|selfish|troll|cute|joke|dhada|romantic)\b/i;
@@ -4875,7 +4844,7 @@ async function callOpenRouter(userMessage) {
         console.warn('OpenRouter 401: invalid key');
         return '__KEY_INVALID__';
       } else if (res.status === 429) {
-        // Out of credits / rate-limited
+        // Out of credits / rate limited
         console.warn('OpenRouter 429: usage limit hit');
         return '__KEY_LIMIT__';
       }
@@ -4907,151 +4876,142 @@ async function callOpenRouter(userMessage) {
 // ==============================
 
 // ==============================
-//  SMART AI ROUTER — shouldGoToAI()
-//  Routes info/knowledge queries directly to live AI,
-//  bypassing all hardcoded KBs.
+//  NEXORA RESPONSE MODE SYSTEM
+//
+//  Online Mode  (nexoraResponseMode === 'online'):
+//    API key is active. AI handles EVERYTHING first.
+//    Utility tools (math, weather, currency, time) still run instantly.
+//    KBs only fire for Bikash-specific or Nexora-specific queries.
+//    No hardcoded answer can block a real AI response.
+//
+//  Offline Mode (nexoraResponseMode === 'offline'):
+//    No key / user chose offline. KBs + rule engine handle everything.
+//    Works fully without internet for core responses.
+//
+//  Auto-detection: mode is set based on whether a valid API key exists.
+//  User can override anytime via Menu → Online/Offline toggle.
 // ==============================
 
-const AI_INTENT_PHRASES = [
-  /\btell\s+(me\s+)?(about|more about|everything about|something about|regarding)\b/i,
-  /\btell\s+about\b/i,
-  /\bwhat\s+(is|are|was|were|do you know about|can you tell me about)\b/i,
-  /\bwho\s+(is|was|are|were)\b/i,
-  /\b(explain|describe|define|summarize|summarise|elaborate)\b/i,
-  /\b(search|look up|find out|give me info|info on|information (on|about)|details (on|about))\b/i,
-  /\bhow\s+(does|did|do|is|was|are|were|can|could|works?)\b/i,
-  /\bwhere\s+(is|was|are|were)\b/i,
-  /\bwhen\s+(did|was|is|were|will)\b/i,
-  /\bwhy\s+(is|was|are|were|did|does|do)\b/i,
-  /\b(history|biography|facts|story|origin|background)\s+(of|about|on)\b/i,
-  /\bwhat\s+do\s+you\s+know\s+about\b/i,
-];
-
-const KNOWN_TOPIC_WORDS = new Set([
-  // Sports people
-  'neymar','messi','ronaldo','mbappe','haaland','salah','benzema','lewandowski',
-  'federer','nadal','djokovic','serena','lebron','kobe','jordan','shaquille',
-  'sachin','kohli','dhoni','bumrah','shakib','mushfiqur','tamim',
-  'tyson','ali','mayweather','mcgregor','fury','usain','bolt',
-  // Sports
-  'cricket','football','soccer','basketball','tennis','baseball','hockey',
-  'formula1','f1','ufc','mma','wwe','nba','nfl','ipl','bpl','world cup',
-  // Tech / CS
-  'dsa','ml','ai','nlp','llm','api','oop','sql','nosql','blockchain',
-  'javascript','python','java','cpp','rust','golang','typescript','react',
-  'nodejs','django','flutter','kotlin','swift','linux','docker','kubernetes',
-  'algorithm','recursion','sorting','graph','tree','linked list','binary search',
-  'machine learning','deep learning','neural network','data structure',
-  'cybersecurity','networking','compiler','database','operating system',
-  // Science
-  'quantum','relativity','evolution','gravity','photosynthesis','dna','rna',
-  'atom','electron','proton','thermodynamics','entropy','climate','ecosystem',
-  // Places
-  'sylhet','sunamganj','dhaka','chittagong','rajshahi','khulna',
-  'india','pakistan','china','usa','uk','japan','korea','germany','france',
-  'amazon','sahara','himalaya','everest','nile','ganges','padma',
-  // History / culture
-  'mughal','ottoman','roman','greek','egypt','pyramid','renaissance',
-  'independence','revolution','democracy','constitution','parliament',
-  // Entertainment
-  'netflix','youtube','spotify','tiktok','marvel','dc','anime','manga',
-  'bollywood','hollywood','bts','blackpink','taylor','beyonce','drake',
-  // General knowledge
-  'bitcoin','ethereum','tesla','spacex','nasa','isro','who','unicef','un',
-  'climate change','global warming','covid','vaccine','cancer','diabetes',
-]);
-
-function looksLikeProperNounQuery(input) {
-  const t = input.trim();
-  if (/^[A-Z][a-z]{2,}$/.test(t)) return true;          // "Neymar"
-  if (/^[A-Z]{2,5}$/.test(t)) return true;               // "DSA" "ML"
-  if (/\babout\s+[A-Z][a-zA-Z]+/.test(t)) return true;   // "about Messi"
-  return false;
+// ── Initialise mode based on saved key ──
+function initResponseMode() {
+  const key = localStorage.getItem('nexora_or_key');
+  const hasKey = key && key !== 'PASTE_YOUR_NEW_KEY_HERE' && key.length > 10;
+  // If key exists, default to online; else offline
+  const saved = localStorage.getItem('nexora_response_mode');
+  if (saved) {
+    nexoraResponseMode = saved;
+  } else {
+    nexoraResponseMode = hasKey ? 'online' : 'offline';
+  }
+  updateResponseModeUI();
 }
 
-const PERSONAL_PATTERNS = [
-  /\b(i('m| am| feel| felt)|my (heart|life|day|mood|friend|family|mom|dad|sister|brother))\b/i,
-  /\b(sad|happy|lonely|scared|angry|stressed|anxious|bored|tired|depressed|excited|nervous)\b/i,
-  /\b(help me|i need|please|what should i)\b/i,
-];
+// ── Toggle between online / offline ──
+function toggleResponseMode() {
+  const key = localStorage.getItem('nexora_or_key');
+  const hasKey = key && key !== 'PASTE_YOUR_NEW_KEY_HERE' && key.length > 10;
 
-function shouldGoToAI(input) {
-  const lower = input.toLowerCase().trim();
-  const wordCount = input.trim().split(/\s+/).length;
-
-  // Never bypass Bikash/Nexora — local KB handles those
-  if (/\b(bikash|nexora|who (made|built|created) you|your (creator|developer|maker))\b/i.test(lower)) return false;
-
-  // Never bypass personal/emotional — empathy engine handles those
-  if (PERSONAL_PATTERNS.some(p => p.test(lower))) return false;
-
-  // Short messages — only bypass if it's a known topic word or proper noun
-  if (wordCount <= 2) {
-    const stripped = lower.replace(/[^a-z0-9\s]/g, '').trim();
-    if (KNOWN_TOPIC_WORDS.has(stripped)) return true;
-    if (looksLikeProperNounQuery(input.trim())) return true;
-    return false;
+  if (nexoraResponseMode === 'online') {
+    nexoraResponseMode = 'offline';
+    localStorage.setItem('nexora_response_mode', 'offline');
+    toggleMenu();
+    typeBot('📴 Switched to <strong>Offline Mode</strong> — using built-in knowledge only. Fast and private.');
+  } else {
+    if (!hasKey) {
+      toggleMenu();
+      typeBot('⚠️ No API key found! Go to Menu → API Key Setup to add your OpenRouter key first. Then you can switch to Online Mode. 🔑');
+      return;
+    }
+    nexoraResponseMode = 'online';
+    localStorage.setItem('nexora_response_mode', 'online');
+    toggleMenu();
+    typeBot('🌐 Switched to <strong>Online Mode</strong> — I\'ll now search the web for answers to everything. Ask me anything! 🚀');
   }
+  updateResponseModeUI();
+}
 
-  // Match intent phrase → always go to AI
-  for (const p of AI_INTENT_PHRASES) {
-    if (p.test(lower)) return true;
+// ── Update menu button label + aiBadge ──
+function updateResponseModeUI() {
+  const btn = document.getElementById('mode-response-toggle');
+  const badge = document.getElementById('aiBadge');
+  if (nexoraResponseMode === 'online') {
+    if (btn) { btn.innerHTML = '<span>📴</span> Offline Mode'; }
+    if (badge) { badge.className = 'ai-badge online'; badge.innerHTML = '<span class="ai-dot"></span>AI Online'; }
+  } else {
+    if (btn) { btn.innerHTML = '<span>🌐</span> Online Priority'; }
+    // Badge shows offline unless a key is set
+    const key = localStorage.getItem('nexora_or_key');
+    const hasKey = key && key !== 'PASTE_YOUR_NEW_KEY_HERE' && key.length > 10;
+    if (badge) {
+      badge.className = hasKey ? 'ai-badge offline' : 'ai-badge offline';
+      badge.innerHTML = hasKey ? '<span class="ai-dot"></span>Offline Mode' : '<span class="ai-dot"></span>No Key';
+    }
   }
+}
 
-  // Known topic word in message → go to AI
-  const words = lower.replace(/[^a-z0-9\s]/g, '').split(/\s+/);
-  for (const w of words) {
-    if (KNOWN_TOPIC_WORDS.has(w)) return true;
-  }
-  // Two-word combos ("machine learning", "data structure")
-  for (let i = 0; i < words.length - 1; i++) {
-    if (KNOWN_TOPIC_WORDS.has(words[i] + ' ' + words[i+1])) return true;
-  }
+// ── Strict KB guards: only return a result when query is EXPLICITLY about the topic ──
+// Prevents "tell me about X" from hitting Bikash KB unless X is actually Bikash
 
-  // Proper noun heuristic for 3+ word messages
-  if (looksLikeProperNounQuery(input.trim())) return true;
+function isBikashQuery(input) {
+  const q = input.toLowerCase();
+  return /\b(bikash|nexora('s)?|who (made|built|created|coded|designed) (you|nexora)|your (creator|developer|maker|builder)|introduce.*nexora)\b/.test(q);
+}
 
-  return false;
+function isNexoraQuery(input) {
+  const q = input.toLowerCase();
+  return /\b(nexora|your (name|features|abilities|skills)|what can you do|who are you|introduce yourself|are you (an )?ai|are you (a )?bot)\b/.test(q);
+}
+
+function isUtilityQuery(lower) {
+  // These always run regardless of mode — instant local tools
+  return (
+    /\b(weather|temperature|how hot|how cold|rain|forecast)\b/.test(lower) ||
+    /\b(what time|current time|what date|today.*date|date today|what day)\b/.test(lower) ||
+    /\b(password|pw check|check password)\b/.test(lower) ||
+    parseCurrencyQuery(lower) !== null
+  );
 }
 
 async function generateSmartReply(input) {
   const lower = input.toLowerCase().trim();
 
-  // 0. Voice Q&A — instant match for common spoken questions
+  // ── TIER 0: Always-instant handlers (both modes) ──
+  // These are never blocked — voice, Bangla greetings, crisis safety
+
+  // 0a. Voice Q&A — fast-path spoken phrases
   const voiceMatch = matchVoiceQA(input);
   if (voiceMatch) return voiceMatch;
 
-  // 0.5 Bangla / Banglish Engine — Bengali script + romanised Bangla
+  // 0b. Crisis detection — safety always comes first
+  const emotion = detectEmotion(input);
+  if (emotion === 'crisis') return rand(emotionDB.crisis);
+
+  // 0c. Bangla / Banglish engine — personal/emotional messages only
+  //     (info queries skip through to AI in online mode)
   const banglaReply = matchBanglaInput(input);
   if (banglaReply) return banglaReply;
 
-  // 0.7 SMART AI BYPASS — info/knowledge queries go direct to live AI
-  //  Catches "tell me about X", "who is X", "what is DSA", "neymar", etc.
-  //  Runs BEFORE all KBs so hardcoded data never blocks real knowledge.
-  if (shouldGoToAI(input)) {
-    const ai = await callOpenRouter(input);
-    if (ai && ai !== '__KEY_INVALID__' && ai !== '__KEY_LIMIT__') return ai;
-    // Key invalid/limit → fall through, error already shown at step 10
-  }
+  // ── TIER 1: Utility tools — always instant, both modes ──
+  // Math, weather, time, currency, password — these are deterministic local tools
 
-  // 1. Live weather
+  // Live weather
   if (/\b(weather|temperature|how hot|how cold|rain|forecast)\b/.test(lower))
     return await getLiveWeather();
 
-  // 2. Live time / date
+  // Live time / date
   if (/\b(what time|current time|what date|today.*date|date today|what day)\b/.test(lower) && !/news|event/.test(lower))
     return getLiveTime();
 
-  // 3. Live currency — "100 USD to BDT"
+  // Live currency — "100 USD to BDT"
   const currencyQuery = parseCurrencyQuery(input);
   if (currencyQuery)
     return await getLiveCurrency(currencyQuery.amount, currencyQuery.from, currencyQuery.to);
 
-  // 4. Complex math (upgraded)
+  // Complex math
   const mathResult = solveComplexMath(input);
   if (mathResult) return mathResult;
 
-  // 5. Password strength — "check password XYZ"
+  // Password strength
   const pwMatch = input.match(/(?:check|rate|strength of|how strong is|analyze)\s+(?:password\s+)?["']?(\S+)["']?/i)
     || input.match(/password[:\s]+["']?(\S+)["']?/i);
   if (pwMatch) {
@@ -5059,93 +5019,98 @@ async function generateSmartReply(input) {
     if (strength) return `🔐 Password: <code>${pwMatch[1]}</code><br>Strength: ${strength}`;
   }
 
-  // 6. NexoraKnowledge (Phase 1 KB)
-  const knowledgeReply = findKnowledgeResponse(input);
-  if (knowledgeReply) return knowledgeReply;
+  // ── TIER 2: Route based on response mode ──
 
-  // 7. Crisis — always rule-based for safety speed
-  const emotion = detectEmotion(input);
-  if (emotion === 'crisis') return rand(emotionDB.crisis);
+  if (nexoraResponseMode === 'online') {
+    // ════════════════════════════════════════════
+    //  ONLINE MODE — AI is the primary responder
+    //  Only Bikash/Nexora identity queries use KB.
+    //  Everything else: AI answers first, always.
+    // ════════════════════════════════════════════
 
-  // 8. Bikash KB — local facts about creator
+    // Bikash / Nexora identity — local KB is authoritative for this
+    if (isBikashQuery(input)) {
+      const bk = checkBikashKB(input);
+      if (bk) return bk;
+    }
+    if (isNexoraQuery(input)) {
+      const nk = findKnowledgeResponse(input);
+      if (nk) return nk;
+    }
+
+    // Everything else → live AI first
+    const aiReply = await callOpenRouter(input);
+
+    if (aiReply === '__KEY_INVALID__') {
+      if (!window._keyInvalidNotified) {
+        window._keyInvalidNotified = true;
+        nexoraResponseMode = 'offline';
+        updateResponseModeUI();
+        typeBot('❌ API key is invalid — switched to Offline Mode. Fix your key via Menu → API Key Setup. 🔑');
+      }
+      // Fall through to offline KB
+    } else if (aiReply === '__KEY_LIMIT__') {
+      if (!window._keyLimitNotified) {
+        window._keyLimitNotified = true;
+        nexoraResponseMode = 'offline';
+        updateResponseModeUI();
+        typeBot('⚠️ API key hit its limit — switched to Offline Mode. Paste a new key via Menu → API Key Setup to go back online. 🔑');
+      }
+      // Fall through to offline KB
+    } else if (aiReply) {
+      return aiReply;
+    }
+
+    // AI failed (no key response / network error) — fall through gracefully to offline KBs
+  }
+
+  // ════════════════════════════════════════════
+  //  OFFLINE MODE (or AI fallback)
+  //  KBs + rule engine handle everything.
+  //  Order: specific KB → emotional → bestie → fallback
+  // ════════════════════════════════════════════
+
+  // Bikash / creator knowledge base
   const bikashAnswer = checkBikashKB(input);
   if (bikashAnswer) return bikashAnswer;
 
-  // 9. BestieQA KB — pre-written quality answers
+  // NexoraKnowledge — CS concepts, features, capabilities
+  const knowledgeReply = findKnowledgeResponse(input);
+  if (knowledgeReply) return knowledgeReply;
+
+  // BestieQA — emotional + social intelligence
   const kbAnswer = checkKnowledgeBase(input);
   if (kbAnswer) return kbAnswer;
 
-  // 10. 🤖 OPENROUTER AI — real LLM for everything else
-  const aiReply = await callOpenRouter(input);
-  if (aiReply === '__KEY_INVALID__') {
-    // Key is wrong — notify user once
-    if (!window._keyInvalidNotified) {
-      window._keyInvalidNotified = true;
-      const badge = document.getElementById('aiBadge');
-      if (badge) { badge.className = 'ai-badge offline'; badge.innerHTML = '<span class="ai-dot"></span>Key Invalid'; }
-      setTimeout(() => typeBot('❌ Your API key is invalid. Go to Menu → API Key Setup and paste a fresh key from <strong>openrouter.ai/keys</strong>. 🔑'), 100);
-    }
-  } else if (aiReply === '__KEY_LIMIT__') {
-    // Key hit usage/credit limit — notify once and prompt to replace
-    if (!window._keyLimitNotified) {
-      window._keyLimitNotified = true;
-      const badge = document.getElementById('aiBadge');
-      if (badge) { badge.className = 'ai-badge offline'; badge.innerHTML = '<span class="ai-dot"></span>Limit Hit'; }
-      setTimeout(() => typeBot('⚠️ Your API key has hit its usage limit. You can:<br>1. Add credits at <strong>openrouter.ai</strong><br>2. Or paste a new key via <strong>Menu → API Key Setup</strong> — it replaces the old one instantly. 🔑'), 100);
-    }
-  } else if (aiReply) return aiReply;
-
-  // 11. Graceful offline fallback — rule-based engine
+  // Full rule-based engine — emotion detection, empathy, personality
   const ruleReply = generateResponse(input);
   if (ruleReply && emotionDB.default && !emotionDB.default.includes(ruleReply)) {
     return ruleReply;
   }
+
+  // If online mode but AI gave nothing useful, try one more time with a nudge
+  if (nexoraResponseMode === 'online') {
+    const retryAI = await callOpenRouter("Please give a helpful, friendly answer to: " + input);
+    if (retryAI && retryAI !== '__KEY_INVALID__' && retryAI !== '__KEY_LIMIT__') return retryAI;
+  }
+
   return rand(smartFallbacks);
 }
 
 // ==============================
 //  API KEY MANAGEMENT — OpenRouter
-//
-//  Design:
-//  - Any user can paste their own OpenRouter key at any time
-//  - A new key always overwrites the old one — no conflict, no interference
-//  - Out-of-limit (429) is detected and user is prompted to replace the key
-//  - getActiveKey() always reads localStorage first — hardcoded key is last resort
-//  - Removing a key cleanly wipes localStorage and resets all runtime state
 // ==============================
-
-// Single source of truth — always read from localStorage
-function getActiveKey() {
-  const stored = localStorage.getItem('nexora_or_key');
-  // Ignore the placeholder if someone accidentally saved it
-  if (stored && stored !== 'PASTE_YOUR_NEW_KEY_HERE') return stored;
-  // Fall back to hardcoded key only if it's been properly set
-  if (OPENROUTER_KEY && OPENROUTER_KEY !== 'PASTE_YOUR_NEW_KEY_HERE') return OPENROUTER_KEY;
-  return null;
-}
-
 function openApiPanel() {
   toggleMenu();
-  document.getElementById('apiPanel').classList.add('open');
+  const panel = document.getElementById('apiPanel');
+  panel.classList.add('open');
+  // Show current key status
   updateApiStatusDisplay();
-
-  const saved = getActiveKey();
-  const input = document.getElementById('apiKeyInput');
-  const hint  = document.getElementById('apiReplaceHint');
-  const delBtn = document.getElementById('apiDeleteBtn');
-
-  // Clear input so user gets a clean field to paste into
-  input.value = '';
-
+  // Pre-fill with masked existing key if saved
+  const saved = localStorage.getItem('nexora_or_key');
   if (saved) {
-    // Show masked version of current key as placeholder
-    input.placeholder = saved.slice(0, 10) + '...' + saved.slice(-4) + '  ← paste new key to replace';
-    hint.style.display  = 'block';
-    delBtn.style.display = 'block';
-  } else {
-    input.placeholder = 'Paste your key here (sk-or-v1-...)';
-    hint.style.display  = 'none';
-    delBtn.style.display = 'none';
+    document.getElementById('apiKeyInput').value = '';
+    document.getElementById('apiKeyInput').placeholder = saved.slice(0, 10) + '...' + saved.slice(-4) + ' (saved)';
   }
 }
 
@@ -5154,78 +5119,64 @@ function closeApiPanel() {
 }
 
 function saveApiKey() {
-  const raw = document.getElementById('apiKeyInput').value.trim();
-
-  // Empty input — if key already exists just close
-  if (!raw) {
-    if (getActiveKey()) { closeApiPanel(); return; }
-    typeBot('Paste your OpenRouter key in the field first! Get one free at openrouter.ai/keys 🔑');
-    closeApiPanel();
+  const input = document.getElementById('apiKeyInput').value.trim();
+  if (!input) {
+    // If empty and there's a saved key, just close
+    if (localStorage.getItem('nexora_or_key')) { closeApiPanel(); return; }
+    alert('Please paste your OpenRouter API key first.');
+    return;
+  }
+  if (!input.startsWith('sk-or-')) {
+    alert('That doesn\'t look like an OpenRouter key. It should start with sk-or-...');
     return;
   }
 
-  // Accept any non-empty key — OpenRouter currently uses sk-or- prefix
-  // but we don't hard-reject other formats in case they change it
-  if (raw.length < 20) {
-    typeBot("That key looks too short. Make sure you copied the full key from openrouter.ai/keys 🔑");
-    return;
-  }
-
-  // ── Save new key — completely replaces any previous key ──
-  localStorage.setItem('nexora_or_key', raw);
-  // Reset invalid-key notification flag so new key gets a fresh test
-  window._keyInvalidNotified = false;
+  localStorage.setItem('nexora_or_key', input);
+  // Update the live variable
+  // eslint-disable-next-line no-global-assign
+  Object.defineProperty(window, '_nexoraKey', { value: input, writable: true, configurable: true });
+  window._nexoraKey = input;
 
   updateApiStatusDisplay();
   closeApiPanel();
 
-  typeBot("🔄 New key saved! Testing connection...");
-  testOpenRouterKey(raw);
+  // Test the connection
+  testOpenRouterKey(input);
 }
 
 function deleteApiKey() {
-  const saved = getActiveKey();
-  if (!saved) { typeBot("No key is saved right now."); return; }
-
-  // No confirm() dialog — just wipe it cleanly
+  if (!confirm('Remove saved API key?')) return;
   localStorage.removeItem('nexora_or_key');
-  window._keyInvalidNotified = false;
-
+  window._nexoraKey = null;
   updateApiStatusDisplay();
-  closeApiPanel();
-
-  // Reset input field
-  const input = document.getElementById('apiKeyInput');
-  if (input) { input.value = ''; input.placeholder = 'Paste your key here (sk-or-v1-...)'; }
-
-  typeBot("🗑️ API key removed. Nexora is back to rule-based mode. Paste a new key anytime via Menu → API Key Setup.");
+  document.getElementById('apiKeyInput').value = '';
+  document.getElementById('apiKeyInput').placeholder = 'sk-or-v1-...';
 }
 
 function updateApiStatusDisplay() {
-  const saved  = getActiveKey();
-  const badge  = document.getElementById('aiBadge');
+  const saved = localStorage.getItem('nexora_or_key') || window._nexoraKey;
   const statusText = document.getElementById('apiStatusText');
-  const modelTag   = document.getElementById('apiModelTag');
-  const delBtn     = document.getElementById('apiDeleteBtn');
-  const hint       = document.getElementById('apiReplaceHint');
 
-  if (saved) {
-    if (badge) { badge.className = 'ai-badge online'; badge.innerHTML = '<span class="ai-dot"></span>AI Online'; }
+  if (saved && saved !== 'PASTE_YOUR_NEW_KEY_HERE') {
     if (statusText) statusText.textContent = '✅ Key active: ' + saved.slice(0,10) + '...' + saved.slice(-4);
-    if (modelTag)   modelTag.textContent = 'auto-select';
-    if (delBtn)     delBtn.style.display = 'block';
-    if (hint)       hint.style.display   = 'block';
+    // Auto-switch to online mode when a valid key is saved
+    if (nexoraResponseMode === 'offline') {
+      nexoraResponseMode = 'online';
+      localStorage.setItem('nexora_response_mode', 'online');
+    }
   } else {
-    if (badge) { badge.className = 'ai-badge offline'; badge.innerHTML = '<span class="ai-dot"></span>Rule-based'; }
-    if (statusText) statusText.textContent = 'No key saved — rule-based mode';
-    if (modelTag)   modelTag.textContent = 'offline';
-    if (delBtn)     delBtn.style.display = 'none';
-    if (hint)       hint.style.display   = 'none';
+    if (statusText) statusText.textContent = 'No key saved — offline mode active';
+    nexoraResponseMode = 'offline';
+    localStorage.setItem('nexora_response_mode', 'offline');
   }
+  updateResponseModeUI();
 }
 
 async function testOpenRouterKey(key) {
   try {
+    let success = false;
+    let workingModel = '';
+
     for (const model of OPENROUTER_MODELS) {
       const res = await fetch(OPENROUTER_ENDPOINT, {
         method: 'POST',
@@ -5243,36 +5194,34 @@ async function testOpenRouterKey(key) {
       });
 
       if (res.status === 401) {
-        // Invalid key
-        localStorage.removeItem('nexora_or_key');
+        setTimeout(() => typeBot('❌ Invalid API key. Please go to Menu → API Key Setup and paste a valid OpenRouter key (starts with sk-or-...).'), 400);
         updateApiStatusDisplay();
-        typeBot('❌ That key is invalid (401). Please go to <strong>openrouter.ai/keys</strong> and get a fresh one, then paste it via Menu → API Key Setup.');
-        return;
-      }
-
-      if (res.status === 429) {
-        // Out of credits / rate limited — key is real but exhausted
-        updateApiStatusDisplay(); // keep key saved — it's just out of credits
-        typeBot('⚠️ Your key hit its usage limit (429). You can:<br>1. Add credits at <strong>openrouter.ai</strong><br>2. Or paste a different key via Menu → API Key Setup — the new key will replace this one immediately. 🔑');
         return;
       }
 
       if (res.ok) {
         const data = await res.json();
         const reply = data?.choices?.[0]?.message?.content?.trim();
-        if (reply) {
-          updateApiStatusDisplay();
-          typeBot('🟢 Connected! Nexora is now powered by <strong>' + model + '</strong>. Ask me anything! 🎉');
-          return;
-        }
+        if (reply) { success = true; workingModel = model; break; }
       }
     }
 
-    // All models failed but no clear error code
-    typeBot('⚠️ Key saved but all models failed to respond. Try adding credits at <strong>openrouter.ai</strong>, or paste a new key via Menu → API Key Setup.');
+    if (success) {
+      updateApiStatusDisplay();
+      setTimeout(() => typeBot('🟢 Nexora AI is online! Connected via <strong>' + workingModel + '</strong>. Ask me anything — I\'m now powered by real AI! 🎉'), 400);
+    } else {
+      setTimeout(() => {
+        typeBot('⚠️ Key saved but no model responded. Two possible fixes:\n\n1. Add credits at <strong>openrouter.ai</strong> (even $1 works)\n2. Or use a FREE model — tap Menu → API Key Setup to switch to the free Llama model.');
+      }, 400);
+    }
   } catch(e) {
-    typeBot("⚠️ Couldn't reach OpenRouter — check your internet and try again.");
+    setTimeout(() => typeBot('⚠️ Couldn\'t reach OpenRouter — check your internet connection.'), 400);
   }
+}
+
+// ── Override OPENROUTER_KEY to read from localStorage at runtime ──
+function getActiveKey() {
+  return localStorage.getItem('nexora_or_key') || OPENROUTER_KEY;
 }
 
 
