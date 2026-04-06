@@ -3437,22 +3437,137 @@ function findKnowledgeResponse(userInput) {
 // ==============================
 //  PHASE 2 — Live Data (Weather, Time, Currency)
 // ==============================
+// ══════════════════════════════════════════════
+//  WEATHER — Open-Meteo (100% free, no key)
+// ══════════════════════════════════════════════
 async function getLiveWeather() {
   try {
-    const res = await fetch('https://api.openweathermap.org/data/2.5/weather?q=Dhaka&units=metric&appid=1926c1f86c487b32de625363a6372de0');
-    const d = await res.json();
-    if (!d.main) return "☁️ Weather data is loading. Check back in a moment!";
-    const iconMap = {'01d':'☀️','01n':'🌙','02d':'⛅','02n':'🌥','03d':'☁️','03n':'☁️','04d':'☁️','04n':'☁️','09d':'🌧','09n':'🌧','10d':'🌦','10n':'🌧','11d':'⛈','11n':'⛈','13d':'❄️','13n':'❄️','50d':'🌫','50n':'🌫'};
-    const icon = iconMap[d.weather[0].icon] || '🌡️';
-    const desc = d.weather[0].description;
-    const temp = Math.round(d.main.temp);
-    const feels = Math.round(d.main.feels_like);
-    const humid = d.main.humidity;
-    const wind = Math.round((d.wind?.speed || 0) * 3.6);
-    return `${icon} <strong>Live Weather — Dhaka, Bangladesh</strong><br><br>🌡️ <strong>${temp}°C</strong> (feels like ${feels}°C)<br>☁️ ${desc.charAt(0).toUpperCase()+desc.slice(1)}<br>💧 Humidity: ${humid}%<br>💨 Wind: ${wind} km/h<br><small style="opacity:0.45">Live · OpenWeatherMap ✦</small>`;
+    // Geocode city name from input if possible, default Dhaka
+    const geoRes = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=Dhaka&count=1&language=en&format=json');
+    const geoData = await geoRes.json();
+    const loc = geoData.results?.[0];
+    if (!loc) return "☁️ Couldn't find that location. Try again!";
+    const { latitude, longitude, name, country } = loc;
+    const wRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code&wind_speed_unit=kmh&timezone=auto`);
+    const w = await wRes.json();
+    const c = w.current;
+    const wmoMap = {0:'☀️ Clear sky',1:'🌤 Mainly clear',2:'⛅ Partly cloudy',3:'☁️ Overcast',45:'🌫 Foggy',48:'🌫 Icy fog',51:'🌦 Light drizzle',53:'🌦 Drizzle',55:'🌧 Heavy drizzle',61:'🌧 Light rain',63:'🌧 Rain',65:'🌧 Heavy rain',71:'❄️ Light snow',73:'❄️ Snow',75:'❄️ Heavy snow',80:'🌦 Rain showers',81:'🌧 Heavy showers',95:'⛈ Thunderstorm',99:'⛈ Thunderstorm with hail'};
+    const desc = wmoMap[c.weather_code] || '🌡️ Various conditions';
+    return `${desc.split(' ')[0]} <strong>Live Weather — ${name}, ${country}</strong><br><br>🌡️ <strong>${Math.round(c.temperature_2m)}°C</strong> (feels like ${Math.round(c.apparent_temperature)}°C)<br>☁️ ${desc.split(' ').slice(1).join(' ')}<br>💧 Humidity: ${c.relative_humidity_2m}%<br>💨 Wind: ${Math.round(c.wind_speed_10m)} km/h<br><small style="opacity:0.45">Live · Open-Meteo ✦ Free forever</small>`;
   } catch(e) {
     return "🌧️ Couldn't reach the weather station right now. Try again in a bit!";
   }
+}
+
+// ══════════════════════════════════════════════
+//  WIKIPEDIA — Free, no key needed
+// ══════════════════════════════════════════════
+async function getWikipediaSummary(query) {
+  try {
+    const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      // Try search fallback
+      const searchRes = await fetch(`https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=1&format=json&origin=*`);
+      const searchData = await searchRes.json();
+      const title = searchData[1]?.[0];
+      if (!title) return null;
+      const res2 = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
+      if (!res2.ok) return null;
+      const d2 = await res2.json();
+      const thumb = d2.thumbnail?.source ? `<br><img src="${d2.thumbnail.source}" style="width:100%;max-width:280px;border-radius:12px;margin-top:8px;object-fit:cover;" alt="${d2.title}">` : '';
+      return `📖 <strong>${d2.title}</strong><br><br>${d2.extract || 'No summary available.'}${thumb}<br><small style="opacity:0.45"><a href="${d2.content_urls?.desktop?.page}" target="_blank" style="color:var(--accent)">Read more on Wikipedia →</a></small>`;
+    }
+    const d = await res.json();
+    const thumb = d.thumbnail?.source ? `<br><img src="${d.thumbnail.source}" style="width:100%;max-width:280px;border-radius:12px;margin-top:8px;object-fit:cover;" alt="${d.title}">` : '';
+    return `📖 <strong>${d.title}</strong><br><br>${d.extract || 'No summary available.'}${thumb}<br><small style="opacity:0.45"><a href="${d.content_urls?.desktop?.page}" target="_blank" style="color:var(--accent)">Read more on Wikipedia →</a></small>`;
+  } catch(e) { return null; }
+}
+
+// ══════════════════════════════════════════════
+//  DUCKDUCKGO SEARCH — Free, no key needed
+// ══════════════════════════════════════════════
+async function getDuckDuckGoResults(query) {
+  try {
+    const res = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`);
+    const d = await res.json();
+    let html = `🔍 <strong>Search results for: "${query}"</strong><br><br>`;
+    if (d.AbstractText) {
+      html += `📝 ${d.AbstractText}<br><br>`;
+      if (d.AbstractURL) html += `🔗 <a href="${d.AbstractURL}" target="_blank" style="color:var(--accent)">${d.AbstractURL}</a><br><br>`;
+    }
+    if (d.RelatedTopics?.length) {
+      const topics = d.RelatedTopics.filter(t => t.Text).slice(0, 4);
+      if (topics.length) {
+        html += `<strong>Related:</strong><br>`;
+        topics.forEach(t => {
+          html += `• ${t.Text}${t.FirstURL ? ` — <a href="${t.FirstURL}" target="_blank" style="color:var(--accent)">link</a>` : ''}<br>`;
+        });
+      }
+    }
+    if (!d.AbstractText && !d.RelatedTopics?.length) {
+      const ddgLink = `https://duckduckgo.com/?q=${encodeURIComponent(query)}`;
+      return `🔍 Here are web results for <strong>"${query}"</strong>:<br><br><a href="${ddgLink}" target="_blank" style="color:var(--accent);font-weight:500">🌐 Open search on DuckDuckGo →</a><br><small style="opacity:0.45">Opens in a new tab</small>`;
+    }
+    html += `<small style="opacity:0.45">via DuckDuckGo · Free search ✦</small>`;
+    return html;
+  } catch(e) { return null; }
+}
+
+// ══════════════════════════════════════════════
+//  ITUNES MUSIC SEARCH — Free, no key needed
+// ══════════════════════════════════════════════
+async function getMusicInfo(query) {
+  try {
+    const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=3`);
+    const d = await res.json();
+    if (!d.results?.length) return `🎵 Couldn't find music for "<strong>${query}</strong>". Try a different song or artist name!`;
+    let html = `🎵 <strong>Music results for "${query}"</strong><br><br>`;
+    d.results.forEach(track => {
+      html += `<div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:12px;">`;
+      if (track.artworkUrl100) html += `<img src="${track.artworkUrl100}" style="width:56px;height:56px;border-radius:10px;flex-shrink:0;" alt="cover">`;
+      html += `<div><strong>${track.trackName || track.collectionName}</strong><br><span style="opacity:0.7;font-size:13px">${track.artistName}</span><br><span style="opacity:0.5;font-size:12px">${track.collectionName || ''} · ${track.releaseDate?.slice(0,4) || ''}</span></div></div>`;
+    });
+    html += `<small style="opacity:0.45">via iTunes Search API ✦ Free</small>`;
+    return html;
+  } catch(e) { return null; }
+}
+
+// ══════════════════════════════════════════════
+//  JOKES — JokeAPI (Free, no key needed)
+// ══════════════════════════════════════════════
+async function getJoke() {
+  try {
+    const res = await fetch('https://v2.jokeapi.dev/joke/Any?blacklistFlags=nsfw,racist,sexist,explicit&type=twopart');
+    const d = await res.json();
+    if (d.type === 'twopart') return `😂 <strong>${d.setup}</strong><br><br>🥁 ...${d.delivery}<br><small style="opacity:0.45">via JokeAPI ✦ Free</small>`;
+    if (d.joke) return `😂 ${d.joke}<br><small style="opacity:0.45">via JokeAPI ✦ Free</small>`;
+    return "😅 My joke book is empty right now, try again!";
+  } catch(e) { return "😅 Couldn't fetch a joke right now, try again in a moment!"; }
+}
+
+// ══════════════════════════════════════════════
+//  TRANSLATION — MyMemory API (Free, no key)
+// ══════════════════════════════════════════════
+const LANG_CODES = {
+  'bangla':'bn','bengali':'bn','french':'fr','spanish':'es','arabic':'ar',
+  'hindi':'hi','urdu':'ur','german':'de','japanese':'ja','chinese':'zh',
+  'korean':'ko','portuguese':'pt','russian':'ru','turkish':'tr','italian':'it',
+  'dutch':'nl','thai':'th','malay':'ms','indonesian':'id','persian':'fa',
+  'english':'en'
+};
+async function translateText(text, targetLang) {
+  try {
+    const langCode = LANG_CODES[targetLang.toLowerCase()] || targetLang.toLowerCase();
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|${langCode}`;
+    const res = await fetch(url);
+    const d = await res.json();
+    if (d.responseStatus === 200) {
+      const translated = d.responseData.translatedText;
+      return `🌐 <strong>Translation to ${targetLang.charAt(0).toUpperCase()+targetLang.slice(1)}</strong><br><br>📝 Original: <em>${text}</em><br>✨ Translated: <strong>${translated}</strong><br><small style="opacity:0.45">via MyMemory · Free translation ✦</small>`;
+    }
+    return `⚠️ Translation failed. Try: "translate hello to French"`;
+  } catch(e) { return "⚠️ Translation service is unavailable right now. Try again!"; }
 }
 
 function getLiveTime() {
@@ -5320,6 +5435,43 @@ async function generateSmartReply(input) {
   if (pwMatch) {
     const strength = checkPasswordStrength(pwMatch[1]);
     if (strength) return `🔐 Password: <code>${pwMatch[1]}</code><br>Strength: ${strength}`;
+  }
+
+  // ── Jokes ──
+  if (/\b(joke|make me laugh|tell me something funny|funny joke|crack a joke)\b/.test(lower))
+    return await getJoke();
+
+  // ── Translation ──
+  // "translate hello to French" / "how do you say hello in Spanish"
+  const transMatch = input.match(/translate\s+["']?(.+?)["']?\s+(?:to|into)\s+([a-z]+)/i)
+    || input.match(/how (?:do you |to )?say\s+["']?(.+?)["']?\s+in\s+([a-z]+)/i)
+    || input.match(/["'](.+?)["']\s+in\s+([a-z]+)/i);
+  if (transMatch) {
+    const [, phrase, lang] = transMatch;
+    return await translateText(phrase.trim(), lang.trim());
+  }
+
+  // ── Music search ──
+  const musicMatch = input.match(/(?:search|find|play|look up|tell me about)\s+(?:song|music|track|album|artist)?\s*["']?(.+?)["']?(?:\s+song|\s+music|\s+by .+)?$/i)
+    || input.match(/(?:who (?:sings|sang|performs?)|song by)\s+["']?(.+?)["']?/i);
+  if (/\b(song|music|artist|album|track|singer|band|playlist)\b/.test(lower) && musicMatch) {
+    const result = await getMusicInfo(musicMatch[1].trim());
+    if (result) return result;
+  }
+
+  // ── Wikipedia ──
+  const wikiMatch = input.match(/(?:what is|who is|tell me about|explain|define|what are|who was|what was)\s+(.+)/i)
+    || input.match(/(?:wikipedia|wiki)\s+(.+)/i);
+  if (wikiMatch) {
+    const result = await getWikipediaSummary(wikiMatch[1].trim());
+    if (result) return result;
+  }
+
+  // ── Web search (DuckDuckGo) ──
+  const searchMatch = input.match(/(?:search|google|look up|find info|find out about|search for)\s+(.+)/i);
+  if (searchMatch) {
+    const result = await getDuckDuckGoResults(searchMatch[1].trim());
+    if (result) return result;
   }
 
   // ── TIER 2: Route based on response mode ──
