@@ -641,6 +641,44 @@
   .camera-btn:hover svg { stroke: var(--accent); }
   .camera-btn.scanning svg { stroke: var(--accent); animation: pulse-dot 0.8s infinite; }
 
+  /* ── Image Preview Bar ── */
+  #imgPreviewBar {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px 0;
+    background: var(--bg-input);
+    flex-shrink: 0;
+    animation: fadeInUp 0.2s ease;
+  }
+  #imgPreviewBar.active { display: flex; }
+  #imgPreviewThumb {
+    width: 52px; height: 52px;
+    border-radius: 12px;
+    object-fit: cover;
+    border: 2px solid var(--accent);
+    flex-shrink: 0;
+  }
+  .img-preview-info {
+    flex: 1;
+    font-size: 12px;
+    color: var(--text2);
+    line-height: 1.5;
+  }
+  .img-preview-info strong { color: var(--text); font-size: 13px; }
+  .img-preview-dismiss {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: rgba(239,68,68,0.15);
+    border: 1px solid rgba(239,68,68,0.35);
+    color: #ef4444;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.15s;
+  }
+  .img-preview-dismiss:hover { background: rgba(239,68,68,0.28); }
+
   .send-btn {
     width: 44px; height: 44px; border-radius: 50%;
     background: linear-gradient(135deg, #8B5CF6, #EC4899);
@@ -1284,6 +1322,15 @@
       <div class="chip" onclick="quickSend('I feel angry and frustrated')">😡 Angry</div>
       <div class="chip" onclick="quickSend('I am heartbroken')">💔 Heartbroken</div>
       <div class="chip" onclick="quickSend('I keep overthinking everything')">🌀 Overthinking</div>
+    </div>
+    <!-- Image Preview Bar -->
+    <div id="imgPreviewBar">
+      <img id="imgPreviewThumb" src="" alt="preview"/>
+      <div class="img-preview-info">
+        <strong>📷 Image ready</strong><br>
+        Type your question below, then tap send ✈️
+      </div>
+      <button class="img-preview-dismiss" onclick="dismissImagePreview()" title="Remove image">✕</button>
     </div>
     <div id="inputBar">
       <div class="input-wrap">
@@ -3250,8 +3297,33 @@ function sendMessage() {
   if (isTyping) return;
   const input = document.getElementById('userInput');
   const text = input.value.trim();
-  if (!text) return;
 
+  // ── Image + question flow ──
+  if (pendingImageFile) {
+    const file = pendingImageFile;
+    const question = text || '';
+
+    // Show user bubble: image thumb + question
+    const thumb = document.getElementById('imgPreviewThumb').src;
+    const bubbleContent = `<img src="${thumb}" style="width:100%;max-width:220px;border-radius:12px;margin-bottom:${question ? '6px' : '0'};display:block;" alt="uploaded image">${question ? `<span>${question}</span>` : ''}`;
+    addUserMsg(bubbleContent);
+
+    // Clear input + preview
+    input.value = '';
+    input.style.height = '';
+    dismissImagePreview();
+    input.blur(); input.focus();
+    resetIdleTimer();
+    isTyping = true;
+
+    performOCR(file, question || null).then(reply => {
+      if (reply) typeBot(reply); else { isTyping = false; typeBot("😓 Something went wrong reading that image. Try again!"); }
+    }).catch(() => { isTyping = false; typeBot("😓 Something went wrong reading that image. Try again!"); });
+    return;
+  }
+
+  // ── Normal text flow ──
+  if (!text) return;
   input.value = '';
   input.style.height = '';
   input.style.minHeight = '';
@@ -3633,13 +3705,17 @@ function fileToBase64(file) {
   });
 }
 
-async function callVisionAI(file) {
+async function callVisionAI(file, userQuestion) {
   let dataUrl;
   try { dataUrl = await fileToBase64(file); } catch(e) { return null; }
   const base64Data = dataUrl.split(',')[1];
   const mimeType   = dataUrl.split(';')[0].split(':')[1] || 'image/jpeg';
   const sysPrompt  = `You are Nexora, a brilliant AI built by Bikash Talukder.
 When given an image: describe what you see, read all text (printed or handwritten), solve any math step by step, read/explain/debug any code, explain diagrams and charts, identify real-world objects. Be direct and helpful.`;
+
+  const questionText = userQuestion && userQuestion.trim()
+    ? userQuestion.trim()
+    : 'Analyse this image fully. Describe what you see, read any text, solve any math or code, and help me with whatever is shown.';
 
   // Build key list — user key first, then pool
   const { key: userKey, isUserKey } = resolveActiveKey();
@@ -3660,19 +3736,19 @@ When given an image: describe what you see, read all text (printed or handwritte
       try {
         const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
-          headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://nexora.ai', 'X-Title': 'Nexora Vision' },
+          headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'HTTP-Referer': window.location.origin || 'https://nexora.ai', 'X-Title': 'Nexora Vision' },
           body: JSON.stringify({
             model, max_tokens: 1000, temperature: 0.3,
             messages: [
               { role: 'system', content: sysPrompt },
               { role: 'user', content: [
                 { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64Data}`, detail: 'high' } },
-                { type: 'text', text: 'Analyse this image fully. Describe what you see, read any text, solve any math or code, and help me with whatever is shown.' }
+                { type: 'text', text: questionText }
               ]}
             ]
           })
         });
-        if (res.status === 401 || res.status === 429) break; // try next key
+        if (res.status === 401 || res.status === 429) break;
         if (!res.ok) continue;
         const data = await res.json();
         const reply = data?.choices?.[0]?.message?.content?.trim();
@@ -3697,13 +3773,13 @@ async function performOCRFallback(file) {
   }
 }
 
-async function performOCR(file) {
+async function performOCR(file, userQuestion) {
   const camBtn = document.getElementById('cameraBtn');
   if (camBtn) camBtn.classList.add('scanning');
   try {
     if (nexoraResponseMode === 'online') {
       addBotMsg("🔍 Analysing image with Vision AI...");
-      const vision = await callVisionAI(file);
+      const vision = await callVisionAI(file, userQuestion);
       if (vision) return vision;
       addBotMsg("⚠️ Vision AI unavailable, falling back to text extraction...");
       return await performOCRFallback(file);
@@ -3716,15 +3792,41 @@ async function performOCR(file) {
   }
 }
 
+// Pending image state
+let pendingImageFile = null;
+
 function handleImageUpload(event) {
   const file = event.target.files[0];
   if (!file) return;
   event.target.value = '';
-  addUserMsg(`📷 [Image: ${file.name}]`);
-  isTyping = true;
-  performOCR(file).then(reply => {
-    if (reply) typeBot(reply); else isTyping = false;
-  }).catch(() => { isTyping = false; typeBot("😓 Something went wrong reading that image. Try again!"); });
+
+  pendingImageFile = file;
+
+  // Show preview bar
+  const bar   = document.getElementById('imgPreviewBar');
+  const thumb = document.getElementById('imgPreviewThumb');
+  const reader = new FileReader();
+  reader.onload = e => {
+    thumb.src = e.target.result;
+    bar.classList.add('active');
+    // Focus input and update placeholder
+    const inp = document.getElementById('userInput');
+    if (inp) {
+      inp.placeholder = 'Ask something about this image…';
+      inp.focus();
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function dismissImagePreview() {
+  pendingImageFile = null;
+  const bar = document.getElementById('imgPreviewBar');
+  const thumb = document.getElementById('imgPreviewThumb');
+  if (bar)   bar.classList.remove('active');
+  if (thumb) thumb.src = '';
+  const inp = document.getElementById('userInput');
+  if (inp)   inp.placeholder = 'Tell Nexora how you feel…';
 }
 
 // ==============================
