@@ -1386,13 +1386,7 @@ let contextChipCooldown = false;  // prevent chip spam
 
 // Default pool — tried in order; first success wins
 const NEXORA_DEFAULT_KEYS = [
-  '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',
-  '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',
-  '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',
-  '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',
-  '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',
-  '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',
-  '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',
+  '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',
 ];
 
 // localStorage key names — separated so user key never overwrites pool state
@@ -5115,7 +5109,7 @@ async function callOpenRouter(userMessage) {
           headers: {
             'Authorization': `Bearer ${key}`,
             'Content-Type': 'application/json',
-            'HTTP-Referer': 'https://nexora.ai',
+            'HTTP-Referer': window.location.origin || 'https://nexora.ai',
             'X-Title': 'Nexora AI Companion'
           },
           body: JSON.stringify({
@@ -5174,6 +5168,7 @@ async function callOpenRouter(userMessage) {
 
   // All keys and all models failed
   console.warn('[Nexora] All keys exhausted. Falling back to offline KB.');
+  typeBot('⚠️ The default API key has run out of credits. To keep using AI-powered responses, please add your own free OpenRouter key:<br><br>1️⃣ Go to <strong><a href="https://openrouter.ai/keys" target="_blank" style="color:var(--accent)">openrouter.ai/keys</a></strong> and create a free key<br>2️⃣ Open the <strong>Menu → 🔑 API Key</strong> panel in Nexora<br>3️⃣ Paste your key (starts with <code>sk-or-...</code>) and save<br><br>Nexora will still work in offline mode until then! 🤍');
   return null;
 }
 
@@ -5498,7 +5493,7 @@ async function testOpenRouterKey(key) {
         headers: {
           'Authorization': 'Bearer ' + key,
           'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://nexora.ai',
+          'HTTP-Referer': window.location.origin || 'https://nexora.ai',
           'X-Title': 'Nexora AI'
         },
         body: JSON.stringify({
