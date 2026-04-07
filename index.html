@@ -4,6 +4,21 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
 <title>Nexora — Your AI Companion</title>
+
+<!-- ═══ PWA — Manifest & Icons ═══ -->
+<link rel="manifest" href="manifest.json"/>
+<meta name="theme-color" content="#8B5CF6"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Nexora"/>
+<link rel="apple-touch-icon" href="apple-touch-icon.png"/>
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png"/>
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png"/>
+
+<!-- ═══ SEO / Social ═══ -->
+<meta name="description" content="Nexora — Your personal AI companion. Chat, ask, explore."/>
+<meta name="application-name" content="Nexora"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet"/>
@@ -5787,6 +5802,134 @@ async function testOpenRouterKey(key) {
 // Already defined above in key system block
 
 
+</script>
+<!-- ═══════════════════════════════════════════════
+     PWA — Service Worker Registration + Install Prompt
+     ═══════════════════════════════════════════════ -->
+<style>
+  /* Install banner */
+  #pwaInstallBanner {
+    display: none;
+    position: fixed;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(420px, 92vw);
+    background: linear-gradient(135deg, rgba(139,92,246,0.95), rgba(236,72,153,0.95));
+    backdrop-filter: blur(12px);
+    border-radius: 20px;
+    padding: 14px 18px;
+    z-index: 9999;
+    box-shadow: 0 8px 32px rgba(139,92,246,0.5);
+    animation: slideUp 0.35s cubic-bezier(.16,1,.3,1);
+    color: white;
+    font-family: 'DM Sans', sans-serif;
+  }
+  #pwaInstallBanner.show { display: flex; align-items: center; gap: 12px; }
+  @keyframes slideUp {
+    from { opacity:0; transform: translateX(-50%) translateY(20px); }
+    to   { opacity:1; transform: translateX(-50%) translateY(0); }
+  }
+  .pwa-banner-icon { font-size: 28px; flex-shrink: 0; }
+  .pwa-banner-text { flex: 1; }
+  .pwa-banner-text strong { font-family: 'Sora', sans-serif; font-size: 13px; display: block; margin-bottom: 2px; }
+  .pwa-banner-text span { font-size: 11px; opacity: 0.88; }
+  .pwa-install-btn {
+    background: white; color: #8B5CF6;
+    border: none; border-radius: 12px;
+    padding: 8px 14px; font-size: 12px; font-weight: 600;
+    cursor: pointer; flex-shrink: 0;
+    font-family: 'Sora', sans-serif;
+    transition: transform 0.15s;
+  }
+  .pwa-install-btn:active { transform: scale(0.95); }
+  .pwa-dismiss-btn {
+    background: transparent; border: none;
+    color: rgba(255,255,255,0.7); font-size: 18px;
+    cursor: pointer; flex-shrink: 0; padding: 0 2px;
+    line-height: 1;
+  }
+</style>
+
+<!-- Install Banner HTML -->
+<div id="pwaInstallBanner">
+  <div class="pwa-banner-icon">📲</div>
+  <div class="pwa-banner-text">
+    <strong>Install Nexora as an App!</strong>
+    <span>Works offline · No browser bar · Faster</span>
+  </div>
+  <button class="pwa-install-btn" onclick="installPWA()">Install</button>
+  <button class="pwa-dismiss-btn" onclick="dismissPWABanner()" title="Dismiss">✕</button>
+</div>
+
+<script>
+// ── Service Worker Registration ──
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => {
+        console.log('[Nexora PWA] Service Worker registered:', reg.scope);
+        // Check for updates
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              console.log('[Nexora PWA] New version available!');
+            }
+          });
+        });
+      })
+      .catch(err => console.warn('[Nexora PWA] SW registration failed:', err));
+  });
+}
+
+// ── Install Prompt ──
+let deferredInstallPrompt = null;
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  // Show banner after 3 seconds if not already installed
+  const dismissed = sessionStorage.getItem('pwa_banner_dismissed');
+  if (!dismissed) {
+    setTimeout(() => {
+      document.getElementById('pwaInstallBanner').classList.add('show');
+    }, 3000);
+  }
+});
+
+function installPWA() {
+  const banner = document.getElementById('pwaInstallBanner');
+  banner.classList.remove('show');
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  deferredInstallPrompt.userChoice.then(choice => {
+    if (choice.outcome === 'accepted') {
+      console.log('[Nexora PWA] User installed the app 🎉');
+      if (typeof typeBot === 'function') {
+        setTimeout(() => typeBot('🎉 Nexora is now installed on your device! You can open it from your home screen anytime — even offline. Welcome to the app! 💜'), 500);
+      }
+    }
+    deferredInstallPrompt = null;
+  });
+}
+
+function dismissPWABanner() {
+  document.getElementById('pwaInstallBanner').classList.remove('show');
+  sessionStorage.setItem('pwa_banner_dismissed', '1');
+}
+
+// Hide banner if already installed (standalone mode)
+if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+  document.getElementById('pwaInstallBanner')?.classList.remove('show');
+}
+
+// ── Installed event ──
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  document.getElementById('pwaInstallBanner')?.classList.remove('show');
+  console.log('[Nexora PWA] App installed successfully!');
+});
 </script>
 </body>
 </html>
