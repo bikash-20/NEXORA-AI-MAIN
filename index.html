@@ -1588,11 +1588,15 @@ const LS_USER_KEY   = 'nexora_user_key';    // user's own key (optional)
 const LS_POOL_INDEX = 'nexora_pool_index';  // which default key to try next
 
 // Model priority list — tried in order per key attempt
+// ── Chat models — FREE first, paid as last resort ──
 const OPENROUTER_MODELS = [
-  'meta-llama/llama-3.1-8b-instruct:free',
-  'google/gemini-flash-1.5:free',
-  'anthropic/claude-3-5-haiku',
-  'anthropic/claude-3-haiku',
+  'meta-llama/llama-3.1-8b-instruct:free',    // free ✅
+  'meta-llama/llama-3.2-3b-instruct:free',    // free ✅
+  'google/gemini-flash-1.5:free',              // free ✅
+  'google/gemini-2.0-flash-exp:free',          // free ✅
+  'mistralai/mistral-7b-instruct:free',        // free ✅
+  'anthropic/claude-3-5-haiku',               // paid — last resort
+  'anthropic/claude-3-haiku',                 // paid — last resort
 ];
 const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
 let aiConversation = [];  // rolling message history sent to OpenRouter (last 10 turns)
@@ -3836,11 +3840,14 @@ function ensureTesseract() {
 }
 
 // Vision-capable models (support base64 image input)
+// ── Vision models — FREE ones first, paid as last resort ──
 const VISION_MODELS = [
-  'anthropic/claude-3-5-haiku',
-  'anthropic/claude-3-haiku',
-  'google/gemini-flash-1.5:free',
-  'meta-llama/llama-3.2-11b-vision-instruct:free',
+  'meta-llama/llama-3.2-11b-vision-instruct:free',   // free ✅
+  'google/gemini-flash-1.5:free',                     // free ✅
+  'google/gemini-2.0-flash-exp:free',                 // free ✅
+  'qwen/qwen-2-vl-7b-instruct:free',                  // free ✅
+  'anthropic/claude-3-5-haiku',                       // paid — last resort
+  'anthropic/claude-3-haiku',                         // paid — last resort
 ];
 
 function fileToBase64(file) {
@@ -3928,10 +3935,10 @@ async function performOCR(file, userQuestion) {
       addBotMsg("🔍 Analysing image with Vision AI...");
       const vision = await callVisionAI(file, userQuestion);
       if (vision) return vision;
-      addBotMsg("⚠️ Vision AI unavailable, falling back to text extraction...");
+      addBotMsg("⚠️ All free vision models are busy right now — extracting text instead. Try again in a moment for full AI vision! 🔄");
       return await performOCRFallback(file);
     } else {
-      addBotMsg("📖 Extracting text from image... (switch to Online Mode for full image AI!)");
+      addBotMsg("📖 Extracting text from image...<br><small style='opacity:0.6'>💡 Make sure Online Mode is ON for full AI vision analysis!</small>");
       return await performOCRFallback(file);
     }
   } finally {
