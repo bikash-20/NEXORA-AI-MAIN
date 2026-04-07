@@ -5289,104 +5289,26 @@ Key traits:
 // ║  4. Returns reply string, or null if everything failed       ║
 // ╚══════════════════════════════════════════════════════════════╝
 async function callOpenRouter(userMessage) {
-  // Build message array with system prompt + rolling history + current message
-  const messages = [{ role: 'system', content: NEXORA_SYSTEM_PROMPT }];
-  const recent = aiConversation.slice(-10);
-  messages.push(...recent);
-  messages.push({ role: 'user', content: userMessage });
+  const { key: userKey } = resolveActiveKey(); // Only check for the user's key
 
-  // ── Build the key attempt list ──────────────────────────────
-  // Always try user key first (if they have one), then fall back to pool
-  const { key: userKey, isUserKey } = resolveActiveKey();
-  const keysToTry = [];
+  const response = await fetch('/api/chat', { // Call your secret backend instead
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      userMessage,
+      userKey, // Send this so the backend knows to try it first
+      history: aiConversation.slice(-10)
+    })
+  });
 
-  if (isUserKey) {
-    // User key goes first; pool keys are fallback
-    keysToTry.push({ key: userKey, label: 'user' });
-    NEXORA_DEFAULT_KEYS.forEach((k, i) => keysToTry.push({ key: k, label: 'pool-' + i }));
-  } else {
-    // No user key — try all pool keys starting from current index
-    const startIdx = parseInt(localStorage.getItem(LS_POOL_INDEX) || '0', 10);
-    for (let i = 0; i < NEXORA_DEFAULT_KEYS.length; i++) {
-      const idx = (startIdx + i) % NEXORA_DEFAULT_KEYS.length;
-      keysToTry.push({ key: NEXORA_DEFAULT_KEYS[idx], label: 'pool-' + idx });
-    }
+  if (!response.ok) {
+    // Show your "API key exhausted" message here if the backend returns an error
+    return null;
   }
 
-  // ── Attempt each key ────────────────────────────────────────
-  for (const { key, label } of keysToTry) {
-    if (!key || !key.startsWith('sk-or-')) continue;
-
-    let keyWorked = false;
-
-    for (const model of OPENROUTER_MODELS) {
-      try {
-        const res = await fetch(OPENROUTER_ENDPOINT, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${key}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': window.location.origin || 'https://nexora.ai',
-            'X-Title': 'Nexora AI Companion'
-          },
-          body: JSON.stringify({
-            model,
-            max_tokens: 300,
-            temperature: 0.85,
-            messages
-          })
-        });
-
-        // 401 = invalid key — stop trying models for this key, move to next key
-        if (res.status === 401) {
-          console.warn(`[Nexora] Key ${label} invalid (401). Trying next key.`);
-          // If this was a pool key, rotate to next
-          if (label.startsWith('pool-')) rotatePoolKey();
-          break; // break model loop → try next key
-        }
-
-        // 429 = rate limited / credits exhausted — try next key
-        if (res.status === 429) {
-          console.warn(`[Nexora] Key ${label} rate-limited (429). Trying next key.`);
-          if (label.startsWith('pool-')) rotatePoolKey();
-          break;
-        }
-
-        // 5xx server error — try next model
-        if (res.status >= 500) {
-          console.warn(`[Nexora] Model ${model} 5xx. Trying next model.`);
-          continue;
-        }
-
-        if (res.ok) {
-          const data = await res.json();
-          const reply = data?.choices?.[0]?.message?.content?.trim();
-          if (reply) {
-            // ✅ Success — save turn to rolling history
-            aiConversation.push({ role: 'user', content: userMessage });
-            aiConversation.push({ role: 'assistant', content: reply });
-            if (aiConversation.length > 20) aiConversation.splice(0, 2);
-            keyWorked = true;
-            return reply; // ← return immediately on first success
-          }
-        }
-      } catch (fetchErr) {
-        // Network error on this model — try next model
-        console.warn(`[Nexora] Fetch error (key=${label}, model=${model}):`, fetchErr.message);
-        continue;
-      }
-    }
-
-    // All models exhausted for this key without success
-    if (!keyWorked && label.startsWith('pool-')) {
-      rotatePoolKey();
-    }
-  }
-
-  // All keys and all models failed
-  console.warn('[Nexora] All keys exhausted. Falling back to offline KB.');
-  typeBot('⚠️ The default API key has run out of credits. To keep using AI-powered responses, please add your own free OpenRouter key:<br><br>1️⃣ Go to <strong><a href="https://openrouter.ai/keys" target="_blank" style="color:var(--accent)">openrouter.ai/keys</a></strong> and create a free key<br>2️⃣ Open the <strong>Menu → 🔑 API Key</strong> panel in Nexora<br>3️⃣ Paste your key (starts with <code>sk-or-...</code>) and save<br><br>Nexora will still work in offline mode until then! 🤍');
-  return null;
+  const data = await response.json();
+  // ... update aiConversation with data.reply ...
+  return data.reply;
 }
 
 // ==============================
