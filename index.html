@@ -1136,23 +1136,6 @@
     vertical-align: middle;
   }
   .ai-badge.online  { background: rgba(34,197,94,0.12); color: #22c55e; border-color: rgba(34,197,94,0.3); }
-  .ai-badge.no-key {
-    background: rgba(255, 184, 48, 0.15);
-    border: 1px solid rgba(255, 184, 48, 0.35);
-    color: #ffb830;
-    animation: none;
-    font-size: 11px;
-    padding: 3px 10px;
-    border-radius: 20px;
-    display: inline-flex; align-items: center; gap: 5px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.2s, box-shadow 0.2s;
-  }
-  .ai-badge.no-key:hover {
-    background: rgba(255, 184, 48, 0.25);
-    box-shadow: 0 0 12px rgba(255, 184, 48, 0.3);
-  }
   .ai-badge.offline { background: rgba(148,163,184,0.12); color: var(--text3); }
   .ai-badge .ai-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 
@@ -1413,15 +1396,11 @@
 
     <!-- Description -->
     <div class="api-panel-sub">
-      Nexora uses <strong>free AI models</strong> via OpenRouter — no credits needed!<br><br>
-      <strong>Step 1:</strong> Go to <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--accent)">openrouter.ai/keys</a> → sign up free → create a key<br>
-      <strong>Step 2:</strong> Paste your key below (starts with <code>sk-or-...</code>)<br><br>
-      🆓 <strong>Free models included:</strong><br>
-      <span style="color:var(--text2);font-size:12px;line-height:2;">
-        Llama 3.3 70B · Llama 3.1 8B · Llama 3.2 3B<br>
-        Gemini 2.0 Flash · Gemini Flash 1.5<br>
-        Mistral 7B · StepFun Flash · DeepSeek R1 · Qwen3 8B
-      </span>
+      Nexora has <strong>built-in keys</strong> that always work automatically — no setup needed.<br><br>
+      <strong>Optional:</strong> paste your own <a href="https://openrouter.ai/keys" target="_blank">OpenRouter key</a> below to use it with priority.<br>
+      💡 <strong>Free models:</strong> Llama 3.1, Gemini Flash — no credits needed.<br>
+      ⚡ <strong style="color:var(--primary)">Best quality:</strong> Claude Haiku (~$1 credit on OpenRouter).<br><br>
+      <span style="color:var(--success);font-size:12px;">✅ If you don't add a key, the built-in pool handles everything.</span>
     </div>
 
     <!-- Input -->
@@ -1599,52 +1578,48 @@ let contextChipCooldown = false;  // prevent chip spam
 // ║  If user key fails → silently falls back to pool             ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-// No built-in keys — users must add their own free OpenRouter key
-const NEXORA_DEFAULT_KEYS = [];
+// Default pool — tried in order; first success wins
+// ── No built-in keys — user must provide their own OpenRouter key ──
+const NEXORA_DEFAULT_KEYS = []; // empty — no hardcoded keys
 
-// localStorage key names — separated so user key never overwrites pool state
-const LS_USER_KEY   = 'nexora_user_key';    // user's own key (optional)
-const LS_POOL_INDEX = 'nexora_pool_index';  // which default key to try next
+// localStorage key names
+const LS_USER_KEY   = 'nexora_user_key';    // user's own key
+const LS_POOL_INDEX = 'nexora_pool_index';  // legacy compat (unused)
 
-// Model priority list — tried in order per key attempt
-// ── All FREE models — works with any OpenRouter key, zero credits needed ──
+// Model priority list — tried in order
+// FREE models first, then paid as fallback.
+// User key works with ANY model including paid ones if they have credits.
 const OPENROUTER_MODELS = [
-  'meta-llama/llama-3.3-70b-instruct:free',   // Llama 3.3 70B ✅
-  'stepfun/step-3.5-flash:free',              // StepFun Flash ✅
-  'google/gemini-2.0-flash-exp:free',          // Gemini 2.0 Flash ✅
-  'meta-llama/llama-3.1-8b-instruct:free',    // Llama 3.1 8B ✅
-  'google/gemini-flash-1.5:free',              // Gemini Flash 1.5 ✅
-  'deepseek/deepseek-r1:free',                // DeepSeek R1 ✅
-  'qwen/qwen3-8b:free',                       // Qwen3 8B ✅
-  'mistralai/mistral-7b-instruct:free',        // Mistral 7B ✅
-  'meta-llama/llama-3.2-3b-instruct:free',    // Llama 3.2 3B ✅
+  'meta-llama/llama-3.3-70b-instruct:free',   // Llama 3.3 70B — free ✅
+  'meta-llama/llama-3.1-8b-instruct:free',     // Llama 3.1 8B — free ✅
+  'meta-llama/llama-3.2-3b-instruct:free',     // Llama 3.2 3B — free ✅
+  'google/gemini-2.0-flash-exp:free',           // Gemini 2.0 Flash — free ✅
+  'google/gemini-flash-1.5:free',               // Gemini Flash 1.5 — free ✅
+  'mistralai/mistral-7b-instruct:free',         // Mistral 7B — free ✅
+  'stepfun/step-3.5-flash:free',                // StepFun Flash — free ✅
+  'deepseek/deepseek-r1:free',                  // DeepSeek R1 — free ✅
+  'qwen/qwen3-8b:free',                         // Qwen3 8B — free ✅
+  'anthropic/claude-3-5-haiku',                 // Claude Haiku — paid fallback
+  'anthropic/claude-3-haiku',                   // Claude Haiku (old) — paid fallback
+  'openai/gpt-3.5-turbo',                       // GPT-3.5 — paid fallback
 ];
 const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
 let aiConversation = [];  // rolling message history sent to OpenRouter (last 10 turns)
 
 // ── Key Resolution ──────────────────────────────────────────────
-// Returns { key, isUserKey } — always prefers user key if set
+// Returns { key, isUserKey } — only the user key is used now
 function resolveActiveKey() {
   const userKey = localStorage.getItem(LS_USER_KEY);
   if (userKey && userKey.startsWith('sk-or-')) {
     return { key: userKey, isUserKey: true };
   }
-  // Fall back to the current pool key
-  const idx = parseInt(localStorage.getItem(LS_POOL_INDEX) || '0', 10);
-  const safeIdx = idx % NEXORA_DEFAULT_KEYS.length;
-  return { key: NEXORA_DEFAULT_KEYS[safeIdx], isUserKey: false };
+  return { key: null, isUserKey: false };
 }
 
-// Advance to next default pool key (called when current pool key fails)
-function rotatePoolKey() {
-  const idx = parseInt(localStorage.getItem(LS_POOL_INDEX) || '0', 10);
-  const next = (idx + 1) % NEXORA_DEFAULT_KEYS.length;
-  localStorage.setItem(LS_POOL_INDEX, String(next));
-  console.info('[Nexora] Pool key rotated to index', next);
-  return NEXORA_DEFAULT_KEYS[next];
-}
+// Legacy stubs — no pool to rotate
+function rotatePoolKey() { return null; }
 
-// ── Legacy compat: getActiveKey() — still used by old testOpenRouterKey path ──
+// ── Legacy compat: getActiveKey() ──
 function getActiveKey() {
   return resolveActiveKey().key;
 }
@@ -3861,13 +3836,15 @@ function ensureTesseract() {
 }
 
 // Vision-capable models (support base64 image input)
-// ── Vision models — all FREE ──
+// ── Vision models — FREE ones first, paid as last resort ──
 const VISION_MODELS = [
-  'google/gemini-2.0-flash-exp:free',                 // Gemini 2.0 Flash ✅
-  'stepfun/step-3.5-flash:free',                      // StepFun Flash ✅
-  'meta-llama/llama-3.2-11b-vision-instruct:free',   // Llama Vision ✅
-  'google/gemini-flash-1.5:free',                     // Gemini Flash 1.5 ✅
-  'qwen/qwen-2-vl-7b-instruct:free',                  // Qwen VL ✅
+  'stepfun/step-3.5-flash:free',                      // free ✅
+  'meta-llama/llama-3.2-11b-vision-instruct:free',   // free ✅
+  'google/gemini-flash-1.5:free',                     // free ✅
+  'google/gemini-2.0-flash-exp:free',                 // free ✅
+  'qwen/qwen-2-vl-7b-instruct:free',                  // free ✅
+  'anthropic/claude-3-5-haiku',                       // paid — last resort
+  'anthropic/claude-3-haiku',                         // paid — last resort
 ];
 
 function fileToBase64(file) {
@@ -3891,18 +3868,14 @@ When given an image: describe what you see, read all text (printed or handwritte
     ? userQuestion.trim()
     : 'Analyse this image fully. Describe what you see, read any text, solve any math or code, and help me with whatever is shown.';
 
-  // Build key list — user key first, then pool
+  // Build key list — user key only
   const { key: userKey, isUserKey } = resolveActiveKey();
   const keysToTry = [];
-  if (isUserKey) {
+  if (isUserKey && userKey) {
     keysToTry.push(userKey);
-    NEXORA_DEFAULT_KEYS.forEach(k => keysToTry.push(k));
-  } else {
-    const startIdx = parseInt(localStorage.getItem(LS_POOL_INDEX) || '0', 10);
-    for (let i = 0; i < NEXORA_DEFAULT_KEYS.length; i++) {
-      keysToTry.push(NEXORA_DEFAULT_KEYS[(startIdx + i) % NEXORA_DEFAULT_KEYS.length]);
-    }
   }
+
+  if (keysToTry.length === 0) return null; // no key, skip vision
 
   for (const key of keysToTry) {
     if (!key || !key.startsWith('sk-or-')) continue;
@@ -3922,7 +3895,7 @@ When given an image: describe what you see, read all text (printed or handwritte
             ]
           })
         });
-        if (res.status === 401 || res.status === 429) break;
+        if (res.status === 401 || res.status === 429) continue;
         if (!res.ok) continue;
         const data = await res.json();
         const reply = data?.choices?.[0]?.message?.content?.trim();
@@ -5454,12 +5427,12 @@ Key traits:
 - Sign off naturally, never with "As an AI..."`;
 
 // ╔══════════════════════════════════════════════════════════════╗
-// ║   callOpenRouter — Multi-Key Fallback Engine                 ║
+// ║   callOpenRouter — User-Key Engine                           ║
 // ║                                                              ║
 // ║  Strategy:                                                   ║
-// ║  1. Try user key (if set) across all models                  ║
-// ║  2. If user key fails → silently try each pool key in order  ║
-// ║  3. Each key is tried across all models before moving on     ║
+// ║  1. Require user's own OpenRouter key                        ║
+// ║  2. Try all free models first, then paid fallbacks           ║
+// ║  3. Works with ANY model the key has access to               ║
 // ║  4. Returns reply string, or null if everything failed       ║
 // ╚══════════════════════════════════════════════════════════════╝
 async function callOpenRouter(userMessage) {
@@ -5469,97 +5442,73 @@ async function callOpenRouter(userMessage) {
   messages.push(...recent);
   messages.push({ role: 'user', content: userMessage });
 
-  // ── Build the key attempt list ──────────────────────────────
-  // Always try user key first (if they have one), then fall back to pool
+  // ── Get user key ─────────────────────────────────────────────
   const { key: userKey, isUserKey } = resolveActiveKey();
-  const keysToTry = [];
 
-  if (isUserKey) {
-    // User key goes first; pool keys are fallback
-    keysToTry.push({ key: userKey, label: 'user' });
-    NEXORA_DEFAULT_KEYS.forEach((k, i) => keysToTry.push({ key: k, label: 'pool-' + i }));
-  } else {
-    // No user key — try all pool keys starting from current index
-    const startIdx = parseInt(localStorage.getItem(LS_POOL_INDEX) || '0', 10);
-    for (let i = 0; i < NEXORA_DEFAULT_KEYS.length; i++) {
-      const idx = (startIdx + i) % NEXORA_DEFAULT_KEYS.length;
-      keysToTry.push({ key: NEXORA_DEFAULT_KEYS[idx], label: 'pool-' + idx });
-    }
+  if (!isUserKey || !userKey) {
+    // No key set — ask user to add one
+    typeBot('🔑 No API key found. To use AI-powered responses, please add your free OpenRouter key:<br><br>1️⃣ Go to <strong><a href="https://openrouter.ai/keys" target="_blank" style="color:var(--accent)">openrouter.ai/keys</a></strong> and create a free key<br>2️⃣ Open the <strong>Menu → 🔑 API Key</strong> panel in Nexora<br>3️⃣ Paste your key (starts with <code>sk-or-...</code>) and save<br><br>It\'s completely free — no credit card needed! 🤍');
+    return null;
   }
 
-  // ── Attempt each key ────────────────────────────────────────
-  for (const { key, label } of keysToTry) {
-    if (!key || !key.startsWith('sk-or-')) continue;
+  // ── Try each model with the user key ────────────────────────
+  for (const model of OPENROUTER_MODELS) {
+    try {
+      const res = await fetch(OPENROUTER_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${userKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': window.location.origin || 'https://nexora.ai',
+          'X-Title': 'Nexora AI Companion'
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 300,
+          temperature: 0.85,
+          messages
+        })
+      });
 
-    let keyWorked = false;
+      // 401 = invalid key — stop immediately, tell user
+      if (res.status === 401) {
+        console.warn(`[Nexora] User key invalid (401).`);
+        typeBot('❌ Your API key is invalid. Please check it at <strong><a href="https://openrouter.ai/keys" target="_blank" style="color:var(--accent)">openrouter.ai/keys</a></strong> and update it in <strong>Menu → 🔑 API Key</strong>.');
+        return null;
+      }
 
-    for (const model of OPENROUTER_MODELS) {
-      try {
-        const res = await fetch(OPENROUTER_ENDPOINT, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${key}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': window.location.origin || 'https://nexora.ai',
-            'X-Title': 'Nexora AI Companion'
-          },
-          body: JSON.stringify({
-            model,
-            max_tokens: 300,
-            temperature: 0.85,
-            messages
-          })
-        });
-
-        // 401 = invalid key — stop trying models for this key, move to next key
-        if (res.status === 401) {
-          console.warn(`[Nexora] Key ${label} invalid (401). Trying next key.`);
-          // If this was a pool key, rotate to next
-          if (label.startsWith('pool-')) rotatePoolKey();
-          break; // break model loop → try next key
-        }
-
-        // 429 = rate limited / credits exhausted — try next key
-        if (res.status === 429) {
-          console.warn(`[Nexora] Key ${label} rate-limited (429). Trying next key.`);
-          if (label.startsWith('pool-')) rotatePoolKey();
-          break;
-        }
-
-        // 5xx server error — try next model
-        if (res.status >= 500) {
-          console.warn(`[Nexora] Model ${model} 5xx. Trying next model.`);
-          continue;
-        }
-
-        if (res.ok) {
-          const data = await res.json();
-          const reply = data?.choices?.[0]?.message?.content?.trim();
-          if (reply) {
-            // ✅ Success — save turn to rolling history
-            aiConversation.push({ role: 'user', content: userMessage });
-            aiConversation.push({ role: 'assistant', content: reply });
-            if (aiConversation.length > 20) aiConversation.splice(0, 2);
-            keyWorked = true;
-            return reply; // ← return immediately on first success
-          }
-        }
-      } catch (fetchErr) {
-        // Network error on this model — try next model
-        console.warn(`[Nexora] Fetch error (key=${label}, model=${model}):`, fetchErr.message);
+      // 429 = rate limited — try next model, or inform user if all fail
+      if (res.status === 429) {
+        console.warn(`[Nexora] Model ${model} rate-limited (429). Trying next model.`);
         continue;
       }
-    }
 
-    // All models exhausted for this key without success
-    if (!keyWorked && label.startsWith('pool-')) {
-      rotatePoolKey();
+      // 5xx server error — try next model
+      if (res.status >= 500) {
+        console.warn(`[Nexora] Model ${model} server error (${res.status}). Trying next model.`);
+        continue;
+      }
+
+      if (res.ok) {
+        const data = await res.json();
+        const reply = data?.choices?.[0]?.message?.content?.trim();
+        if (reply) {
+          // ✅ Success — save turn to rolling history
+          aiConversation.push({ role: 'user', content: userMessage });
+          aiConversation.push({ role: 'assistant', content: reply });
+          if (aiConversation.length > 20) aiConversation.splice(0, 2);
+          return reply; // ← return immediately on first success
+        }
+      }
+    } catch (fetchErr) {
+      console.warn(`[Nexora] Fetch error (model=${model}):`, fetchErr.message);
+      continue;
     }
   }
 
-  // All keys and all models failed
-  console.warn('[Nexora] All keys exhausted. Falling back to offline KB.');
-  typeBot('🔑 <strong>No API key found!</strong> To enable AI responses:<br><br>1️⃣ Go to <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--accent)">openrouter.ai/keys</a> — sign up <strong>free</strong><br>2️⃣ Create a key (starts with <code>sk-or-...</code>)<br>3️⃣ Open <strong>Menu → 🔑 Add API Key</strong> in Nexora<br><br>✅ All models are free — no credit card needed!');
+  // All models failed with this key
+  console.warn('[Nexora] All models failed.');
+  typeBot('⚠️ Your key is valid but all models are currently busy or rate-limited. Please try again in a moment! If the issue persists, check your usage at <strong><a href="https://openrouter.ai/activity" target="_blank" style="color:var(--accent)">openrouter.ai/activity</a></strong>. 🔄');
   return null;
 }
 
@@ -5586,18 +5535,19 @@ async function callOpenRouter(userMessage) {
 // ==============================
 // ── Initialise mode based on key availability ──
 function initResponseMode() {
-  // Always start with a valid pool key at index 0 if not already set
-  if (!localStorage.getItem(LS_POOL_INDEX)) {
-    localStorage.setItem(LS_POOL_INDEX, '0');
-  }
+  const userKey = localStorage.getItem(LS_USER_KEY);
+  const hasKey  = userKey && userKey.startsWith('sk-or-');
+  const saved   = localStorage.getItem('nexora_response_mode');
 
-  // Check if user manually chose offline
-  const saved = localStorage.getItem('nexora_response_mode');
   if (saved === 'offline') {
     nexoraResponseMode = 'offline';
-  } else {
-    nexoraResponseMode = 'online'; // default — pool keys are always available
+  } else if (hasKey) {
+    nexoraResponseMode = 'online';
     localStorage.setItem('nexora_response_mode', 'online');
+  } else {
+    // No key yet — default to offline, user can switch once they add a key
+    nexoraResponseMode = 'offline';
+    localStorage.setItem('nexora_response_mode', 'offline');
   }
   updateResponseModeUI();
 }
@@ -5628,24 +5578,18 @@ function updateResponseModeUI() {
   if (nexoraResponseMode === 'online') {
     if (btn) { btn.innerHTML = '<span>📴</span> Offline Mode'; }
     if (badge) {
-      if (hasUserKey) {
-        badge.className = 'ai-badge online';
-        badge.innerHTML = '<span class="ai-dot"></span>Your Key Active';
-      } else {
-        // No key — prompt user to add one
-        badge.className = 'ai-badge no-key';
-        badge.innerHTML = '<span>🔑</span> Add API Key';
-        badge.onclick = openApiPanel;
-        badge.style.cursor = 'pointer';
-      }
+      badge.className = 'ai-badge online';
+      badge.innerHTML = hasUserKey
+        ? '<span class="ai-dot"></span>Your Key Active'
+        : '<span class="ai-dot"></span>AI Online';
     }
   } else {
     if (btn) { btn.innerHTML = '<span>🌐</span> Online Priority'; }
     if (badge) {
       badge.className = 'ai-badge offline';
-      badge.innerHTML = '<span class="ai-dot"></span>Offline Mode';
-      badge.onclick = null;
-      badge.style.cursor = '';
+      badge.innerHTML = hasUserKey
+        ? '<span class="ai-dot"></span>Offline Mode'
+        : '<span class="ai-dot"></span>Add API Key';
     }
   }
 }
@@ -5891,7 +5835,7 @@ function deleteApiKey() {
   updateApiStatusDisplay();
   refreshApiPanelState();
   updateResponseModeUI();
-  typeBot('🗑️ Your API key removed. Add a new key anytime via <strong>Menu → 🔑 Add API Key</strong> to re-enable AI. 💜');
+  typeBot('🗑️ Your personal key removed. Using the built-in key pool now — AI is still fully active! 🤍');
   closeApiPanel();
 }
 
@@ -5904,9 +5848,14 @@ function updateApiStatusDisplay() {
 
   if (hasUserKey) {
     statusText.textContent = '✅ Your key active: ' + userKey.slice(0, 10) + '...' + userKey.slice(-4);
+    nexoraResponseMode = 'online';
+    localStorage.setItem('nexora_response_mode', 'online');
   } else {
-    statusText.textContent = '🔑 No key saved — add your free OpenRouter key below';
+    statusText.textContent = '🔑 No key set — add your free OpenRouter key to enable AI';
+    nexoraResponseMode = 'offline';
+    localStorage.setItem('nexora_response_mode', 'offline');
   }
+
   updateResponseModeUI();
 }
 
@@ -5914,15 +5863,7 @@ function updateApiStatusDisplay() {
 async function testOpenRouterKey(key) {
   if (!key || !key.startsWith('sk-or-')) return;
 
-  // Only test FREE models — never burn paid credits just to verify a key
-  const testModels = [
-    'stepfun/step-3.5-flash:free',
-    'meta-llama/llama-3.1-8b-instruct:free',
-    'google/gemini-flash-1.5:free',
-    'meta-llama/llama-3.2-3b-instruct:free',
-  ];
-
-  for (const model of testModels) {
+  for (const model of OPENROUTER_MODELS) {
     try {
       const res = await fetch(OPENROUTER_ENDPOINT, {
         method: 'POST',
@@ -5935,35 +5876,34 @@ async function testOpenRouterKey(key) {
         body: JSON.stringify({
           model,
           max_tokens: 40,
-          messages: [{ role: 'user', content: 'Reply only: online!' }]
+          messages: [{ role: 'user', content: 'Reply only: Nexora AI is online!' }]
         })
       });
 
-      // 401 = truly invalid key
       if (res.status === 401) {
-        setTimeout(() => typeBot('❌ Your API key is invalid. Please double-check it at <strong>openrouter.ai/keys</strong> and try again. 🔑'), 400);
+        setTimeout(() => typeBot('❌ Your API key is invalid (401). Please check it at <strong>openrouter.ai/keys</strong> and try again. The built-in key pool is still active! 🔑'), 400);
         return;
       }
 
-      // 429 on one model = just try next model, don't alarm the user
       if (res.status === 429) {
-        continue;
+        setTimeout(() => typeBot('⚠️ Your key has hit its usage limit. The built-in key pool will handle requests automatically — no action needed! 🔄'), 400);
+        return;
       }
 
       if (res.ok) {
         const data = await res.json();
         const reply = data?.choices?.[0]?.message?.content?.trim();
         if (reply) {
-          setTimeout(() => typeBot('🟢 Your API key is active and working! Connected via <strong>' + model + '</strong>. You\'re all set! 🎉'), 400);
+          setTimeout(() => typeBot('🟢 Your API key is working! Connected via <strong>' + model + '</strong>. Your key now takes priority over the default pool. 🎉'), 400);
           return;
         }
       }
     } catch (e) {
-      continue;
+      continue; // try next model
     }
   }
-  // All free models responded but gave no text — key is saved, will work
-  setTimeout(() => typeBot('✅ Key saved! Nexora will use it automatically. If you see any issues, make sure your OpenRouter account is verified at <strong>openrouter.ai</strong>. 💜'), 400);
+  // Key saved but no model responded — pool is still the backup
+  setTimeout(() => typeBot('⚠️ Your key was saved but didn\'t respond on any model. The built-in key pool is still active as backup. You may need credits at <strong>openrouter.ai</strong>.'), 400);
 }
 
 // ── Override getActiveKey (legacy compat) ──
