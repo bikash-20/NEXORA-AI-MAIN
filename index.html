@@ -5765,6 +5765,20 @@ async function generateSmartReply(input) {
   const banglaReply = matchBanglaInput(input);
   if (banglaReply) return banglaReply;
 
+  // 0d. Roadmap / Learning path — ALWAYS uses local formatted KB first,
+  //     regardless of online/offline mode. Prevents AI from giving plain-text walls.
+  if (/roadmap|learning path|career path|study plan|how to learn|how to become|how do i learn|how can i learn|syllabus for/i.test(lower)) {
+    const rmMatch = input.match(/(?:roadmap|learning path|career path|study plan|guide to|syllabus for|curriculum for)\s+(?:for\s+|of\s+|in\s+|on\s+)?(.+)/i)
+      || input.match(/(?:give\s+(?:me\s+)?(?:a\s+)?(?:the\s+)?)roadmap\s+(?:for\s+|of\s+)?(.+)/i)
+      || input.match(/(?:provide\s+(?:me\s+)?(?:a\s+)?(?:the\s+)?)roadmap\s+(?:for\s+|of\s+)?(.+)/i)
+      || input.match(/how\s+(?:to\s+(?:learn|become|start)|do\s+i\s+(?:learn|become|start)|can\s+i\s+(?:learn|become))\s+(.+)/i);
+    const rmTopic = rmMatch && (rmMatch[1] || rmMatch[2]);
+    if (rmTopic) {
+      const rmReply = getRoadmap(rmTopic.trim());
+      if (rmReply) return rmReply;
+    }
+  }
+
   // ── TIER 1: Utility tools — always instant, both modes ──
   // Math, weather, time, currency, password — these are deterministic local tools
 
@@ -5813,18 +5827,6 @@ async function generateSmartReply(input) {
   if (/\b(song|music|artist|album|track|singer|band|playlist)\b/.test(lower) && musicMatch) {
     const result = await getMusicInfo(musicMatch[1].trim());
     if (result) return result;
-  }
-
-  // ── ROADMAP / LEARNING PATH — check this BEFORE Wikipedia ──
-  if (/roadmap|learning path|career path|study plan|how to learn|how to become|how do i learn|how can i learn|syllabus for/i.test(lower)) {
-    const rmMatch = input.match(/(?:roadmap|learning path|career path|study plan|guide to|syllabus for|curriculum for)\s+(?:for\s+|of\s+|in\s+|on\s+)?(.+)/i)
-      || input.match(/(?:give\s+(?:me\s+)?(?:a\s+)?(?:the\s+)?)roadmap\s+(?:for\s+|of\s+)?(.+)/i)
-      || input.match(/how\s+(?:to\s+(?:learn|become|start)|do\s+i\s+(?:learn|become|start)|can\s+i\s+(?:learn|become))\s+(.+)/i);
-    const rmTopic = rmMatch && (rmMatch[1] || rmMatch[2]);
-    if (rmTopic) {
-      const rmReply = getRoadmap(rmTopic.trim());
-      if (rmReply) return rmReply;
-    }
   }
 
   // ── Wikipedia — expanded: history, events, concepts, how/why/when/where ──

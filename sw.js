@@ -4,8 +4,8 @@
 //  Network-first for API calls
 // ============================================================
 
-const CACHE_NAME = 'nexora-v1';
-const CACHE_VERSION = 1;
+const CACHE_NAME = 'nexora-v2';
+const CACHE_VERSION = 2;
 
 // Files to cache on install
 const STATIC_ASSETS = [
