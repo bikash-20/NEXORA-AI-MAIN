@@ -998,7 +998,6 @@
     font-size: 15px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.2);
     z-index: 10;
-    transition: transform 0.15s;
     opacity: 0; pointer-events: none;
     transition: opacity 0.3s, transform 0.15s;
   }
@@ -1634,7 +1633,10 @@ function resolveActiveKey() {
   if (userKey && userKey.startsWith('sk-or-')) {
     return { key: userKey, isUserKey: true };
   }
-  // Fall back to the current pool key
+  // Fall back to the current pool key (guard against empty pool)
+  if (NEXORA_DEFAULT_KEYS.length === 0) {
+    return { key: null, isUserKey: false };
+  }
   const idx = parseInt(localStorage.getItem(LS_POOL_INDEX) || '0', 10);
   const safeIdx = idx % NEXORA_DEFAULT_KEYS.length;
   return { key: NEXORA_DEFAULT_KEYS[safeIdx], isUserKey: false };
@@ -1642,6 +1644,7 @@ function resolveActiveKey() {
 
 // Advance to next default pool key (called when current pool key fails)
 function rotatePoolKey() {
+  if (NEXORA_DEFAULT_KEYS.length === 0) return null;
   const idx = parseInt(localStorage.getItem(LS_POOL_INDEX) || '0', 10);
   const next = (idx + 1) % NEXORA_DEFAULT_KEYS.length;
   localStorage.setItem(LS_POOL_INDEX, String(next));
@@ -5663,8 +5666,11 @@ function initResponseMode() {
   if (saved === 'offline') {
     nexoraResponseMode = 'offline';
   } else {
-    nexoraResponseMode = 'online'; // default — pool keys are always available
-    localStorage.setItem('nexora_response_mode', 'online');
+    // Default to online only if a user key is actually saved; otherwise offline
+    const userKey = localStorage.getItem(LS_USER_KEY);
+    const hasKey  = userKey && userKey.startsWith('sk-or-');
+    nexoraResponseMode = hasKey ? 'online' : 'offline';
+    localStorage.setItem('nexora_response_mode', nexoraResponseMode);
   }
   updateResponseModeUI();
 }
@@ -6157,8 +6163,10 @@ function saveApiKey() {
 }
 
 function deleteApiKey() {
-  if (!confirm('Remove your personal key? Nexora will continue working with the built-in keys.')) return;
+  if (!confirm('Remove your personal key? You can add a new key anytime via Menu → 🔑 API Key Setup.')) return;
   localStorage.removeItem(LS_USER_KEY);
+  nexoraResponseMode = 'offline';
+  localStorage.setItem('nexora_response_mode', 'offline');
   updateApiStatusDisplay();
   refreshApiPanelState();
   updateResponseModeUI();
