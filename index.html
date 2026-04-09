@@ -45,19 +45,19 @@
 
     --primary:      #7c5cff;
     --primary-dark: #4f35cc;
-    --accent:       #1e94a3;
-    --accent2:      #4319eb;
-    --accent-pink:  #ee18b2;
-    --accent-glow:  rgba(90, 50, 247, 0.4);
+    --accent:       #00e0ff;
+    --accent2:      #7c5cff;
+    --accent-pink:  #ff4ecd;
+    --accent-glow:  rgba(124, 92, 255, 0.4);
     --accent-dim:   rgba(124, 92, 255, 0.12);
 
     --grad:         linear-gradient(135deg, #7c5cff, #00e0ff, #ff4ecd);
     --grad-btn:     linear-gradient(135deg, #7c5cff, #00e0ff);
-    --user-bubble:  linear-gradient(135deg, #7c5cff, #ed36b9);
+    --user-bubble:  linear-gradient(135deg, #7c5cff, #ff4ecd);
 
     --text:         #ffffff;
     --text2:        #a0a8c0;
-    --text3:        #445387;
+    --text3:        #5a6280;
     --border:       rgba(255, 255, 255, 0.07);
     --border2:      rgba(255, 255, 255, 0.12);
     --border-strong:rgba(255, 255, 255, 0.22);
@@ -105,7 +105,7 @@
     content: '';
     position: fixed; inset: 0;
     background:
-      radial-gradient(ellipse 65% 55% at 15% 15%, rgba(111, 79, 237, 0.13) 0%, transparent 65%),
+      radial-gradient(ellipse 65% 55% at 15% 15%, rgba(124,92,255,0.13) 0%, transparent 65%),
       radial-gradient(ellipse 55% 65% at 85% 80%, rgba(0,224,255,0.10) 0%, transparent 65%),
       radial-gradient(ellipse 45% 50% at 50% 50%, rgba(255,78,205,0.06) 0%, transparent 70%);
     pointer-events: none;
@@ -201,7 +201,7 @@
 
   .header-avatar {
     width: 36px; height: 36px; border-radius: 12px;
-    background: linear-gradient(135deg, #714ff8, #00e1ffbc, #b2308d);
+    background: linear-gradient(135deg, #7c5cff, #00e0ff, #ff4ecd);
     display: flex; align-items: center; justify-content: center;
     font-size: 18px;
     box-shadow: 0 0 18px rgba(124,92,255,0.6), 0 0 35px rgba(0,224,255,0.2);
@@ -272,7 +272,7 @@
   .orb {
     width: 100%; height: 100%;
     border-radius: 50%;
-    background: radial-gradient(circle at 38% 36%, #b8aaff 0%, #533ab5 38%, #3b1fa8 72%, #0b0f1a 100%);
+    background: radial-gradient(circle at 38% 36%, #b8aaff 0%, #7c5cff 38%, #3b1fa8 72%, #0b0f1a 100%);
     box-shadow:
       0 0 45px rgba(124,92,255,0.7),
       0 0 90px rgba(124,92,255,0.4),
@@ -296,8 +296,8 @@
   .orb-ring {
     position: absolute; inset: -12px;
     border-radius: 50%;
-    border: 1px solid rgba(79, 51, 191, 0.3);
-    box-shadow: 0 0 10px rgba(81, 59, 169, 0.15);
+    border: 1px solid rgba(124,92,255,0.3);
+    box-shadow: 0 0 10px rgba(124,92,255,0.15);
     animation: orb-ring 4s ease-in-out infinite;
   }
   .orb-ring2 {
@@ -308,8 +308,8 @@
   }
 
   @keyframes orb-breathe {
-    0%,100% { transform: scale(1); box-shadow: 0 0 45px rgba(93, 65, 205, 0.7), 0 0 90px rgba(124,92,255,0.4), 0 0 140px rgba(0,224,255,0.15), inset 0 0 30px rgba(255,255,255,0.08); }
-    50% { transform: scale(1.04); box-shadow: 0 0 65px rgba(78, 54, 175, 0.85), 0 0 110px rgba(0,224,255,0.45), 0 0 160px rgba(255,78,205,0.25), inset 0 0 40px rgba(255,255,255,0.12); }
+    0%,100% { transform: scale(1); box-shadow: 0 0 45px rgba(124,92,255,0.7), 0 0 90px rgba(124,92,255,0.4), 0 0 140px rgba(0,224,255,0.15), inset 0 0 30px rgba(255,255,255,0.08); }
+    50% { transform: scale(1.04); box-shadow: 0 0 65px rgba(124,92,255,0.85), 0 0 110px rgba(0,224,255,0.45), 0 0 160px rgba(255,78,205,0.25), inset 0 0 40px rgba(255,255,255,0.12); }
   }
   @keyframes orb-ring {
     0%,100% { transform: scale(1); opacity: 1; }
@@ -319,7 +319,7 @@
   .welcome-title {
     font-family: 'Sora', sans-serif;
     font-size: 26px; font-weight: 600;
-    background: linear-gradient(135deg, #ffffff 20%, #4e3a8d 60%, #00e0ff 100%);
+    background: linear-gradient(135deg, #ffffff 20%, #a78bfa 60%, #00e0ff 100%);
     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     text-align: center;
     margin-bottom: 10px;
@@ -334,7 +334,7 @@
 
   .welcome-byline {
     font-size: 11px;
-    color: #62629e;
+    color: #7070a0;
     text-align: center;
     margin-bottom: 28px;
     letter-spacing: 0.4px;
@@ -386,7 +386,7 @@
     width: 100%;
     padding: 15px;
     border-radius: 20px;
-    background: linear-gradient(135deg, #7c5cff, #08dffbd0);
+    background: linear-gradient(135deg, #7c5cff, #00e0ff);
     border: none; cursor: pointer;
     font-family: 'Sora', sans-serif;
     font-size: 15px; font-weight: 600;
@@ -420,7 +420,7 @@
   .voice-orb {
     width: 200px; height: 200px;
     border-radius: 50%;
-    background: radial-gradient(circle at 38% 36%, #8e7bec 0%, #7c5cff 38%, #3b1fa8 72%, #0b0f1a 100%);
+    background: radial-gradient(circle at 38% 36%, #b8aaff 0%, #7c5cff 38%, #3b1fa8 72%, #0b0f1a 100%);
     box-shadow: 0 0 65px rgba(124,92,255,0.7), 0 0 130px rgba(0,224,255,0.25);
     animation: orb-breathe 3s ease-in-out infinite;
     position: relative;
