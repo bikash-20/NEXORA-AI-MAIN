@@ -2309,7 +2309,7 @@ function checkKnowledgeBase(msg) {
       if (score > bestScore) { bestScore = score; bestKey = keyword; }
     }
     // Only accept token match if score is meaningful (avoids noise)
-    if (bestScore < 4) bestKey = null;
+    if (bestScore < 8) bestKey = null; // raised threshold to prevent false positives on short words
   }
 
   if (!bestKey) return null;
@@ -3512,7 +3512,7 @@ function sendMessage() {
   isTyping = true;
 
   generateSmartReply(text).then(reply => {
-    typeBot(reply);
+    if (reply) typeBot(reply); else isTyping = false;
   }).catch(err => {
     console.error('Nexora chat error:', err);
     isTyping = false;
@@ -5771,11 +5771,23 @@ async function generateSmartReply(input) {
     if (result) return result;
   }
 
-  // ── Wikipedia ──
-  const wikiMatch = input.match(/(?:what is|who is|tell me about|explain|define|what are|who was|what was)\s+(.+)/i)
+  // ── ROADMAP / LEARNING PATH — check this BEFORE Wikipedia ──
+  if (/roadmap|learning path|career path|study plan|how to learn|how to become|how do i learn|how can i learn|syllabus for/i.test(lower)) {
+    const rmMatch = input.match(/(?:roadmap|learning path|career path|study plan|guide to|syllabus for|curriculum for)\s+(?:for\s+|of\s+|in\s+|on\s+)?(.+)/i)
+      || input.match(/(?:give\s+(?:me\s+)?(?:a\s+)?(?:the\s+)?)roadmap\s+(?:for\s+|of\s+)?(.+)/i)
+      || input.match(/how\s+(?:to\s+(?:learn|become|start)|do\s+i\s+(?:learn|become|start)|can\s+i\s+(?:learn|become))\s+(.+)/i);
+    const rmTopic = rmMatch && (rmMatch[1] || rmMatch[2]);
+    if (rmTopic) {
+      const rmReply = getRoadmap(rmTopic.trim());
+      if (rmReply) return rmReply;
+    }
+  }
+
+  // ── Wikipedia — expanded: history, events, concepts, how/why/when/where ──
+  const wikiMatch = input.match(/(?:what\s+(?:is|are|was|were|happened|caused)|who\s+(?:is|was|were|invented|discovered|created|founded)|tell\s+me\s+about|explain|define|describe|how\s+(?:does|do|did|was|were)|why\s+(?:did|is|was|does)|where\s+(?:is|was|are|were)|when\s+(?:did|was|were|is)|history\s+of|what\s+happened)\s+(.+)/i)
     || input.match(/(?:wikipedia|wiki)\s+(.+)/i);
   if (wikiMatch) {
-    const result = await getWikipediaSummary(wikiMatch[1].trim());
+    const result = await getWikipediaSummary((wikiMatch[1] || wikiMatch[2]).trim());
     if (result) return result;
   }
 
@@ -5811,15 +5823,18 @@ async function generateSmartReply(input) {
     if (aiReply) {
       return aiReply;
     }
-    // AI returned null (all keys failed) → fall through to offline KB below
-
-    // AI failed (no key response / network error) — fall through gracefully to offline KBs
+    // AI returned null — if user has their own key, stop here (callOpenRouter already showed error)
+    const _userKeyCheck = localStorage.getItem('nexora_user_key');
+    if (_userKeyCheck && _userKeyCheck.startsWith('sk-or-')) {
+      return null; // error already shown by callOpenRouter — don't show a KB response too
+    }
+    // No user key — fall through to offline KB below
   }
 
   // ════════════════════════════════════════════
   //  OFFLINE MODE (or AI fallback)
   //  KBs + rule engine handle everything.
-  //  Order: specific KB → emotional → bestie → fallback
+  //  Order: specific KB → educational guard → emotional → bestie → fallback
   // ════════════════════════════════════════════
 
   // Bikash / creator knowledge base
@@ -5829,6 +5844,19 @@ async function generateSmartReply(input) {
   // NexoraKnowledge — CS concepts, features, capabilities
   const knowledgeReply = findKnowledgeResponse(input);
   if (knowledgeReply) return knowledgeReply;
+
+  // Educational guard — if query looks informational, don't let emotional KB answer it
+  const isEducationalQuery = /\b(what|who|when|where|why|how|explain|define|describe|history|difference between|compare|example of|types of|advantages|disadvantages|meaning of|full form|stands for|about|tell me)\b/i.test(lower);
+  if (isEducationalQuery) {
+    // Try Wikipedia one more time with a cleaned query
+    const cleanQ = input.replace(/^(what is|what are|who is|explain|define|tell me about)\s+/i, '').trim();
+    if (cleanQ && cleanQ.length > 3 && cleanQ !== input.trim()) {
+      const wikiRetry = await getWikipediaSummary(cleanQ);
+      if (wikiRetry) return wikiRetry;
+    }
+    // Return an honest "I don't know" rather than a wrong emotional answer
+    return `📚 <strong>I don\'t have offline info on that topic.</strong><br><br>To get a real answer, make sure <strong>Online Mode</strong> is ON (Menu → 🌐 Online Priority) and your API key is active.<br><br>You can also try: <em>"wiki ${input.replace(/^(what is|who is|explain|tell me about)\s+/i,'').trim()}"</em> to search directly. 🔍`;
+  }
 
   // BestieQA — emotional + social intelligence
   const kbAnswer = checkKnowledgeBase(input);
@@ -5847,6 +5875,182 @@ async function generateSmartReply(input) {
   }
 
   return rand(smartFallbacks);
+}
+
+
+// ==============================
+//  ROADMAP ENGINE — Student Learning Paths
+// ==============================
+const roadmapDB = {
+  // Programming Languages
+  python: {
+    title: "🐍 Python Developer Roadmap",
+    phases: [
+      { phase: "Phase 1 — Basics (2-4 weeks)", steps: ["Variables, Data Types, Operators", "Conditionals (if/elif/else)", "Loops (for, while)", "Functions & Scope", "Lists, Tuples, Dicts, Sets"] },
+      { phase: "Phase 2 — Intermediate (4-6 weeks)", steps: ["OOP: Classes, Inheritance, Polymorphism", "File I/O & Exception Handling", "Modules & Packages (pip)", "List Comprehensions, Lambdas", "Virtual Environments"] },
+      { phase: "Phase 3 — Choose a Path", steps: ["🌐 Web Dev → Django / Flask / FastAPI", "📊 Data Science → NumPy, Pandas, Matplotlib", "🤖 AI/ML → TensorFlow, Scikit-learn", "🤖 Automation → Selenium, Requests, BeautifulSoup"] },
+      { phase: "Resources", steps: ["▶ CS50P (free, Harvard)", "▶ freeCodeCamp Python full course", "▶ Python.org official docs", "▶ LeetCode for practice"] }
+    ]
+  },
+  javascript: {
+    title: "⚡ JavaScript / Web Dev Roadmap",
+    phases: [
+      { phase: "Phase 1 — Foundation (3-4 weeks)", steps: ["HTML5 structure & semantic tags", "CSS3 — flexbox, grid, animations", "JS Basics — variables, loops, functions", "DOM Manipulation & Events", "Browser DevTools"] },
+      { phase: "Phase 2 — Core JS (4-6 weeks)", steps: ["ES6+ — arrow functions, destructuring, spread", "Promises, async/await, fetch API", "Local Storage, JSON", "Modules (import/export)", "Error handling & debugging"] },
+      { phase: "Phase 3 — Framework (4-8 weeks)", steps: ["⚛️ React.js (most popular) OR Vue.js / Angular", "State management (useState, Redux)", "React Router for navigation", "REST API integration", "Deploy with Vercel / Netlify"] },
+      { phase: "Resources", steps: ["▶ The Odin Project (free, full-stack)", "▶ javascript.info (best JS reference)", "▶ Scrimba for interactive practice", "▶ roadmap.sh/frontend for visual guide"] }
+    ]
+  },
+  'web development': {
+    title: "🌐 Full-Stack Web Development Roadmap",
+    phases: [
+      { phase: "Phase 1 — Frontend (6-8 weeks)", steps: ["HTML5 + CSS3 + Responsive Design", "JavaScript ES6+ fundamentals", "React.js or Vue.js", "Git & GitHub basics"] },
+      { phase: "Phase 2 — Backend (6-8 weeks)", steps: ["Node.js + Express.js (or Python + Django)", "REST API design & development", "Databases: SQL (MySQL/PostgreSQL) or MongoDB", "Authentication — JWT, sessions"] },
+      { phase: "Phase 3 — DevOps & Deployment (4 weeks)", steps: ["Linux command line basics", "Git branching strategies", "Deploy to Render / Railway / AWS", "Docker basics", "CI/CD pipelines"] },
+      { phase: "Resources", steps: ["▶ The Odin Project (free)", "▶ roadmap.sh (visual guides)", "▶ CS50W — Harvard Web Dev course", "▶ Build 3-5 real projects for portfolio"] }
+    ]
+  },
+  'data science': {
+    title: "📊 Data Science Roadmap",
+    phases: [
+      { phase: "Phase 1 — Math & Programming (6-8 weeks)", steps: ["Python basics (NumPy, Pandas)", "Statistics: mean, median, std deviation, distributions", "Linear Algebra & Calculus basics", "Data cleaning & EDA (Exploratory Data Analysis)"] },
+      { phase: "Phase 2 — Machine Learning (8-10 weeks)", steps: ["Supervised: Linear/Logistic Regression, Decision Trees", "Unsupervised: K-Means, PCA", "Model evaluation: accuracy, precision, recall", "Scikit-learn library", "Feature engineering"] },
+      { phase: "Phase 3 — Advanced (8+ weeks)", steps: ["Deep Learning: Neural Networks, CNNs, RNNs", "TensorFlow or PyTorch", "NLP basics: tokenization, transformers", "SQL for data querying", "Tableau / Power BI for visualization"] },
+      { phase: "Resources", steps: ["▶ Kaggle (free courses + competitions)", "▶ fast.ai (practical deep learning)", "▶ Andrew Ng's ML course (Coursera)", "▶ 'Hands-On ML' book by Aurélien Géron"] }
+    ]
+  },
+  'machine learning': {
+    title: "🤖 Machine Learning Roadmap",
+    phases: [
+      { phase: "Phase 1 — Prerequisites (4-6 weeks)", steps: ["Python (NumPy, Pandas, Matplotlib)", "Linear Algebra — vectors, matrices", "Statistics & Probability", "Calculus — derivatives, gradients"] },
+      { phase: "Phase 2 — Core ML (8-10 weeks)", steps: ["Supervised Learning (regression, classification)", "Unsupervised Learning (clustering, dimensionality reduction)", "Model evaluation & cross-validation", "Scikit-learn from scratch"] },
+      { phase: "Phase 3 — Deep Learning (8-12 weeks)", steps: ["Neural Networks — forward & backpropagation", "CNNs for images, RNNs/LSTMs for sequences", "Transformers & attention mechanism", "TensorFlow 2 or PyTorch"] },
+      { phase: "Resources", steps: ["▶ Andrew Ng ML Specialization (Coursera, free audit)", "▶ fast.ai — top-down practical approach", "▶ Papers With Code — latest research", "▶ Kaggle competitions for hands-on practice"] }
+    ]
+  },
+  'dsa': {
+    title: "🧠 Data Structures & Algorithms Roadmap",
+    phases: [
+      { phase: "Phase 1 — Basics (3-4 weeks)", steps: ["Arrays, Strings, 2-pointer technique", "Linked Lists — singly, doubly, circular", "Stack & Queue — array and linked-list implementations", "Time & Space Complexity (Big O notation)"] },
+      { phase: "Phase 2 — Intermediate (4-6 weeks)", steps: ["Trees: BST, DFS, BFS, Height, LCA", "Heaps & Priority Queues", "Hashing — HashMap, HashSet", "Recursion & Backtracking"] },
+      { phase: "Phase 3 — Advanced (6-8 weeks)", steps: ["Graphs: DFS, BFS, Dijkstra, Bellman-Ford", "Dynamic Programming — memoization, tabulation", "Greedy Algorithms", "Segment Trees, Tries"] },
+      { phase: "Practice Platforms", steps: ["▶ LeetCode — filter Easy → Medium → Hard", "▶ Codeforces for competitive programming", "▶ NeetCode.io — structured LeetCode roadmap", "▶ visualgo.net — interactive visualizations"] }
+    ]
+  },
+  'android': {
+    title: "📱 Android Development Roadmap",
+    phases: [
+      { phase: "Phase 1 — Foundation (4-6 weeks)", steps: ["Java OR Kotlin basics (Kotlin preferred)", "Android Studio setup", "Activities, Fragments, Intents", "Layouts: XML, ConstraintLayout", "RecyclerView & Adapters"] },
+      { phase: "Phase 2 — Core (6-8 weeks)", steps: ["MVVM architecture pattern", "Room Database (SQLite wrapper)", "Retrofit for REST APIs", "LiveData & ViewModel", "Navigation Component"] },
+      { phase: "Phase 3 — Advanced (6+ weeks)", steps: ["Jetpack Compose (modern UI)", "Firebase — Auth, Firestore, FCM", "Background work: WorkManager", "Play Store publishing", "Material Design 3"] },
+      { phase: "Resources", steps: ["▶ Android Developer Docs (official)", "▶ Google Codelabs (free, hands-on)", "▶ Philipp Lackner (YouTube)", "▶ Build a clone app — Instagram, WhatsApp"] }
+    ]
+  },
+  'cybersecurity': {
+    title: "🔐 Cybersecurity Roadmap",
+    phases: [
+      { phase: "Phase 1 — Fundamentals (4-6 weeks)", steps: ["Networking basics: TCP/IP, DNS, HTTP, OSI model", "Linux command line (essential!)", "Bash scripting basics", "Cryptography basics: hashing, encryption"] },
+      { phase: "Phase 2 — Core Security (6-8 weeks)", steps: ["OWASP Top 10 vulnerabilities", "Web application pentesting basics", "Network scanning: Nmap, Wireshark", "Kali Linux & basic tools", "CTF (Capture The Flag) challenges"] },
+      { phase: "Phase 3 — Specialise (8+ weeks)", steps: ["Ethical Hacking / Red Team", "SOC Analyst / Blue Team", "Cloud Security (AWS/Azure)", "Bug Bounty programs (HackerOne, Bugcrowd)"] },
+      { phase: "Resources", steps: ["▶ TryHackMe — beginner friendly (free tier)", "▶ HackTheBox for intermediate labs", "▶ TCM Security courses", "▶ CompTIA Security+ certification"] }
+    ]
+  },
+  'ui ux': {
+    title: "🎨 UI/UX Design Roadmap",
+    phases: [
+      { phase: "Phase 1 — Design Basics (3-4 weeks)", steps: ["Design principles: hierarchy, contrast, alignment", "Color theory & typography", "Figma basics (free, industry standard)", "Wireframing & prototyping"] },
+      { phase: "Phase 2 — UX Process (4-6 weeks)", steps: ["User research & personas", "Information architecture", "User flows & journey maps", "Usability testing", "Accessibility (WCAG standards)"] },
+      { phase: "Phase 3 — Portfolio & Career (4+ weeks)", steps: ["Build 3-5 case study projects", "Document your design process", "Behance & Dribbble for portfolio", "Collaborate with developers"] },
+      { phase: "Resources", steps: ["▶ Google UX Design Certificate (Coursera)", "▶ NN/g (Nielsen Norman Group) articles", "▶ Figma YouTube tutorials", "▶ Refactoring UI book"] }
+    ]
+  },
+  'c': {
+    title: "⚙️ C Programming Roadmap",
+    phases: [
+      { phase: "Phase 1 — Core C (4-6 weeks)", steps: ["Data types, variables, operators", "Control flow: if, for, while, switch", "Functions & recursion", "Arrays & strings (null-terminated)", "Pointers & pointer arithmetic"] },
+      { phase: "Phase 2 — Advanced C (4-6 weeks)", steps: ["Structures & unions", "Dynamic memory: malloc, calloc, free", "File I/O", "Multi-file projects & header files", "Make/CMake build systems"] },
+      { phase: "Phase 3 — Systems (4+ weeks)", steps: ["POSIX — threads, mutexes, semaphores", "Socket programming basics", "OS concepts: processes, scheduling", "Contribute to open source C projects"] },
+      { phase: "Resources", steps: ["▶ CS50 (Harvard, free)", "▶ K&R 'The C Programming Language' book", "▶ beej.us for systems/network programming", "▶ Build: a shell, a malloc, a mini OS"] }
+    ]
+  },
+  'cpp': {
+    title: "⚙️ C++ Roadmap",
+    phases: [
+      { phase: "Phase 1 — C Basics → C++ (4-6 weeks)", steps: ["C fundamentals first (see C roadmap)", "OOP: Classes, Objects, Constructors", "Inheritance, Polymorphism, Encapsulation", "References vs Pointers", "STL basics — vector, map, set"] },
+      { phase: "Phase 2 — Modern C++ (6-8 weeks)", steps: ["C++11/14/17/20 features", "Smart pointers (unique_ptr, shared_ptr)", "Move semantics & rvalue references", "Templates & generic programming", "Lambda functions"] },
+      { phase: "Phase 3 — Advanced (6+ weeks)", steps: ["Design patterns (GoF)", "Multi-threading: std::thread, mutex", "Memory management & optimization", "Game dev: Unreal Engine or SDL2", "Competitive programming (Codeforces)"] },
+      { phase: "Resources", steps: ["▶ learncpp.com (best free C++ resource)", "▶ Cherno C++ YouTube series", "▶ isocpp.org for modern C++", "▶ Build: a game, a compiler, a ray tracer"] }
+    ]
+  },
+  'java': {
+    title: "☕ Java Developer Roadmap",
+    phases: [
+      { phase: "Phase 1 — Core Java (4-6 weeks)", steps: ["OOP concepts — class, object, inheritance", "Collections Framework — List, Map, Set", "Exception handling", "Generics & enums", "Java 8+ — streams, lambdas, Optional"] },
+      { phase: "Phase 2 — Backend (6-8 weeks)", steps: ["Spring Boot framework", "REST API development", "Hibernate / JPA for databases", "Maven or Gradle build tools", "Unit testing with JUnit & Mockito"] },
+      { phase: "Phase 3 — Ecosystem (6+ weeks)", steps: ["Microservices architecture", "Docker & Kubernetes basics", "Kafka / RabbitMQ messaging", "Spring Security & OAuth2", "Deploy to AWS / GCP"] },
+      { phase: "Resources", steps: ["▶ Oracle Java Docs (official)", "▶ Baeldung.com for Spring tutorials", "▶ Telusko YouTube channel", "▶ Build a real REST API project end-to-end"] }
+    ]
+  },
+  'freelancing': {
+    title: "💼 Freelancing Roadmap",
+    phases: [
+      { phase: "Phase 1 — Build Skills (2-3 months)", steps: ["Pick ONE skill: web dev, graphic design, video editing, copywriting", "Complete 2-3 real projects (even free ones)", "Build a simple portfolio website or Behance page", "Learn the basics of client communication"] },
+      { phase: "Phase 2 — First Clients (1-2 months)", steps: ["Create profiles on Fiverr, Upwork, LinkedIn", "Start with competitive (low) rates to get reviews", "Write a compelling bio & service description", "Send 10-20 proposals per day initially"] },
+      { phase: "Phase 3 — Scale (3-6 months)", steps: ["Raise rates after 5-10 positive reviews", "Specialize in a niche (e.g., React dev for SaaS startups)", "Build long-term client relationships", "Create digital products for passive income"] },
+      { phase: "Tips for Bangladesh", steps: ["▶ Fiverr & Upwork most popular in BD", "▶ Payoneer for receiving payments", "▶ Bangla freelancing Facebook groups for community", "▶ LEDP (govt training) for free skills courses"] }
+    ]
+  },
+  'cse': {
+    title: "🎓 CSE Degree Survival Roadmap",
+    phases: [
+      { phase: "Year 1 — Foundation", steps: ["C/C++ programming (master this first!)", "Discrete Mathematics", "Digital Logic Design", "Object-Oriented Programming", "Start LeetCode from day 1 (even easy problems)"] },
+      { phase: "Year 2 — Core", steps: ["Data Structures & Algorithms (most important!)", "Database Management Systems (SQL)", "Computer Networks basics", "Operating Systems concepts", "Start building small projects"] },
+      { phase: "Year 3 — Specialise", steps: ["Choose: Web Dev / AI-ML / Cybersecurity / Embedded", "Software Engineering & Agile", "Complete 2-3 real projects for portfolio", "Internship applications — start early!", "Competitive programming (Codeforces Div 2)"] },
+      { phase: "Year 4 — Career Prep", steps: ["Thesis / Final project — pick something impressive", "DSA interview preparation", "Build a strong GitHub & LinkedIn", "Apply for jobs / higher studies 6 months before graduation"] }
+    ]
+  }
+};
+
+function getRoadmap(topic) {
+  const t = topic.toLowerCase().replace(/[^a-z0-9 +]/g, '').trim();
+  // Direct match
+  for (const key of Object.keys(roadmapDB)) {
+    if (t.includes(key) || key.includes(t)) {
+      return formatRoadmap(roadmapDB[key]);
+    }
+  }
+  // Alias matches
+  const aliases = {
+    'js': 'javascript', 'node': 'javascript', 'react': 'javascript', 'frontend': 'web development',
+    'backend': 'web development', 'fullstack': 'web development', 'full stack': 'web development',
+    'ml': 'machine learning', 'ai': 'machine learning', 'deep learning': 'machine learning',
+    'ds': 'data science', 'data analyst': 'data science', 'algorithms': 'dsa', 'leetcode': 'dsa',
+    'competitive': 'dsa', 'kotlin': 'android', 'mobile': 'android', 'security': 'cybersecurity',
+    'hacking': 'cybersecurity', 'ethical hacking': 'cybersecurity', 'design': 'ui ux',
+    'figma': 'ui ux', 'c plus plus': 'cpp', 'cpp': 'cpp', 'spring': 'java',
+    'freelance': 'freelancing', 'upwork': 'freelancing', 'fiverr': 'freelancing',
+    'computer science': 'cse', 'cs degree': 'cse'
+  };
+  for (const [alias, key] of Object.entries(aliases)) {
+    if (t.includes(alias)) return formatRoadmap(roadmapDB[key]);
+  }
+  return null;
+}
+
+function formatRoadmap(rm) {
+  let html = `__HTML__<div style="line-height:1.7;font-size:13.5px;">
+<strong style="font-size:15px;font-family:'Sora',sans-serif;">${rm.title}</strong><br><br>`;
+  for (const phase of rm.phases) {
+    html += `<div style="margin-bottom:12px;">
+  <div style="color:var(--accent);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">${phase.phase}</div>`;
+    for (const step of phase.steps) {
+      const icon = step.startsWith('▶') ? '' : '• ';
+      html += `<div style="padding:3px 0;color:var(--text2);">${icon}${step}</div>`;
+    }
+    html += `</div>`;
+  }
+  html += `<small style="opacity:0.45">Nexora Learning Path — ask me to explain any step! 📚</small></div>`;
+  return html;
 }
 
 // ==============================
