@@ -45,10 +45,10 @@
 
     --primary:      #7c5cff;
     --primary-dark: #4f35cc;
-    --accent:       #00e0ff;
-    --accent2:      #7c5cff;
-    --accent-pink:  #ff4ecd;
-    --accent-glow:  rgba(124, 92, 255, 0.4);
+    --accent:       #1e94a3;
+    --accent2:      #4319eb;
+    --accent-pink:  #ee18b2;
+    --accent-glow:  rgba(90, 50, 247, 0.4);
     --accent-dim:   rgba(124, 92, 255, 0.12);
 
     --grad:         linear-gradient(135deg, #7c5cff, #00e0ff, #ff4ecd);
@@ -3142,15 +3142,53 @@ function typeBot(text, onDone, isIdlePing) {
     requestAnimationFrame(() => { messages.scrollTop = messages.scrollHeight; });
 
     if (isHTML) {
-      bub.innerHTML = content;
-      t.textContent = getTime();
-      messages.scrollTop = messages.scrollHeight;
-      isTyping = false;
-      saveChatHistory();
-      if (onDone) onDone();
-      if (currentScreen === 'voiceScreen') speakText(bub.textContent);
-      // Show context chips after HTML replies too
-      setTimeout(() => injectContextChips(), 400);
+      // ── ChatGPT-style word-by-word streaming for HTML content ──
+      const htmlTokens = [];
+      const tokenRegex = /(<[^>]+>)|([^<]+)/g;
+      let tokenMatch;
+      while ((tokenMatch = tokenRegex.exec(content)) !== null) {
+        if (tokenMatch[1]) {
+          htmlTokens.push({ type: 'tag', val: tokenMatch[1] });
+        } else if (tokenMatch[2]) {
+          tokenMatch[2].split(/(\s+)/).forEach(w => {
+            if (w) htmlTokens.push({ type: 'text', val: w });
+          });
+        }
+      }
+      let ti = 0, built = '';
+      const wordDelay = content.length > 500 ? 18 : 25;
+      function streamNext() {
+        try {
+          if (ti >= htmlTokens.length) {
+            t.textContent = getTime();
+            messages.scrollTop = messages.scrollHeight;
+            isTyping = false;
+            saveChatHistory();
+            if (onDone) onDone();
+            if (currentScreen === 'voiceScreen') speakText(bub.textContent);
+            setTimeout(() => injectContextChips(), 400);
+            return;
+          }
+          const tok = htmlTokens[ti++];
+          built += tok.val;
+          bub.innerHTML = built;
+          if (ti % 4 === 0) messages.scrollTop = messages.scrollHeight;
+          if (tok.type === 'tag') {
+            streamNext(); // tags appear instantly
+          } else {
+            const ch = tok.val.trim().slice(-1);
+            const pause = (ch === '.' || ch === '!' || ch === '?') ? wordDelay * 6
+                        : (ch === ',') ? wordDelay * 2
+                        : wordDelay + Math.random() * 10;
+            setTimeout(streamNext, pause);
+          }
+        } catch(err) {
+          bub.innerHTML = content;
+          isTyping = false;
+          if (onDone) onDone();
+        }
+      }
+      streamNext();
     } else {
       // ── Typewriter with human-like variable speed ──
       let i = 0;
