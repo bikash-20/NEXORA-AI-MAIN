@@ -675,16 +675,42 @@
   .voice-toggle svg { width: 16px; height: 16px; stroke: var(--text3); fill: none; }
   .voice-toggle.active svg { stroke: var(--accent); }
 
-  /* ── Camera / OCR button ── */
+  /* ── Camera / OCR button — more prominent ── */
   .camera-btn {
-    width: 28px; height: 28px; border-radius: 50%;
-    background: transparent; border: none; cursor: pointer;
+    width: 32px; height: 32px; border-radius: 10px;
+    background: rgba(0, 224, 255, 0.08);
+    border: 1px solid rgba(0, 224, 255, 0.2);
+    cursor: pointer;
     display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0; transition: opacity 0.15s;
+    flex-shrink: 0; transition: all 0.2s;
+    position: relative;
   }
-  .camera-btn svg { width: 16px; height: 16px; stroke: var(--text3); fill: none; }
-  .camera-btn:hover svg { stroke: #00e0ff; filter: drop-shadow(0 0 4px #00e0ff); }
+  .camera-btn svg { width: 16px; height: 16px; stroke: #00e0ff; fill: none; }
+  .camera-btn:hover {
+    background: rgba(0, 224, 255, 0.18);
+    border-color: rgba(0, 224, 255, 0.5);
+    transform: scale(1.1);
+    box-shadow: 0 0 10px rgba(0, 224, 255, 0.3);
+  }
   .camera-btn.scanning svg { stroke: #00e0ff; filter: drop-shadow(0 0 6px #00e0ff); animation: pulse-dot 0.8s infinite; }
+  /* Tooltip label */
+  .camera-btn::after {
+    content: 'Snap & Solve';
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.75);
+    color: #00e0ff;
+    font-size: 10px;
+    white-space: nowrap;
+    padding: 3px 7px;
+    border-radius: 6px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .camera-btn:hover::after { opacity: 1; }
 
   /* ── Image Preview Bar ── */
   #imgPreviewBar {
@@ -2400,6 +2426,66 @@ function checkBikashKB(msg) {
 // ==============================
 //  BANGLISH PERSONALITY LAYER
 // ==============================
+// ==============================
+//  BANGLISH INSTANT KB (Tier 0)
+//  Flat key→reply map checked FIRST via simple token similarity.
+//  Add more pairs here freely — no code changes needed elsewhere.
+// ==============================
+const banglishKB = {
+  // Greetings
+  "ki obostha": "Ei to cholche! Tomar din kemon jache? 😊",
+  "ki khabar": "Valo achi, tumi bolo! Tomar obostha ki? 😄",
+  "ami valo": "Darun! Tumi valo thakle ami-o valo 💜",
+  "kemon acho": "Ami darun achi! Tumi kemon? 😊",
+  "subho sokal": "Subho Sokal! ☀️ Naya din, naya shuru — aaj ki plan?",
+  "subho rat": "Subho Rat! 🌙 Valo kore ghumao — kal fresh start!",
+  "assalamualaikum": "Walaikumassalam! 🤍 Ki obostha? Kemon acho?",
+  "namaskar": "Namaskar! 🙏 Tumi kemon acho aaj?",
+  // Emotions
+  "onek koshto": "Bujhte parchi… ami achi. Ki hoise? Khule bolo 🤍",
+  "mon valo nei": "Koshto lagche shune. Ki hoise? Ami shunchi 💜",
+  "onek sad": "Hey… ami achi tomar sathe. Bolo ki byapar 🤍",
+  "khub happy": "Darun! Koto sundor! Ki hoise? Bolo bolo! 🎉",
+  "boro problem": "Chinta koro na — ektu bolo ki problem, dekhi ki kora jay 😊",
+  "help lagbe": "Bolto! Ki help lagbe? Ami achi 😊",
+  "bujhte parchi na": "Kono byapar na! Aaro ektu bolo — ami easy kore bojhabo 😊",
+  // Study
+  "exam khub kothin": "Ami jani, exam kothin lage. Kono specific topic help lagbe? 📚",
+  "pora korte icche nei": "Normal! Ekta chhoto target dao nijeke — 20 min. Shuru koro. 📖",
+  "result kharap hoise": "Ekta kharap result mane shesh na. Next step plan kori? 💪",
+  // Fun
+  "ekta joke bolo": "Ok! 😂 Keno programmer ra specs pore? Karon tara C# (see sharp) dekhe! 😄",
+  "gossip koro": "Chai! 👀 Kar gossip korbo? Spill the tea bhai! ☕",
+  "bored lage": "Bore thakbe na! Chalo kichhu interesting koroi — ki prefer koro? 😄",
+  "pagol": "Ektu pagol thakai valo — boring life e ki moja! 😄",
+  // Compliments
+  "tumi onek valo": "Tumi-o! Tomar sathe kotha bole onek valo lage 🤍",
+  "tumi best": "Aww! Tumi-i amar best visitor! 😄💜",
+  "khub helpful": "Shune valo laglo! Tomar kono kaj korte perlei khushi 😊",
+};
+
+// Simple fuzzy token scorer — finds best KB match for a given input
+function fuzzyBanglishLookup(input) {
+  const inputNorm = input.toLowerCase().trim().replace(/[^\w\s\u0980-\u09FF]/g, '');
+  const inputTokens = new Set(inputNorm.split(/\s+/).filter(t => t.length > 1));
+  let bestKey = null, bestScore = 0;
+  for (const key of Object.keys(banglishKB)) {
+    const keyTokens = key.split(/\s+/);
+    let score = 0;
+    for (const kt of keyTokens) {
+      if (inputTokens.has(kt)) score += kt.length; // longer word = higher weight
+      // Partial: input word starts with key token
+      for (const it of inputTokens) { if (it.startsWith(kt) && kt.length >= 4) score += 2; }
+    }
+    // Bonus for full key appearing in input
+    if (inputNorm.includes(key)) score += key.length * 2;
+    if (score > bestScore) { bestScore = score; bestKey = key; }
+  }
+  // Threshold: require at least one strong match (score ≥ 6)
+  return bestScore >= 6 ? banglishKB[bestKey] : null;
+}
+
+
 const banglishFillers = [
   "Ki obostha!", "Hoye geche!", "Chill, mama!", "Oh bhai, real!",
   "Arey na na, don't worry.", "Ekdom perfect!", "Seriously though —",
@@ -3751,26 +3837,49 @@ async function getLiveWeather() {
 
 // ══════════════════════════════════════════════
 //  WIKIPEDIA — Free, no key needed
+//  Uses Search API FIRST (handles typos/misspellings like "Enstine" → "Einstein")
+//  then fetches the canonical summary for the top result
 // ══════════════════════════════════════════════
 async function getWikipediaSummary(query) {
   try {
-    const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`;
-    const res = await fetch(url);
-    if (!res.ok) {
-      // Try search fallback
-      const searchRes = await fetch(`https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=1&format=json&origin=*`);
-      const searchData = await searchRes.json();
-      const title = searchData[1]?.[0];
-      if (!title) return null;
-      const res2 = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
-      if (!res2.ok) return null;
-      const d2 = await res2.json();
-      const thumb = d2.thumbnail?.source ? `<br><img src="${d2.thumbnail.source}" style="width:100%;max-width:280px;border-radius:12px;margin-top:8px;object-fit:cover;" alt="${d2.title}">` : '';
-      return `📖 <strong>${d2.title}</strong><br><br>${d2.extract || 'No summary available.'}${thumb}<br><small style="opacity:0.45"><a href="${d2.content_urls?.desktop?.page}" target="_blank" style="color:var(--accent)">Read more on Wikipedia →</a></small>`;
+    // ── Step 1: Search API to resolve correct title (typo-tolerant) ──
+    const searchRes = await fetch(
+      `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=3&format=json&origin=*`
+    );
+    const searchData = await searchRes.json();
+    // searchData[1] = titles array, searchData[2] = descriptions, searchData[3] = URLs
+    const titles = searchData[1] || [];
+    const urls   = searchData[3] || [];
+
+    // ── Step 2: Try each candidate title until one returns a good summary ──
+    for (let i = 0; i < titles.length; i++) {
+      const title = titles[i];
+      if (!title) continue;
+      try {
+        const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
+        if (!res.ok) continue;
+        const d = await res.json();
+        if (!d.extract || d.extract.length < 30) continue;
+        const thumb = d.thumbnail?.source
+          ? `<br><img src="${d.thumbnail.source}" style="width:100%;max-width:280px;border-radius:12px;margin-top:8px;object-fit:cover;" alt="${d.title}">`
+          : '';
+        const readUrl = d.content_urls?.desktop?.page || urls[i] || '#';
+        return `📖 <strong>${d.title}</strong><br><br>${d.extract}${thumb}<br><small style="opacity:0.45"><a href="${readUrl}" target="_blank" style="color:var(--accent)">Read more on Wikipedia →</a></small>`;
+      } catch(e) { continue; }
     }
-    const d = await res.json();
-    const thumb = d.thumbnail?.source ? `<br><img src="${d.thumbnail.source}" style="width:100%;max-width:280px;border-radius:12px;margin-top:8px;object-fit:cover;" alt="${d.title}">` : '';
-    return `📖 <strong>${d.title}</strong><br><br>${d.extract || 'No summary available.'}${thumb}<br><small style="opacity:0.45"><a href="${d.content_urls?.desktop?.page}" target="_blank" style="color:var(--accent)">Read more on Wikipedia →</a></small>`;
+
+    // ── Step 3: Last resort — try direct REST summary with original query ──
+    const direct = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`);
+    if (direct.ok) {
+      const d = await direct.json();
+      if (d.extract && d.extract.length > 30) {
+        const thumb = d.thumbnail?.source
+          ? `<br><img src="${d.thumbnail.source}" style="width:100%;max-width:280px;border-radius:12px;margin-top:8px;object-fit:cover;" alt="${d.title}">`
+          : '';
+        return `📖 <strong>${d.title}</strong><br><br>${d.extract}${thumb}<br><small style="opacity:0.45"><a href="${d.content_urls?.desktop?.page}" target="_blank" style="color:var(--accent)">Read more on Wikipedia →</a></small>`;
+      }
+    }
+    return null;
   } catch(e) { return null; }
 }
 
@@ -5451,21 +5560,18 @@ function matchBanglaInput(input) {
   // In online mode, info/knowledge queries skip Bangla engine → go to AI
   // Only personal/emotional Bangla is handled here
   if (!hasBengali && nexoraResponseMode === 'online') {
-    const isInfo = /\\btell\\s+(me\\s+)?about\\b|\\bwhat\\s+(is|are|was)\\b|\\bwho\\s+(is|was)\\b|\\b(explain|describe|define|how does|where is|when did|why is)\\b/i.test(input);
+    const isInfo = /\btell\s+(me\s+)?about\b|\bwhat\s+(is|are|was)\b|\bwho\s+(is|was)\b|\b(explain|describe|define|how does|where is|when did|why is)\b/i.test(input);
     if (isInfo) return null;
   }
 
   // Expanded Banglish word list — catches all 6 categories
-  const romanBanglaWords = /\b(ami|tumi|tui|amar|tomar|valo|bhalo|kharap|achi|nei|hoise|bolo|lagche|chai|nai|bhai|dost|mon|kemon|ki|keno|kothay|jabo|gelo|hobe|parbo|korbo|dekhbo|sunbo|bujhchi|laglo|hoye|gache|ache|valobas|bhalobas|crush|propose|breakup|jhogra|obhiman|eka|koshto|dukkho|porashona|exam|coding|cse|freelanc|bondhu|friend|betray|gossip|raat|ghum|swapno|jibon|future|tension|selfish|troll|cute|joke|dhada|romantic)\b/i;
+  const romanBanglaWords = /\b(ami|tumi|tui|amar|tomar|valo|bhalo|kharap|achi|nei|hoise|bolo|lagche|chai|nai|bhai|dost|mon|kemon|ki|keno|kothay|jabo|gelo|hobe|parbo|korbo|dekhbo|sunbo|bujhchi|laglo|hoye|gache|ache|valobas|bhalobas|crush|propose|breakup|jhogra|obhiman|eka|koshto|dukkho|porashona|exam|coding|cse|freelanc|bondhu|friend|betray|gossip|raat|ghum|swapno|jibon|future|tension|selfish|troll|cute|joke|dhada|romantic|kore|hoise|hoise|thaki|thako|ashchi|jacchi|khabo|khabo|korchi|korchhis|dekhchi|sunchi|parchi|bolchi|janchi|bujhchi|niye|diye|mone|holo|galo|elo|gelo|ashbe|jabe|korbe|debe|nebe|bolbe|dekhbe|sunbe|parbe)\b/i;
   const hasBanglish = romanBanglaWords.test(norm);
 
   if (!hasBengali && !hasBanglish) return null;
 
-  // ── Step 1: Try the category engine (all 200 Q&A) ──
-  const categoryReply = banglishCategoryEngine(input);
-  if (categoryReply) return categoryReply;
-
-  // ── Step 2: Try the section matchers (greetings, basic Q&A) ──
+  // ── Step 1: Try the section matchers FIRST (greetings & quick Q&A) ──
+  // These are the most specific patterns — check before category engine
   for (const section of banglaSections) {
     for (const pattern of section.patterns) {
       if (pattern.test(norm)) {
@@ -5477,6 +5583,10 @@ function matchBanglaInput(input) {
       }
     }
   }
+
+  // ── Step 2: Category engine (200+ Q&A pairs) ──
+  const categoryReply = banglishCategoryEngine(input);
+  if (categoryReply) return categoryReply;
 
   // ── Step 3: Fallback for Bengali script only ──
   if (hasBengali) {
@@ -5627,9 +5737,8 @@ async function callOpenRouter(userMessage) {
     }
   }
 
-  // All keys and all models failed
-  console.warn('[Nexora] All keys exhausted. Falling back to offline KB.');
-  typeBot('⚠️ The default API key has run out of credits. To keep using AI-powered responses, please add your own free OpenRouter key:<br><br>1️⃣ Go to <strong><a href="https://openrouter.ai/keys" target="_blank" style="color:var(--accent)">openrouter.ai/keys</a></strong> and create a free key<br>2️⃣ Open the <strong>Menu → 🔑 API Key</strong> panel in Nexora<br>3️⃣ Paste your key (starts with <code>sk-or-...</code>) and save<br><br>Nexora will still work in offline mode until then! 🤍');
+  // All keys and all models failed — return null silently so router can try Wikipedia/KB
+  console.warn('[Nexora] All keys exhausted. Router will try local fallback.');
   return null;
 }
 
@@ -5752,9 +5861,21 @@ async function generateSmartReply(input) {
   // ── TIER 0: Always-instant handlers (both modes) ──
   // These are never blocked — voice, Bangla greetings, crisis safety
 
+  // 0a.0 Banglish KB fuzzy lookup — instant check before everything else
+  const fuzzyBangla = fuzzyBanglishLookup(input);
+  if (fuzzyBangla) return fuzzyBangla;
+
   // 0a. Voice Q&A — fast-path spoken phrases
   const voiceMatch = matchVoiceQA(input);
   if (voiceMatch) return voiceMatch;
+
+  // 0a.5 Banglish / Bengali GREETINGS — check instantly before anything else
+  //       (avoids Tier 0c being skipped by false-positive detection)
+  const hasBengaliScript = /[\u0980-\u09FF]/.test(input);
+  if (hasBengaliScript) {
+    const earlyBangla = matchBanglaInput(input);
+    if (earlyBangla) return earlyBangla;
+  }
 
   // 0b. Crisis detection — safety always comes first
   const emotion = detectEmotion(input);
@@ -5767,16 +5888,27 @@ async function generateSmartReply(input) {
 
   // 0d. Roadmap / Learning path — ALWAYS uses local formatted KB first,
   //     regardless of online/offline mode. Prevents AI from giving plain-text walls.
-  if (/roadmap|learning path|career path|study plan|how to learn|how to become|how do i learn|how can i learn|syllabus for/i.test(lower)) {
-    const rmMatch = input.match(/(?:roadmap|learning path|career path|study plan|guide to|syllabus for|curriculum for)\s+(?:for\s+|of\s+|in\s+|on\s+)?(.+)/i)
-      || input.match(/(?:give\s+(?:me\s+)?(?:a\s+)?(?:the\s+)?)roadmap\s+(?:for\s+|of\s+)?(.+)/i)
-      || input.match(/(?:provide\s+(?:me\s+)?(?:a\s+)?(?:the\s+)?)roadmap\s+(?:for\s+|of\s+)?(.+)/i)
-      || input.match(/how\s+(?:to\s+(?:learn|become|start)|do\s+i\s+(?:learn|become|start)|can\s+i\s+(?:learn|become))\s+(.+)/i);
-    const rmTopic = rmMatch && (rmMatch[1] || rmMatch[2]);
-    if (rmTopic) {
-      const rmReply = getRoadmap(rmTopic.trim());
+  //     Expanded: intent phrases + direct subject names + "how to learn X"
+  const roadmapIntentRe = /roadmap|learning path|career path|study plan|how to learn|how to become|how do i learn|how can i learn|syllabus for|i want to learn|i wanna learn|tutorial for|guide to|course for|start learning|get started with|where do i start|best way to learn|teach me|beginner.*guide|from scratch/i;
+  if (roadmapIntentRe.test(lower)) {
+    // Strip intent words and extract subject
+    const rmRaw = input
+      .replace(/(?:roadmap|learning path|career path|study plan|syllabus|tutorial|guide|course)/gi, '')
+      .replace(/(?:how\s+(?:to\s+)?(?:learn|become|start|get started(?:\s+with)?)|i\s+(?:want|wanna)\s+to\s+learn|from\s+scratch|beginner(?:\s+guide)?|teach\s+me|best\s+way\s+to\s+learn)/gi, '')
+      .replace(/\b(give|me|please|provide|the|a|an|to|for|of|in|on|with|can|you|and|how|do|i|is)\b/gi, '')
+      .replace(/[?!.,]+/g, '')
+      .trim();
+    if (rmRaw.length > 1) {
+      const rmReply = getRoadmap(rmRaw);
       if (rmReply) return rmReply;
     }
+  }
+  // Catch bare subject names: "Python roadmap", "learn JavaScript", "JavaScript guide"
+  const subjectDirectRe = /^(?:learn\s+)?(python|javascript|js|react|node\.?js|java|c\+\+|cpp|c programming|web\s*dev(?:elopment)?|frontend|backend|full\s*stack|data science|machine learning|ml|ai|dsa|algorithms|android|cybersecurity|hacking|ui\s*ux|design|figma|freelanc\w*|cse|computer science)(?:\s+(?:roadmap|guide|tutorial|course|path|learning|tips|help))?$/i;
+  if (subjectDirectRe.test(lower.trim())) {
+    const topic = lower.trim().replace(/\b(learn|roadmap|guide|tutorial|course|path|learning|tips|help)\b/gi, '').trim();
+    const rmReply = getRoadmap(topic);
+    if (rmReply) return rmReply;
   }
 
   // ── TIER 1: Utility tools — always instant, both modes ──
@@ -5829,15 +5961,40 @@ async function generateSmartReply(input) {
     if (result) return result;
   }
 
-  // ── Wikipedia — expanded: history, events, concepts, how/why/when/where ──
-  const wikiMatch = input.match(/(?:what\s+(?:is|are|was|were|happened|caused)|who\s+(?:is|was|were|invented|discovered|created|founded)|tell\s+me\s+about|explain|define|describe|how\s+(?:does|do|did|was|were)|why\s+(?:did|is|was|does)|where\s+(?:is|was|are|were)|when\s+(?:did|was|were|is)|history\s+of|what\s+happened)\s+(.+)/i)
-    || input.match(/(?:wikipedia|wiki)\s+(.+)/i);
-  if (wikiMatch) {
-    const result = await getWikipediaSummary((wikiMatch[1] || wikiMatch[2]).trim());
-    if (result) return result;
+  // ── TIER 1.5: FACTUAL LOOKUP — runs BEFORE AI so Wikipedia always answers first ──
+  // Handles: "einstine" → Einstein, "explain about darwin" → Darwin, "who is tesla" → Tesla
+
+  // A. Simple noun/topic (1-4 words, looks like a name or subject, not emotional)
+  const wc = input.trim().split(/\s+/).length;
+  const isSimpleTopic = wc >= 1 && wc <= 4
+    && /^[a-zA-Z0-9\s'.\-]+$/.test(input.trim())
+    && !/^(hi|hey|ok|okay|yes|no|bye|lol|wow|hmm|umm|haha|omg|wtf|bruh|bro|sis|sad|happy|stressed|angry|tired|bored|lonely|hello|good|bad|fine|nice|sure|cool|great|thanks|please|help|what|who|why|when|where|how|tell|give|show|make|can|do|is|are|was|were)$/i.test(input.trim())
+    && !/\b(feel|feeling|i am|i'm|i have|make me|give me|can you|help me|am i|do i|should i)\b/i.test(lower);
+  if (isSimpleTopic) {
+    const nounWiki = await getWikipediaSummary(input.trim());
+    if (nounWiki) return nounWiki;
   }
 
-  // ── Web search (DuckDuckGo) — explicit search requests only ──
+  // B. Factual / explanatory queries — strip filler words to get clean topic
+  //    "explain about einstine" → "einstine" → Wikipedia finds "Einstein" via Search API
+  const wikiMatch = input.match(/(?:what\s+(?:is|are|was|were|happened|caused)|who\s+(?:is|was|were|invented|discovered|created|founded)|tell\s+me\s+about|explain(?:\s+about)?|define|describe|how\s+(?:does|do|did|was|were)|why\s+(?:did|is|was|does)|where\s+(?:is|was|are|were)|when\s+(?:did|was|were|is)|history\s+of|what\s+happened)\s+(.+)/i)
+    || input.match(/(?:wikipedia|wiki)\s+(.+)/i);
+  if (wikiMatch) {
+    const rawTopic = (wikiMatch[1] || wikiMatch[2]).trim();
+    // Strip leading stop/filler words to get the actual subject
+    const cleanTopic = rawTopic
+      .replace(/^(about|the|a|an|for|on|of|in|regarding|concerning|me|us)\s+/gi, '')
+      .replace(/\s+(please|for me|to me|quickly|briefly|in detail|in short)$/gi, '')
+      .trim();
+    const r1 = await getWikipediaSummary(cleanTopic);
+    if (r1) return r1;
+    if (cleanTopic !== rawTopic) {
+      const r2 = await getWikipediaSummary(rawTopic);
+      if (r2) return r2;
+    }
+  }
+
+  // C. Explicit web search
   const searchMatch = input.match(/(?:search|google|look up|find info|find out about|search for)\s+(.+)/i);
   if (searchMatch) {
     const result = await getDuckDuckGoResults(searchMatch[1].trim());
@@ -5847,13 +6004,7 @@ async function generateSmartReply(input) {
   // ── TIER 2: Route based on response mode ──
 
   if (nexoraResponseMode === 'online') {
-    // ════════════════════════════════════════════
-    //  ONLINE MODE — AI is the primary responder
-    //  Only Bikash/Nexora identity queries use KB.
-    //  Everything else: AI answers first, always.
-    // ════════════════════════════════════════════
-
-    // Bikash / Nexora identity — local KB is authoritative for this
+    // Bikash / Nexora identity — local KB is authoritative
     if (isBikashQuery(input)) {
       const bk = checkBikashKB(input);
       if (bk) return bk;
@@ -5863,45 +6014,50 @@ async function generateSmartReply(input) {
       if (nk) return nk;
     }
 
-    // Everything else → live AI first
+    // Live AI
     const aiReply = await callOpenRouter(input);
-
-    if (aiReply) {
-      return aiReply;
-    }
-    // AI returned null — if user has their own key, stop here (callOpenRouter already showed error)
-    const _userKeyCheck = localStorage.getItem('nexora_user_key');
-    if (_userKeyCheck && _userKeyCheck.startsWith('sk-or-')) {
-      return null; // error already shown by callOpenRouter — don't show a KB response too
-    }
-    // No user key — fall through to offline KB below
+    if (aiReply) return aiReply;
+    // AI failed — fall through to offline KB (no hard stop)
+    // This lets emotional responses, bestie KB, etc. still work when AI is down
   }
 
   // ════════════════════════════════════════════
   //  OFFLINE MODE (or AI fallback)
-  //  KBs + rule engine handle everything.
-  //  Order: specific KB → educational guard → emotional → bestie → fallback
+  //  Order: Bikash KB → NexoraKnowledge → educational guard → bestie → rule engine
   // ════════════════════════════════════════════
 
-  // Bikash / creator knowledge base
   const bikashAnswer = checkBikashKB(input);
   if (bikashAnswer) return bikashAnswer;
 
-  // NexoraKnowledge — CS concepts, features, capabilities
   const knowledgeReply = findKnowledgeResponse(input);
   if (knowledgeReply) return knowledgeReply;
 
-  // Educational guard — if query looks informational, don't let emotional KB answer it
+  // Educational guard — query looks informational but nothing matched above
   const isEducationalQuery = /\b(what|who|when|where|why|how|explain|define|describe|history|difference between|compare|example of|types of|advantages|disadvantages|meaning of|full form|stands for|about|tell me)\b/i.test(lower);
   if (isEducationalQuery) {
-    // Try Wikipedia one more time with a cleaned query
-    const cleanQ = input.replace(/^(what is|what are|who is|explain|define|tell me about)\s+/i, '').trim();
-    if (cleanQ && cleanQ.length > 3 && cleanQ !== input.trim()) {
-      const wikiRetry = await getWikipediaSummary(cleanQ);
-      if (wikiRetry) return wikiRetry;
+    // Final Wikipedia attempt with bare keyword
+    const keyTerm = input
+      .replace(/^(what is|what are|who is|who was|explain|explain about|define|tell me about|describe|how does|how do|why is|when did)\s+/i, '')
+      .replace(/^(about|the|a|an)\s+/i, '')
+      .split(/\s+/).slice(0, 5).join(' ').trim();
+    if (keyTerm && keyTerm.length > 2) {
+      const lastWiki = await getWikipediaSummary(keyTerm);
+      if (lastWiki) return lastWiki;
+      const ddgFinal = await getDuckDuckGoResults(keyTerm);
+      if (ddgFinal) return ddgFinal;
     }
-    // Return an honest "I don't know" rather than a wrong emotional answer
-    return `📚 <strong>I don\'t have offline info on that topic.</strong><br><br>To get a real answer, make sure <strong>Online Mode</strong> is ON (Menu → 🌐 Online Priority) and your API key is active.<br><br>You can also try: <em>"wiki ${input.replace(/^(what is|who is|explain|tell me about)\s+/i,'').trim()}"</em> to search directly. 🔍`;
+    // Show AI key prompt only as absolute last resort
+    const hasUserKey = localStorage.getItem('nexora_user_key')?.startsWith('sk-or-');
+    if (nexoraResponseMode === 'online' && hasUserKey) {
+      return `⚠️ <strong>AI temporarily unavailable.</strong><br><br>Your key may have hit a rate limit or run out of free credits. Try again in a moment, or get a fresh free key at <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--accent)">openrouter.ai/keys</a>.<br><br>Nexora still works fully in offline mode! 🤍`;
+    }
+    // Offline study tip
+    const studyTips = [
+      `📚 <strong>I don't have offline info on that yet.</strong><br><br>💡 <em>Study Tip:</em> The best way to learn something is to teach it to someone else. Write down what you already know!<br><br>Turn on <strong>Online Mode</strong> (Menu → 🌐) or try: <em>"wiki ${keyTerm}"</em> 🔍`,
+      `📚 <strong>That's outside my offline knowledge.</strong><br><br>💡 <em>Study Tip:</em> Break it down — what's the smallest piece of this topic you already understand?<br><br>Enable <strong>Online Mode</strong> (Menu → 🌐) or try: <em>"search ${keyTerm}"</em> 🔍`,
+      `📚 <strong>I can't answer that offline.</strong><br><br>💡 <em>Study Tip:</em> Consistency beats cramming — 20 focused minutes a day beats 3 hours the night before. 📖<br><br>Switch on <strong>Online Mode</strong> (Menu → 🌐) or try: <em>"wiki ${keyTerm}"</em> 🔍`,
+    ];
+    return rand(studyTips);
   }
 
   // BestieQA — emotional + social intelligence
@@ -5912,12 +6068,6 @@ async function generateSmartReply(input) {
   const ruleReply = generateResponse(input);
   if (ruleReply && emotionDB.default && !emotionDB.default.includes(ruleReply)) {
     return ruleReply;
-  }
-
-  // If online mode but AI gave nothing useful, try one more time with a nudge
-  if (nexoraResponseMode === 'online') {
-    const retryAI = await callOpenRouter("Please give a helpful, friendly answer to: " + input);
-    if (retryAI) return retryAI;
   }
 
   return rand(smartFallbacks);
