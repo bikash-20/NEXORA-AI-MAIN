@@ -2822,7 +2822,7 @@ const voiceQA = [
   {
     match: /who is bikash|tell me about bikash|about bikash|who made you|who created you|who built you|who is your creator|who is your developer/,
     replies: [
-      `Bikash Talukder is my creator! He's a second-year CSE student at Metropolitan University in Sylhet, Bangladesh. He built me from scratch using pure Vanilla JavaScript — no frameworks, just raw talent. He's a vegetarian, a selective extrovert, and his motto is "Always learning. Always building." Basically, he's brilliant.`,
+      `Bikash Talukder is my creator! He's a second-year CSE student in a famous University in Sylhet, Bangladesh. He built me from scratch using pure Vanilla JavaScript — no frameworks, just raw talent. He's a vegetarian, a selective extrovert, and his motto is "Always learning. Always building." Basically, he's brilliant.`,
       `I was brought to life by Bikash Talukder — a CSE genius from Sylhet, Bangladesh. He hand-coded every single line of me. He loves football, competitive programming, and building things that actually matter. I owe him everything! You should check him out on GitHub at bikash-20.`
     ]
   },
