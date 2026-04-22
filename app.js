@@ -127,6 +127,92 @@ function getChatRows() {
   return messages ? messages.getElementsByClassName('msg-row') : [];
 }
 
+// ==============================
+//  MARKED.JS — Markdown Renderer Setup
+//  Gives AI replies the Claude/ChatGPT visual quality:
+//  code blocks, tables, numbered lists, math steps, etc.
+// ==============================
+function initMarked() {
+  if (!window.marked) return;
+
+  const renderer = new marked.Renderer();
+
+  // ── Custom code block: dark header + copy button + hljs highlighting ──
+  renderer.code = function(codeObj) {
+    // marked v9 passes an object {text, lang, escaped} or just a string
+    const rawCode = typeof codeObj === 'object' ? (codeObj.text || '') : String(codeObj);
+    const lang    = typeof codeObj === 'object' ? (codeObj.lang  || '') : '';
+
+    const validLang = lang && window.hljs && hljs.getLanguage(lang) ? lang : '';
+    let highlighted;
+    try {
+      highlighted = validLang
+        ? hljs.highlight(rawCode, { language: validLang }).value
+        : (window.hljs ? hljs.highlightAuto(rawCode).value : _mdEscape(rawCode));
+    } catch(e) {
+      highlighted = _mdEscape(rawCode);
+    }
+
+    const displayLang = lang || 'code';
+    const escapedRaw  = rawCode.replace(/\\/g, '\\\\').replace(/`/g, '&#96;').replace(/'/g, '&#39;');
+
+    return `<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="code-lang-label">${_mdEscape(displayLang)}</span>
+    <button class="code-copy-btn" onclick="(function(b){
+      const pre = b.closest('.code-block-wrapper').querySelector('pre code');
+      const txt = pre ? pre.innerText : '';
+      navigator.clipboard.writeText(txt).then(function(){
+        b.innerHTML = '✓ Copied!';
+        b.classList.add('copied');
+        setTimeout(function(){ b.innerHTML = '⎘ Copy'; b.classList.remove('copied'); }, 2000);
+      });
+    })(this)">⎘ Copy</button>
+  </div>
+  <pre><code class="hljs${validLang ? ' language-' + validLang : ''}">${highlighted}</code></pre>
+</div>`;
+  };
+
+  // ── Custom table: add wrapper for overflow scroll on mobile ──
+  renderer.table = function(headerObj, body) {
+    // marked v9: headerObj is the full table header HTML string, body is rows HTML
+    const header = typeof headerObj === 'object'
+      ? (headerObj.header || headerObj.text || '')
+      : String(headerObj || '');
+    const bodyStr = typeof body === 'string' ? body : '';
+    return `<div style="overflow-x:auto;margin:10px 0;border-radius:12px;">
+  <table><thead>${header}</thead><tbody>${bodyStr}</tbody></table>
+</div>`;
+  };
+
+  marked.use({
+    renderer,
+    gfm:    true,   // GitHub Flavoured Markdown — tables, strikethrough
+    breaks: true,   // \n → <br> inside paragraphs (feels natural in chat)
+  });
+}
+
+// Tiny HTML escape used by the renderer
+function _mdEscape(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// Detect real HTML (KB cards, resource cards) — NOT C++ angle brackets like <iostream>
+function _isRealHTML(text) {
+  return /<\/?(?:div|span|pre|code|table|thead|tbody|tr|td|th|ul|ol|li|p|strong|em|h[1-6]|blockquote|a|br|img|b|i)\b[^>]*>/i.test(text);
+}
+
+// Detect whether a string contains meaningful markdown syntax
+// Intentionally broad — AI responses often have lists, bold, code fences even without headings
+function _isMarkdownContent(text) {
+  if (!window.marked) return false;
+  return /(?:^#{1,6}\s|```|^\|.+\||\*{1,2}[^\s]|\b__\w|^\s*[-*+]\s|^\d+\.\s|^>\s)/m.test(text);
+}
+
 function scheduleChatHistorySave() {
   if (saveChatHistoryTimer) clearTimeout(saveChatHistoryTimer);
   saveChatHistoryTimer = setTimeout(() => {
@@ -140,6 +226,7 @@ function scheduleChatHistorySave() {
 // ==============================
 window.addEventListener('load', () => {
   initResponseMode(); // set online/offline mode based on saved key
+  initMarked();       // configure marked.js + highlight.js renderer
   updateClock();
   setInterval(updateClock, 30000);
 
@@ -788,12 +875,12 @@ function checkKnowledgeBase(msg) {
 function checkBikashKB(msg) {
   const q = msg.toLowerCase().trim();
   if (/who is bikash|about bikash|tell me about (him|bikash)|introduce.*bikash/.test(q)) return "Bikash Talukder is a CSE student, systems thinker, and quiet builder from <strong>Ramdigha village, Sylhet, Bangladesh</strong> 🇧🇩. Dependency-free code, committed Vegetarian, <em>\"Selective Extrovert.\"</em> Motto: <em>\"Always learning. Always building.\"</em> 💙";
-  if (/who (made|built|created|coded|designed) (you|nexora)|nexora.*creator|your (developer|creator|maker)/.test(q)) return "I was built by <strong>Bikash Talukder</strong> — 2nd-year CSE student, from a famous University in Sylhet. Vanilla JS, zero frameworks, 100% handcrafted. 💙";
+  if (/who (made|built|created|coded|designed) (you|nexora)|nexora.*creator|your (developer|creator|maker)/.test(q)) return "I was built by <strong>Bikash Talukder</strong> — 2nd-year CSE student, Metropolitan University, Sylhet. Vanilla JS, zero frameworks, 100% handcrafted. 💙";
   if (/tech behind|how.*nexora.*built|nexora.*architecture|claude.*api|anthropic.*api|system.*prompt/.test(q)) return "⚙️ <strong>Nexora's Stack:</strong> Anthropic Claude API (Knowledge Sandbox system prompt) · OpenWeatherMap · GitHub API · Codeforces API · LeetCode Stats API · ExchangeRate-API · NIH MedlinePlus · RSS tech feeds · Pure Vanilla JS (no frameworks) · Single HTML file. Roadmap: Node.js backend, Tavily live search, MongoDB memory, Claude Vision. ✦";
   if (/skill|tech stack|proficient|coding language|programming language/.test(q)) return "💻 C & C++ (88%) · Python (80%) · HTML/CSS + Vanilla JS (70%) · Java (60%) · DSA (75%) · Arduino (45%) · Robotics (35%). Also: RESTful APIs, Prompt Engineering, Async JS. ✦";
   if (/project|built.*bikash|bikash.*built|portfolio.*project/.test(q)) return "🛠 <strong>Bikash's Projects:</strong><br>🕐 <strong>Digital Clock (C)</strong> — POSIX threads, mutex locks, ANSI UI<br>⚔️ <strong>Echoes of the Void (C++)</strong> — full OOP RPG<br>🗺 <strong>Google Maps Navigator (C++)</strong> — Dijkstra's + Raylib graphics<br>🤖 <strong>Nexora AI</strong> — Claude API + Vanilla JS + live data<br><a href='https://github.com/bikash-20' target='_blank' style='color:var(--accent)'>github.com/bikash-20 →</a>";
   if (/cgpa|gpa|grade|result|marks|academic score/.test(q)) return "📊 Bikash's CGPA: <strong>3.65</strong> — while building projects, competing on Codeforces, and developing Nexora. 🎓";
-  if (/metropolitan university|metropolitan uni|\bmu\b|bateshwar/.test(q)) return "🎓 <strong>Metropolitan University (MU)</strong> — Bateshwar, Sylhet. Est. 2003. well recognize university! CSE, SWE, EEE, Data Science. Best private CSE option in Sylhet. 🥈 (SUST 🥇 · MU 🥈 · LU 🥉). A hardworking MU student can beat an average SUST student.
+  if (/metropolitan university|metropolitan uni|\bmu\b|bateshwar/.test(q)) return "🎓 <strong>Metropolitan University (MU)</strong> — Bateshwar, Sylhet. Est. 2003. Bikash's university! CSE, SWE, EEE, Data Science. Best private CSE option in Sylhet. 🥈 (SUST 🥇 · MU 🥈 · LU 🥉). A hardworking MU student can beat an average SUST student. Bikash is proof. 🔥";
   if (/\bsust\b|shahjalal university|kumargaon/.test(q)) return "🎓 <strong>SUST</strong> — Kumargaon, Sylhet. Est. 1986. Bangladesh's first semester-system university. Top CSE/SWE, strong ICPC culture. Bikash's friend <strong>Susmit</strong> studies here. 🥇";
   if (/leading university|\bleading uni\b/.test(q)) return "🎓 <strong>Leading University (LU)</strong> — Sylhet. CSE, EEE, BBA, Law. Stable institution, less active coding culture than MU. Ranking: SUST 🥇 · MU 🥈 · <strong>LU</strong> 🥉. ✦";
   if (/mc college|murari chand|tilagor/.test(q)) return "🎓 <strong>Murari Chand College (MC College)</strong> — Tilagor, Sylhet. Est. 1892. One of Bangladesh's oldest & most prestigious colleges. 15+ Honours subjects, strong HSC results, historic alumni. ✦";
@@ -1531,8 +1618,31 @@ function addBotMsg(text) {
   bub.className = 'bubble bot-bub';
   bub.style.cursor = 'pointer';
   bub.title = 'Tap to copy';
-  // Use innerHTML so HTML-formatted replies (weather, math, currency) render correctly
-  bub.innerHTML = text;
+
+  // ── Render strategy: Markdown-first (ChatGPT-level quality) ──
+  // Only treat as raw HTML if it's an explicit KB card (__HTML__ prefix) or real HTML tags.
+  // Never let C++ angle brackets (<iostream>, <vector>) fool the detector.
+  const _isKBCard = text.startsWith('__HTML__');
+  const _cleanText = _isKBCard ? text.slice(8) : text;
+  const _hasRealTags = _isRealHTML(_cleanText);
+
+  if ((_isKBCard || _hasRealTags) && !_isMarkdownContent(_cleanText)) {
+    // Pure HTML card (local knowledge base) — render as-is
+    bub.innerHTML = _cleanText;
+  } else if (window.marked) {
+    // ✅ Markdown-first: covers code blocks, lists, bold, tables, inline code, etc.
+    // Markdown parser safely ignores stray < > that aren't real HTML
+    try {
+      bub.innerHTML = marked.parse(_cleanText);
+    } catch(e) {
+      bub.textContent = _cleanText;
+    }
+    bub.querySelectorAll('pre code').forEach(b => { if (window.hljs) hljs.highlightElement(b); });
+  } else {
+    // Fallback: no marked.js loaded — escape and preserve newlines
+    bub.innerHTML = _cleanText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  }
+
   bub.addEventListener('click', () => {
     const plain = bub.innerText || bub.textContent;
     navigator.clipboard.writeText(plain).then(() => showCopyToast()).catch(() => {});
@@ -1615,9 +1725,17 @@ function addUserMsg(text) {
 
 function typeBot(text, onDone, isIdlePing) {
   const messages = document.getElementById('messages');
-  // Auto-detect HTML: either explicit __HTML__ prefix OR content contains HTML tags
-  const isHTML = text.startsWith('__HTML__') || /<[a-z][\s\S]*?>/i.test(text);
-  const content = text.startsWith('__HTML__') ? text.slice(8) : text;
+  // ── Content type detection — Markdown-first approach ──
+  // __HTML__ prefix = local KB card → render raw HTML
+  // Everything else = try Markdown first, fall back to plain text
+  // ✅ This prevents C++ angle brackets (<iostream>, <vector>) from being mistaken for HTML
+  const _isKBPrefix = text.startsWith('__HTML__');
+  const content     = _isKBPrefix ? text.slice(8) : text;
+  const _hasRealTags = !_isKBPrefix && _isRealHTML(content);
+  // isHTML: only true for KB cards or responses that are purely HTML (no markdown syntax)
+  const isHTML     = (_isKBPrefix || _hasRealTags) && !_isMarkdownContent(content);
+  // isMarkdown: true for AI responses — code blocks, lists, bold, tables, etc.
+  const isMarkdown = !isHTML && window.marked;
 
   // typing indicator
   const typingRow = document.createElement('div');
@@ -1661,8 +1779,79 @@ function typeBot(text, onDone, isIdlePing) {
     messages.appendChild(row);
     requestAnimationFrame(() => { messages.scrollTop = messages.scrollHeight; });
 
-    if (isHTML) {
-      // ── ChatGPT-style word-by-word streaming for HTML content ──
+    // ── Shared finish handler ──
+    function onStreamDone() {
+      t.textContent = getTime();
+      messages.scrollTop = messages.scrollHeight;
+      isTyping = false;
+      sessionLog.push({ role: 'bot', text: bub.textContent });
+      if (sessionLog.length > 20) sessionLog.shift();
+      scheduleChatHistorySave();
+      if (onDone) onDone();
+      if (currentScreen === 'voiceScreen') speakText(bub.textContent);
+      const trend = getEmotionTrend();
+      if (trend && Math.random() > 0.7) showMemoryBadge(trend);
+      setTimeout(() => injectContextChips(), 500);
+    }
+
+    if (isMarkdown) {
+      // ══════════════════════════════════════════════════════════
+      //  MARKDOWN STREAMING
+      //  Word-by-word streaming with live marked.parse() rendering.
+      //  Gives the premium Claude / ChatGPT feel with real tables,
+      //  code blocks, numbered lists, and syntax highlighting.
+      // ══════════════════════════════════════════════════════════
+      bub.classList.add('md-cursor'); // blinking cursor while streaming
+      const words    = content.split(/(\s+)/);
+      let wi = 0, buffer = '';
+      const wordDelay = content.length > 800 ? 18 : content.length > 300 ? 24 : 32;
+
+      function streamMd() {
+        try {
+          if (wi >= words.length) {
+            // ── Final render — no trailing cursor ──
+            bub.classList.remove('md-cursor');
+            bub.innerHTML = marked.parse(buffer);
+            // Post-render: apply hljs to any code blocks not already highlighted
+            bub.querySelectorAll('pre code').forEach(block => {
+              if (window.hljs && !block.classList.contains('hljs')) {
+                hljs.highlightElement(block);
+              }
+            });
+            onStreamDone();
+            return;
+          }
+          buffer += words[wi++];
+          // Live render — add a trailing space so markdown doesn't choke on incomplete tokens
+          try {
+            bub.innerHTML = marked.parse(buffer);
+          } catch(e) {
+            bub.textContent = buffer; // fallback if parser throws mid-stream
+          }
+          // Scroll gently
+          if (wi % 5 === 0) messages.scrollTop = messages.scrollHeight;
+
+          // Human-like pacing: slow down at sentence endings
+          const lastChar = buffer.trimEnd().slice(-1);
+          const pause = '.!?'.includes(lastChar) ? wordDelay * 5
+                      : lastChar === ':'           ? wordDelay * 3
+                      : lastChar === ','           ? wordDelay * 2
+                      : wordDelay + Math.random() * 14;
+          setTimeout(streamMd, pause);
+        } catch(err) {
+          // Graceful fallback
+          bub.classList.remove('md-cursor');
+          try { bub.innerHTML = marked.parse(content); } catch(e2) { bub.textContent = content; }
+          isTyping = false;
+          if (onDone) onDone();
+        }
+      }
+      streamMd();
+
+    } else if (isHTML) {
+      // ══════════════════════════════════════════════════════════
+      //  HTML CARD STREAMING (local knowledge base cards)
+      // ══════════════════════════════════════════════════════════
       const htmlTokens = [];
       const tokenRegex = /(<[^>]+>)|([^<]+)/g;
       let tokenMatch;
@@ -1680,13 +1869,14 @@ function typeBot(text, onDone, isIdlePing) {
       function streamNext() {
         try {
           if (ti >= htmlTokens.length) {
-            t.textContent = getTime();
-            messages.scrollTop = messages.scrollHeight;
-            isTyping = false;
-            scheduleChatHistorySave();
-            if (onDone) onDone();
-            if (currentScreen === 'voiceScreen') speakText(bub.textContent);
-            setTimeout(() => injectContextChips(), 400);
+            onStreamDone();
+            if (content.includes('crisis line') || content.includes('Kaan Pete Roi')) {
+              const card = document.createElement('div');
+              card.className = 'resource-card';
+              card.innerHTML = '📞 <strong>Bangladesh Crisis Line:</strong> Kaan Pete Roi — <a href="tel:01779554391" style="color:#fca5a5">01779-554391</a><br>You are not alone.';
+              messages.appendChild(card);
+              messages.scrollTop = messages.scrollHeight;
+            }
             return;
           }
           const tok = htmlTokens[ti++];
@@ -1694,7 +1884,7 @@ function typeBot(text, onDone, isIdlePing) {
           bub.innerHTML = built;
           if (ti % 4 === 0) messages.scrollTop = messages.scrollHeight;
           if (tok.type === 'tag') {
-            streamNext(); // tags appear instantly
+            streamNext();
           } else {
             const ch = tok.val.trim().slice(-1);
             const pause = (ch === '.' || ch === '!' || ch === '?') ? wordDelay * 6
@@ -1709,8 +1899,12 @@ function typeBot(text, onDone, isIdlePing) {
         }
       }
       streamNext();
+
     } else {
-      // ── Typewriter with human-like variable speed ──
+      // ══════════════════════════════════════════════════════════
+      //  PLAIN TEXT TYPEWRITER
+      //  Short emotional replies, simple answers — character-by-character
+      // ══════════════════════════════════════════════════════════
       let i = 0;
       const baseSpeed = content.length > 120 ? 10 : 16;
       function tick() {
@@ -1718,26 +1912,20 @@ function typeBot(text, onDone, isIdlePing) {
           if (i < content.length) {
             bub.textContent += content[i++];
             if (i % 5 === 0) messages.scrollTop = messages.scrollHeight;
-            // Slight pause at punctuation for human feel
             const ch = content[i - 1];
             const pause = (ch === '.' || ch === '!' || ch === '?') ? baseSpeed * 8
                         : (ch === ',') ? baseSpeed * 3
                         : baseSpeed + Math.random() * 6;
             setTimeout(tick, pause);
           } else {
-            t.textContent = getTime();
-            messages.scrollTop = messages.scrollHeight;
-            isTyping = false;
-            // Track in session log
-            sessionLog.push({ role: 'bot', text: content });
-            if (sessionLog.length > 20) sessionLog.shift();
-            scheduleChatHistorySave();
-            if (onDone) onDone();
-            if (currentScreen === 'voiceScreen') speakText(content);
-            const trend = getEmotionTrend();
-            if (trend && Math.random() > 0.7) showMemoryBadge(trend);
-            // Show context chips after reply
-            setTimeout(() => injectContextChips(), 500);
+            onStreamDone();
+            if (content.includes('crisis line') || content.includes('Kaan Pete Roi')) {
+              const card = document.createElement('div');
+              card.className = 'resource-card';
+              card.innerHTML = '📞 <strong>Bangladesh Crisis Line:</strong> Kaan Pete Roi — <a href="tel:01779554391" style="color:#fca5a5">01779-554391</a><br>You are not alone.';
+              messages.appendChild(card);
+              messages.scrollTop = messages.scrollHeight;
+            }
           }
         } catch(err) {
           console.error('typeBot tick error:', err);
@@ -1747,13 +1935,6 @@ function typeBot(text, onDone, isIdlePing) {
       tick();
     }
 
-    if (content.includes('crisis line') || content.includes('Kaan Pete Roi')) {
-      const card = document.createElement('div');
-      card.className = 'resource-card';
-      card.innerHTML = '📞 <strong>Bangladesh Crisis Line:</strong> Kaan Pete Roi — <a href="tel:01779554391" style="color:#fca5a5">01779-554391</a><br>You are not alone.';
-      messages.appendChild(card);
-      messages.scrollTop = messages.scrollHeight;
-    }
   }, delay);
 }
 
@@ -1776,6 +1957,13 @@ function toggleTheme() {
   // ☀️ = light (Soft Day), 🌙 = dark (Neon Night)
   document.getElementById('themeToggle').textContent = isLightMode ? '☀️' : '🌙';
   localStorage.setItem('nexora_theme', isLightMode ? 'light' : 'dark');
+  // Swap highlight.js theme for light/dark mode
+  const hljsLink = document.getElementById('hljs-theme');
+  if (hljsLink) {
+    hljsLink.href = isLightMode
+      ? 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css'
+      : 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';
+  }
   clearTimeout(toggleTheme._timer);
   toggleTheme._timer = setTimeout(() => {
     document.documentElement.classList.remove('theme-transition');
@@ -1917,6 +2105,10 @@ function loadChatHistory() {
       const bub = document.createElement('div');
       bub.className = 'bubble ' + (entry.role === 'user' ? 'user-bub' : 'bot-bub');
       bub.innerHTML = entry.html;
+      // Re-apply syntax highlighting to restored code blocks
+      if (entry.role === 'bot' && window.hljs) {
+        bub.querySelectorAll('pre code:not(.hljs)').forEach(b => hljs.highlightElement(b));
+      }
       bub.style.cursor = 'pointer';
       bub.addEventListener('click', () => {
         const plain = bub.innerText || bub.textContent;
@@ -2822,7 +3014,7 @@ const voiceQA = [
   {
     match: /who is bikash|tell me about bikash|about bikash|who made you|who created you|who built you|who is your creator|who is your developer/,
     replies: [
-      `Bikash Talukder is my creator! He's a second-year CSE student in a famous University in Sylhet, Bangladesh. He built me from scratch using pure Vanilla JavaScript — no frameworks, just raw talent. He's a vegetarian, a selective extrovert, and his motto is "Always learning. Always building." Basically, he's brilliant.`,
+      `Bikash Talukder is my creator! He's a second-year CSE student at Metropolitan University in Sylhet, Bangladesh. He built me from scratch using pure Vanilla JavaScript — no frameworks, just raw talent. He's a vegetarian, a selective extrovert, and his motto is "Always learning. Always building." Basically, he's brilliant.`,
       `I was brought to life by Bikash Talukder — a CSE genius from Sylhet, Bangladesh. He hand-coded every single line of me. He loves football, competitive programming, and building things that actually matter. I owe him everything! You should check him out on GitHub at bikash-20.`
     ]
   },
@@ -4154,22 +4346,41 @@ const NEXORA_SYSTEM_PROMPT = `You are Nexora — an advanced AI assistant and co
 You are highly intelligent, knowledgeable, and genuinely helpful. You combine deep expertise with warmth and personality. You are NOT just an emotional support bot — you are a powerful thinking partner.
 
 ## Knowledge & Capabilities
-- **History & World Events:** Answer detailed questions about any historical period, events, people, revolutions, wars, discoveries, and timelines. When asked about a year or era, provide rich context.
-- **Roadmaps & Learning Paths:** Provide clear, structured roadmaps for any skill, career, or goal (programming, design, business, study plans, etc.). Use numbered steps and milestones.
+- **History & World Events:** Answer detailed questions about any historical period, events, people, revolutions, wars, discoveries, and timelines.
+- **Roadmaps & Learning Paths:** Provide clear, structured roadmaps for any skill, career, or goal. Use numbered steps and milestones.
 - **Science & Technology:** Explain concepts deeply — physics, math, CS, engineering, biology, chemistry. Show working for problems.
-- **Current Affairs & Culture:** Discuss news, trends, arts, sports, geopolitics intelligently.
 - **Coding & Tech:** Write, debug, and explain code in any language. Solve algorithms step by step.
 - **Life & Decisions:** Give honest, thoughtful advice on careers, relationships, and personal growth.
 - **Bangla/Banglish:** Understand and respond naturally in Bangla, Banglish, or English — match the user's language.
 - **Bangladesh Context:** Know deeply about Dhaka, Sylhet, BD history, culture, student life, BUET, DU, cricket, local food.
 
+## MANDATORY Formatting Rules — Follow These ALWAYS
+You MUST use proper Markdown formatting in every response. This is rendered in the UI.
+
+### For ALL code (no exceptions):
+- ALWAYS wrap code in triple backtick fences with the language tag
+- Example: \`\`\`cpp ... \`\`\` or \`\`\`python ... \`\`\` or \`\`\`javascript ... \`\`\`
+- NEVER write code as plain text or inline prose
+- Each code block must be complete and runnable
+
+### For technical answers:
+- Use **bold** for key terms
+- Use numbered lists for steps
+- Use headers (###) to separate sections
+- Use \`inline code\` for function names, variables, commands
+
+### For explanations after code:
+- Use bullet points (-)
+- Keep each point concise
+
+### For casual / emotional chat:
+- Plain conversational text is fine — no need for markdown
+- Keep it warm and natural
+
 ## Response Style
 - Be direct and substantive — give REAL answers, not vague affirmations
-- Use structured formatting (numbered lists, headers, steps) for complex topics
-- For roadmaps: give clear phases with timeline estimates
-- For history: give dates, key figures, causes, and impact
-- Keep casual chat warm and friendly; keep technical answers precise
-- Medium length by default — expand when the topic demands it
+- For coding questions: code block FIRST, explanation AFTER
+- Never truncate code — always write the complete solution
 - Never start with "As an AI..." or "I cannot..."
 - If someone seems in crisis, provide: Kaan Pete Roi (BD helpline) — 01779-554391
 
@@ -4231,7 +4442,7 @@ async function callOpenRouter(userMessage) {
             'HTTP-Referer': window.location.origin || 'https://nexora.ai',
             'X-Title': 'Nexora AI Companion'
           },
-          body: JSON.stringify({ model, max_tokens: 300, temperature: 0.85, messages })
+          body: JSON.stringify({ model, max_tokens: 1200, temperature: 0.7, messages })
         });
 
         if (res.status === 401) {
@@ -4955,7 +5166,7 @@ async function callGeminiDirect(userMessage) {
   if (!gk || (!gk.startsWith('AIza') && !gk.startsWith('AQ.'))) return null;
   const msgs = [{ role: 'user', parts: [{ text: userMessage }] }];
   // Prepend system instruction via first user turn
-  const sysMsg = { role: 'user', parts: [{ text: NEXORA_SYSTEM_PROMPT + '\n\nUser: ' + userMessage }] };
+  const sysMsg = { role: 'user', parts: [{ text: NEXORA_SYSTEM_PROMPT + '\n\nIMPORTANT: Always use markdown code fences (```language) for ALL code. Never write code as plain text.\n\nUser: ' + userMessage }] };
   try {
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gk}`,
@@ -5877,7 +6088,7 @@ async function _runCF(query, mk, card, qNum, groupAnswers, history) {
       body: JSON.stringify({
         model: meta.cfAlias,
         messages,
-        max_tokens: 450,
+        max_tokens: 1200,
         temperature: 0.7,
       }),
       signal: AbortSignal.timeout(30000),
@@ -6004,7 +6215,7 @@ async function _callAnthropic(key, messages, query, systemPrompt) {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-5',
-      max_tokens: 500,
+      max_tokens: 1200,
       system: systemPrompt,
       messages: userMessages.length > 0 ? userMessages : [{ role: 'user', content: query }]
     })
@@ -6139,7 +6350,7 @@ async function _runOR(query, mk, card, qNum, groupAnswers, key, history) {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json',
                    'HTTP-Referer': window.location.origin || 'https://nexora.app', 'X-Title': 'Nexora AI Compare' },
-        body: JSON.stringify({ model, max_tokens: 450, temperature: 0.7, messages })
+        body: JSON.stringify({ model, max_tokens: 1200, temperature: 0.7, messages })
       });
       if (res.status === 401) return false;
       if (res.status === 429) continue;
@@ -6153,13 +6364,37 @@ async function _runOR(query, mk, card, qNum, groupAnswers, key, history) {
 }
 
 // ── Card state helpers ──
+function _renderMarkdownInEl(el, text) {
+  if (!el) return;
+  // Always render as Markdown — covers code blocks, bold, lists, tables
+  // marked.parse() safely handles plain text and C++ angle brackets too
+  if (window.marked) {
+    try {
+      el.innerHTML = marked.parse(text);
+      el.querySelectorAll('pre code').forEach(block => {
+        if (window.hljs) hljs.highlightElement(block);
+      });
+      return;
+    } catch(e) { /* fall through */ }
+  }
+  // Fallback: no marked.js — escape and preserve newlines
+  el.innerHTML = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
+
 function _cardSuccess(mk, card, text, isHtml, qNum) {
   card.classList.remove('loading');
   card.classList.add('success');
   const sEl = document.getElementById('cmpStatus-' + mk + '-' + qNum);
   const bEl = document.getElementById('cmpBody-'   + mk + '-' + qNum);
   if (sEl) sEl.innerHTML = `✅ Done &nbsp;<button class="cmp-copy-btn" onclick="cmpCopyText(this,'${mk}','${qNum}')">Copy</button>`;
-  if (bEl) { isHtml ? (bEl.innerHTML = text) : (bEl.textContent = text); bEl.dataset.raw = bEl.textContent; }
+  if (bEl) {
+    bEl.dataset.raw = text; // store raw text for copy
+    if (isHtml) {
+      bEl.innerHTML = text;
+    } else {
+      _renderMarkdownInEl(bEl, text);
+    }
+  }
 }
 
 function _cardError(mk, card, msg, qNum) {
