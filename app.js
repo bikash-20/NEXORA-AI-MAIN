@@ -6076,7 +6076,17 @@ async function _runCF(query, mk, card, qNum, groupAnswers, history) {
   }
 
   const messages = [
-    { role: 'system', content: 'You are a helpful AI assistant. Be clear and concise — under 200 words unless more detail is genuinely needed.' },
+    { role: 'system', content: 'You are a helpful AI assistant with strong technical knowledge.
+
+FORMATTING RULES — follow these exactly, they are rendered as Markdown:
+- For ALL code: use triple backtick fences with language tag. Example: \`\`\`cpp ... \`\`\`
+- NEVER write code as plain prose — always use a code block
+- Use **bold** for key terms
+- Use numbered lists for steps
+- Use ### headers to separate sections
+- For casual/simple answers: plain text is fine
+
+When writing code: show the COMPLETE working code first, then explain below.' },
     ...history.slice(-4),
     { role: 'user', content: query }
   ];
@@ -6134,7 +6144,17 @@ async function _runPremium(query, mk, card, qNum, groupAnswers, history) {
     return;
   }
 
-  const SYSTEM = 'You are a helpful AI assistant. Be clear and concise — under 200 words unless more detail is genuinely needed.';
+  const SYSTEM = 'You are a helpful AI assistant with strong technical knowledge.
+
+FORMATTING RULES — follow these exactly, they are rendered as Markdown:
+- For ALL code: use triple backtick fences with language tag. Example: \`\`\`cpp ... \`\`\`
+- NEVER write code as plain prose — always use a code block
+- Use **bold** for key terms
+- Use numbered lists for steps
+- Use ### headers to separate sections
+- For casual/simple answers: plain text is fine
+
+When writing code: show the COMPLETE working code first, then explain below.';
   const messages = [
     { role: 'system', content: SYSTEM },
     ...history,
@@ -6251,7 +6271,17 @@ async function _runWithBridge(query, mk, card, qNum, groupAnswers, orKey, histor
   if (groqKey && groqKey.startsWith('gsk_') && GROQ_MODEL_MAP[mk]) {
     try {
       const groqMessages = [
-        { role: 'system', content: 'You are a helpful AI assistant. Be clear and concise — under 200 words unless more detail is genuinely needed.' },
+        { role: 'system', content: 'You are a helpful AI assistant with strong technical knowledge.
+
+FORMATTING RULES — follow these exactly, they are rendered as Markdown:
+- For ALL code: use triple backtick fences with language tag. Example: \`\`\`cpp ... \`\`\`
+- NEVER write code as plain prose — always use a code block
+- Use **bold** for key terms
+- Use numbered lists for steps
+- Use ### headers to separate sections
+- For casual/simple answers: plain text is fine
+
+When writing code: show the COMPLETE working code first, then explain below.' },
         ...history.slice(-4),
         { role: 'user', content: query }
       ];
@@ -6283,7 +6313,17 @@ async function _runWithBridge(query, mk, card, qNum, groupAnswers, orKey, histor
 // ── Pollinations.ai — zero-key free bridge ──
 async function _runPollinations(query, mk, card, qNum, groupAnswers, history) {
   const meta = CMP_MODELS[mk];
-  const SYSTEM = 'You are a helpful AI assistant. Be clear and concise — under 150 words unless more detail is needed.';
+  const SYSTEM = 'You are a helpful AI assistant with strong technical knowledge.
+
+FORMATTING RULES — follow these exactly, they are rendered as Markdown:
+- For ALL code: use triple backtick fences with language tag. Example: \`\`\`cpp ... \`\`\`
+- NEVER write code as plain prose — always use a code block
+- Use **bold** for key terms
+- Use numbered lists for steps
+- Use ### headers to separate sections
+- For casual/simple answers: plain text is fine
+
+When writing code: show the COMPLETE working code first, then explain below.';
   const pollinationsModels = [meta.pollinationsModel || 'openai', 'mistral', 'llama', 'openai']
     .filter((v, i, a) => a.indexOf(v) === i || i === a.length - 1);
 
@@ -6339,7 +6379,17 @@ async function _runOR(query, mk, card, qNum, groupAnswers, key, history) {
   const meta = CMP_MODELS[mk];
   const modelsToTry = [meta.orModel, 'meta-llama/llama-3.1-8b-instruct:free', 'stepfun/step-3.5-flash:free'].filter(Boolean);
   const messages = [
-    { role: 'system', content: 'You are a helpful AI assistant. Be clear and concise — under 120 words unless more detail is needed.' },
+    { role: 'system', content: 'You are a helpful AI assistant with strong technical knowledge.
+
+FORMATTING RULES — follow these exactly, they are rendered as Markdown:
+- For ALL code: use triple backtick fences with language tag. Example: \`\`\`cpp ... \`\`\`
+- NEVER write code as plain prose — always use a code block
+- Use **bold** for key terms
+- Use numbered lists for steps
+- Use ### headers to separate sections
+- For casual/simple answers: plain text is fine
+
+When writing code: show the COMPLETE working code first, then explain below.' },
     ...history.slice(-4),
     { role: 'user', content: query }
   ];
