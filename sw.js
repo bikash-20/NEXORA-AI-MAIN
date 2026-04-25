@@ -4,7 +4,7 @@
 //  Network-first for API calls
 // ============================================================
 
-const CACHE_NAME = 'nexora-v3';
+const CACHE_NAME = 'nexora-v4';
 
 // Core files to cache on install
 const CORE_ASSETS = [
@@ -23,6 +23,15 @@ const CORE_ASSETS = [
 const OPTIONAL_ASSETS = [
   'https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap'
 ];
+
+const APP_SHELL_PATHS = new Set([
+  '/',
+  '/index.html',
+  '/app.js',
+  '/styles.css',
+  '/manifest.json',
+  '/sw.js',
+]);
 
 // API hostnames — always go to network (never cache)
 const NETWORK_ONLY_HOSTS = [
@@ -76,6 +85,8 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
+  const isSameOrigin = url.origin === self.location.origin;
+  const pathname = url.pathname;
 
   // Always use network for API calls
   if (NETWORK_ONLY_HOSTS.includes(url.hostname)) {
@@ -102,6 +113,26 @@ self.addEventListener('fetch', event => {
           return response;
         }).catch(() => cached || new Response('', { status: 503 }));
       })
+    );
+    return;
+  }
+
+  // App shell files should prefer network so new deploys replace old broken JS/CSS quickly.
+  if (isSameOrigin && (event.request.mode === 'navigate' || APP_SHELL_PATHS.has(pathname))) {
+    event.respondWith(
+      fetch(event.request).then(response => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        }
+        return response;
+      }).catch(() =>
+        caches.match(event.request).then(cached => {
+          if (cached) return cached;
+          if (event.request.mode === 'navigate') return caches.match('./index.html');
+          return new Response('Offline', { status: 503 });
+        })
+      )
     );
     return;
   }
