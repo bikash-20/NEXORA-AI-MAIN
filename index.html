@@ -266,12 +266,14 @@
         <span class="study-header-icon">📚</span>
         <span>Study Mode</span>
       </div>
-      <!-- AI picker pill -->
-      <button class="study-ai-pill" id="studyAIPill" onclick="toggleStudyAIPicker()">
-        <span id="studyAIPillDot" class="study-ai-dot"></span>
-        <span id="studyAIPillLabel">Gemini</span>
-        <svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke="currentColor" width="12" height="12"><polyline points="6 9 12 15 18 9"/></svg>
-      </button>
+      <div class="study-header-actions">
+        <button class="study-ai-pill" id="studyAIPill" onclick="toggleStudyAIPicker()">
+          <span id="studyAIPillDot" class="study-ai-dot"></span>
+          <span id="studyAIPillLabel">Gemini</span>
+          <svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke="currentColor" width="12" height="12"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <button class="study-close-btn" onclick="closeStudyMode()">✕ Close</button>
+      </div>
     </div>
 
     <!-- AI picker dropdown -->
