@@ -240,6 +240,7 @@ function scheduleChatHistorySave() {
 //  INIT
 // ==============================
 window.addEventListener('load', () => {
+  resetTransientPanels(localStorage.getItem('nexora_name') ? 'chatScreen' : 'nameScreen');
   initResponseMode(); // set online/offline mode based on saved key
   initMarked();       // configure marked.js + highlight.js renderer
   updateClock();
@@ -306,6 +307,10 @@ window.addEventListener('load', () => {
   }
 });
 
+window.addEventListener('pageshow', () => {
+  resetTransientPanels(localStorage.getItem('nexora_name') ? 'chatScreen' : 'nameScreen');
+});
+
 function updateClock() {
   const now = new Date();
   const h = now.getHours().toString().padStart(2, '0');
@@ -325,6 +330,32 @@ function setOverlayMode(mode) {
   phone.classList.toggle('overlay-mode', !!mode);
   phone.classList.toggle('study-mode-open', mode === 'study');
   phone.classList.toggle('compare-mode-open', mode === 'compare');
+}
+
+function resetTransientPanels(preferredScreen) {
+  const cmp = document.getElementById('comparePanel');
+  const study = document.getElementById('studyScreen');
+  const api = document.getElementById('apiPanel');
+  const search = document.getElementById('searchOverlay');
+  const modeToggle = document.getElementById('modeToggle');
+
+  if (cmp) cmp.classList.remove('open');
+  if (study) study.classList.remove('active');
+  if (api) api.classList.remove('open');
+  if (search) search.classList.remove('open');
+  if (modeToggle) modeToggle.classList.remove('open');
+
+  menuOpen = false;
+  setOverlayMode(null);
+
+  if (preferredScreen) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    const target = document.getElementById(preferredScreen);
+    if (target) {
+      target.classList.add('active');
+      currentScreen = preferredScreen;
+    }
+  }
 }
 
 // ==============================
