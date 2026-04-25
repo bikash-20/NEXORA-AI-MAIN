@@ -319,6 +319,14 @@ function getTodayLabel() {
   return new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
 }
 
+function setOverlayMode(mode) {
+  const phone = document.getElementById('phone');
+  if (!phone) return;
+  phone.classList.toggle('overlay-mode', !!mode);
+  phone.classList.toggle('study-mode-open', mode === 'study');
+  phone.classList.toggle('compare-mode-open', mode === 'compare');
+}
+
 // ==============================
 //  NAVIGATION
 // ==============================
@@ -342,6 +350,7 @@ function switchToVoice() {
 function switchToChat() {
   stopSpeaking();
   stopMic();
+  setOverlayMode(null);
   showScreen('chatScreen');
 }
 
@@ -5776,6 +5785,7 @@ let _keyModalModel = null;
 
 // ── Panel open/close ──
 function openComparePanel() {
+  if (currentScreen === 'studyScreen') showScreen('chatScreen');
   // Close menu if open
   if (menuOpen) {
     menuOpen = false;
@@ -5783,6 +5793,7 @@ function openComparePanel() {
   }
   // Activate CF Claude as default if worker is configured
   if (_hasCFWorker()) cmpActiveModels.add('cf-claude');
+  setOverlayMode('compare');
   document.getElementById('comparePanel').classList.add('open');
   _refreshAllChipStates();
   _updateSelectorBar();
@@ -5795,6 +5806,7 @@ function openComparePanel() {
 }
 function closeComparePanel() {
   document.getElementById('comparePanel').classList.remove('open');
+  setOverlayMode(null);
   closeKeyModal();
 }
 
@@ -7982,6 +7994,7 @@ function openStudyMode() {
   if (cmpPanel) cmpPanel.classList.remove('open');
 
   _ensureStudyAIKeyValid();
+  setOverlayMode('study');
   showScreen('studyScreen');
   _renderStudyAIPicker();
   _updateStudyAIPill();
@@ -7990,6 +8003,7 @@ function openStudyMode() {
 }
 
 function closeStudyMode() {
+  setOverlayMode(null);
   showScreen('chatScreen');
 }
 

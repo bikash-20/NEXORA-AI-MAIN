@@ -176,6 +176,23 @@
   }
   #statusbar .sb-date { color: var(--text3); }
 
+  /* Full-panel modes: Study / Compare should replace the default shell, not stack with it */
+  #phone.overlay-mode > #statusbar,
+  #phone.overlay-mode > #header,
+  #phone.overlay-mode > #modeToggle,
+  #phone.overlay-mode > #searchOverlay,
+  #phone.overlay-mode > #copyToast,
+  #phone.overlay-mode > #apiPanel,
+  #phone.overlay-mode > .screen:not(#studyScreen) {
+    display: none !important;
+  }
+  #phone.study-mode-open > #comparePanel {
+    display: none !important;
+  }
+  #phone.compare-mode-open > #studyScreen {
+    display: none !important;
+  }
+
   /* ===== HEADER ===== */
   #header {
     display: flex; align-items: center; justify-content: space-between;
