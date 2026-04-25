@@ -143,6 +143,22 @@
     #phone { width: min(480px, 92vw); border-radius: 32px; }
   }
 
+  @media (min-width: 901px) and (max-width: 1199px) {
+    #phone {
+      width: min(720px, 94vw);
+      height: min(900px, 94dvh);
+      border-radius: 34px;
+    }
+  }
+
+  @media (min-width: 1200px) {
+    #phone {
+      width: min(980px, 95vw);
+      height: min(920px, 94dvh);
+      border-radius: 36px;
+    }
+  }
+
   /* Full-screen on small phones */
   @media (max-width: 480px) {
     body { align-items: flex-start; }
@@ -3323,6 +3339,53 @@ body.light-mode #hljs-theme {
 }
 .study-panel.active { display: flex; }
 
+@media (min-width: 901px) {
+  .study-panel {
+    padding: 22px 26px;
+    gap: 18px;
+  }
+  .study-input-section,
+  #fcDeckArea,
+  #quizActive,
+  #quizReview,
+  #srsSession,
+  #srsBrowsePanel,
+  #srsEmpty,
+  #srsAllDone,
+  #fcSavedSection {
+    width: min(100%, 860px);
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .fc-card {
+    height: 280px;
+  }
+  .fc-card-text,
+  .quiz-question {
+    font-size: 17px;
+  }
+}
+
+@media (min-width: 1200px) {
+  .study-panel {
+    padding: 26px 34px;
+  }
+  .study-input-section,
+  #fcDeckArea,
+  #quizActive,
+  #quizReview,
+  #srsSession,
+  #srsBrowsePanel,
+  #srsEmpty,
+  #srsAllDone,
+  #fcSavedSection {
+    width: min(100%, 920px);
+  }
+  .study-ai-picker {
+    width: 280px;
+  }
+}
+
 /* ── Input section ── */
 .study-input-section {
   background: rgba(255,255,255,0.03);
@@ -3732,4 +3795,3 @@ body.light-mode .fc-card-face.front { background: rgba(124,92,255,0.05); border-
 body.light-mode .fc-card-face.back { background: rgba(16,185,129,0.05); border-color: rgba(16,185,129,0.2); }
 body.light-mode .quiz-question { background: #F9FAFB; border-color: #E5E7EB; }
 body.light-mode .quiz-option-btn { background: #fff; border-color: #E5E7EB; color: #111; }
-

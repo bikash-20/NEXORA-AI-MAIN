@@ -113,6 +113,21 @@ function cap1(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = 20000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function isTimeoutError(err) {
+  const msg = err?.message || '';
+  return err?.name === 'AbortError' || /abort|timeout/i.test(msg);
+}
+
 // Neatly wrap keyword matches into a formatted card
 function formatKeywordReply(label, body) {
   return `__HTML__<div class="answer-card"><div class="answer-key">${label}</div><div>${body}</div></div>`;
@@ -5492,10 +5507,15 @@ const CMP_LS = {
 
 // ── Cloudflare Worker URL storage ──
 const LS_CF_WORKER_URL = 'nexora_cf_worker_url';
+const LS_CF_WORKER_DISABLED = 'nexora_cf_worker_disabled';
 const LS_ACTIVE_MODELS = 'nexora_cmp_active_models';
+const DEFAULT_CF_WORKER_URL = 'https://nexora-ai.talukderbikash500.workers.dev';
 function _saveActiveModels() { try { localStorage.setItem(LS_ACTIVE_MODELS, JSON.stringify([...cmpActiveModels])); } catch(e){} }
 function _loadActiveModels() { try { const s = JSON.parse(localStorage.getItem(LS_ACTIVE_MODELS)||'[]'); if(Array.isArray(s)&&s.length>0) cmpActiveModels=new Set(s); } catch(e){} }
-function _getCFWorkerUrl() { return localStorage.getItem(LS_CF_WORKER_URL) || ''; }
+function _getCFWorkerUrl() {
+  if (localStorage.getItem(LS_CF_WORKER_DISABLED) === '1') return '';
+  return localStorage.getItem(LS_CF_WORKER_URL) || DEFAULT_CF_WORKER_URL;
+}
 function _hasCFWorker() { const u = _getCFWorkerUrl(); return !!(u && u.startsWith('https://')); }
 
 // ── CF Worker panel open/close/save ──
@@ -5527,8 +5547,9 @@ async function saveCFWorkerUrl() {
   if (status) { status.textContent = '🔄 Testing connection…'; status.className = 'cf-test-status'; }
   const cleanUrl = val.replace(/\/+$/, '');
   try {
-    const res = await fetch(cleanUrl + '/health', { signal: AbortSignal.timeout(8000) });
+    const res = await fetchWithTimeout(cleanUrl + '/health', {}, 8000);
     if (res.ok) {
+      localStorage.removeItem(LS_CF_WORKER_DISABLED);
       localStorage.setItem(LS_CF_WORKER_URL, cleanUrl);
       if (status) { status.textContent = '✅ Connected! CF models unlocked.'; status.className = 'cf-test-status ok'; }
       document.getElementById('cfRemoveBtn').style.display = 'inline-flex';
@@ -5539,6 +5560,7 @@ async function saveCFWorkerUrl() {
       if (status) { status.textContent = `❌ Worker returned ${res.status}. Check it's deployed correctly.`; status.className = 'cf-test-status err'; }
     }
   } catch(e) {
+    localStorage.removeItem(LS_CF_WORKER_DISABLED);
     localStorage.setItem(LS_CF_WORKER_URL, cleanUrl);
     if (status) { status.textContent = '⚠️ Saved! Could not verify (CORS/network). Will try when used.'; status.className = 'cf-test-status err'; }
     document.getElementById('cfRemoveBtn').style.display = 'inline-flex';
@@ -5548,11 +5570,12 @@ async function saveCFWorkerUrl() {
 }
 function removeCFWorkerUrl() {
   localStorage.removeItem(LS_CF_WORKER_URL);
+  localStorage.setItem(LS_CF_WORKER_DISABLED, '1');
   const inp = document.getElementById('cfWorkerUrlInput');
   const status = document.getElementById('cfTestStatus');
   const removeBtn = document.getElementById('cfRemoveBtn');
   if (inp) inp.value = '';
-  if (status) { status.textContent = '🗑️ Worker URL removed.'; status.className = 'cf-test-status'; }
+  if (status) { status.textContent = '🗑️ Cloudflare worker disabled on this device.'; status.className = 'cf-test-status'; }
   if (removeBtn) removeBtn.style.display = 'none';
   _refreshCFChips();
   _refreshStudyAIPickerUI();
@@ -5651,7 +5674,7 @@ const CMP_MODELS = {
 
   // ── Cloudflare AI models (unlocked via Worker URL) ──
   'cf-claude': {
-    label: 'CF Claude (Haiku)', color: '#fb923c',
+    label: 'CF Writing Pro', color: '#fb923c',
     pollinationsModel: null, orModel: null,
     specialty: 'CF Free', specialtyClass: 'tag-cf', icon: '☁️',
     premium: false, isCF: true, cfAlias: 'cf-claude',
@@ -5663,7 +5686,7 @@ const CMP_MODELS = {
     premium: false, isCF: true, cfAlias: 'cf-llama',
   },
   'cf-qwen': {
-    label: 'CF Qwen 2.5 72B', color: '#fb923c',
+    label: 'CF Fast Chat', color: '#fb923c',
     pollinationsModel: null, orModel: null,
     specialty: 'CF Free', specialtyClass: 'tag-cf', icon: '☁️',
     premium: false, isCF: true, cfAlias: 'cf-qwen',
@@ -6357,7 +6380,7 @@ async function _runCF(query, mk, card, qNum, groupAnswers, history) {
   ];
 
   try {
-    const res = await fetch(workerUrl + '/ai', {
+    const res = await fetchWithTimeout(workerUrl + '/ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -6366,8 +6389,7 @@ async function _runCF(query, mk, card, qNum, groupAnswers, history) {
         max_tokens: 1200,
         temperature: 0.7,
       }),
-      signal: AbortSignal.timeout(30000),
-    });
+    }, 30000);
 
     if (res.status === 429) {
       _cardError(mk, card, '⏳ Cloudflare free daily limit reached. Resets at midnight UTC.', qNum);
@@ -7266,9 +7288,9 @@ const MODEL_CAPS = {
   qwenbig:      { tags: ['research','reasoning','analysis','coding'],  bestFor: 'Deep analysis and hard questions',                 why: 'Massive 235B model from Alibaba — best free model for research' },
   mistral24:    { tags: ['fast','writing','analysis'],                 bestFor: 'Balanced quality and speed',                       why: 'Bigger Mistral — writes well and responds fast' },
   mai:          { tags: ['research','analysis','reasoning'],           bestFor: 'Technical research and structured answers',        why: 'Microsoft and DeepSeek collaboration — strong at reasoning' },
-  'cf-claude':  { tags: ['writing','analysis','fast','free'],          bestFor: 'Writing and analysis via Cloudflare',              why: 'Runs on your free Cloudflare account — no API key needed' },
+  'cf-claude':  { tags: ['writing','analysis','fast','free'],          bestFor: 'Writing and analysis via Cloudflare',              why: 'Claude-style writing lane backed by your Cloudflare free models' },
   'cf-llama':   { tags: ['fast','writing','free'],                     bestFor: 'Llama 70B quality — completely free',              why: 'Full Llama 70B power via your Cloudflare free tier' },
-  'cf-qwen':    { tags: ['fast','summary','free'],                     bestFor: 'Fast responses via Cloudflare',                    why: 'Free tier inference — good for quick queries' },
+  'cf-qwen':    { tags: ['fast','summary','free'],                     bestFor: 'Fast responses via Cloudflare',                    why: 'Fast chat lane backed by your Cloudflare free models' },
   'cf-deepseek':{ tags: ['reasoning','research','free'],               bestFor: 'Reasoning via Cloudflare — free',                  why: 'DeepSeek reasoning power via your free CF account' },
   groq:         { tags: ['fast','coding','reasoning'],                 bestFor: 'Boosts Llama and Mistral to ultra-fast speeds',    why: 'Groq hardware inference — same models but 10x faster' },
   grok:         { tags: ['web','analysis','creative'],                 bestFor: 'Real-time web awareness and witty replies',        why: 'xAI model with web access — covers current events sharply' },
@@ -7511,7 +7533,7 @@ function _escHtml(str) {
 
 /* Source script block 3 */
 // ── Service Worker Registration ──
-if ('serviceWorker' in navigator) {
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js')
       .then(reg => {
@@ -7528,12 +7550,15 @@ if ('serviceWorker' in navigator) {
       })
       .catch(err => console.warn('[Nexora PWA] SW registration failed:', err));
   });
+} else if (location.protocol === 'file:') {
+  console.info('[Nexora PWA] Service workers are disabled on file:// previews. Use localhost or hosting for full PWA support.');
 }
 
 // ── Install Prompt ──
 let deferredInstallPrompt = null;
 
 window.addEventListener('beforeinstallprompt', e => {
+  if (location.protocol === 'file:') return;
   e.preventDefault();
   deferredInstallPrompt = e;
   // Show banner after 3 seconds if not already installed
@@ -7568,6 +7593,9 @@ function dismissPWABanner() {
 
 // Hide banner if already installed (standalone mode)
 if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+  document.getElementById('pwaInstallBanner')?.classList.remove('show');
+}
+if (location.protocol === 'file:') {
   document.getElementById('pwaInstallBanner')?.classList.remove('show');
 }
 
@@ -7622,10 +7650,10 @@ const STUDY_AI_BASE_OPTIONS = [
   { key: 'qwenbig',  label: 'Qwen3 235B',       color: '#c084fc', shortLabel: 'Qwen3' },
 ];
 const STUDY_AI_CF_OPTIONS = [
-  { key: 'cf-claude',   label: 'CF Claude (Haiku)', color: '#fb923c', shortLabel: 'CF Claude' },
+  { key: 'cf-claude',   label: 'CF Writing Pro',    color: '#fb923c', shortLabel: 'CF Write' },
   { key: 'cf-deepseek', label: 'CF DeepSeek R1',    color: '#fb923c', shortLabel: 'CF DeepSeek' },
   { key: 'cf-llama',    label: 'CF Llama 3.3 70B',  color: '#fb923c', shortLabel: 'CF Llama' },
-  { key: 'cf-qwen',     label: 'CF Qwen 2.5 72B',   color: '#fb923c', shortLabel: 'CF Qwen' },
+  { key: 'cf-qwen',     label: 'CF Fast Chat',      color: '#fb923c', shortLabel: 'CF Fast' },
 ];
 
 function getStudyAIOptions() {
@@ -7650,6 +7678,138 @@ function _refreshStudyAIPickerUI() {
 
 _ensureStudyAIKeyValid();
 
+function _studyBaseTopicLabel(topic) {
+  return topic
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(/[.!?\n]/)[0]
+    .slice(0, 80) || 'this topic';
+}
+
+function _studyExtractPoints(topic) {
+  const cleaned = topic
+    .replace(/\r/g, '\n')
+    .split(/\n+/)
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  const sentenceParts = cleaned.length > 1
+    ? cleaned
+    : topic.split(/(?<=[.!?])\s+|[;•]/);
+
+  const points = sentenceParts
+    .map(s => s.replace(/^[-*]\s*/, '').trim())
+    .filter(s => s.length > 12)
+    .slice(0, 24);
+
+  return points.length ? points : [topic.trim()];
+}
+
+function _studyHint(text) {
+  return text.split(/\s+/).slice(0, 4).join(' ');
+}
+
+function _buildLocalFlashcards(topic, count, lang) {
+  const topicLabel = _studyBaseTopicLabel(topic);
+  const points = _studyExtractPoints(topic);
+  const cards = [];
+
+  if (points.length > 1) {
+    for (let i = 0; i < count; i++) {
+      const point = points[i % points.length];
+      const cardNo = i + 1;
+      let front = `What is key point ${cardNo} about ${topicLabel}?`;
+      let back = point;
+      if (lang === 'bangla') {
+        front = `${topicLabel} সম্পর্কে ${cardNo} নম্বর গুরুত্বপূর্ণ পয়েন্ট কী?`;
+      } else if (lang === 'banglish') {
+        front = `${topicLabel} niye key point ${cardNo} ki?`;
+      }
+      cards.push({
+        front,
+        back,
+        hint: _studyHint(point),
+        tag: topicLabel
+      });
+    }
+    return cards;
+  }
+
+  const templates = lang === 'bangla'
+    ? [
+        ['এই টপিকের সংজ্ঞা কী?', `${topicLabel} এর একটি স্পষ্ট সংজ্ঞা নিজের ভাষায় লিখো।`],
+        ['কেন এটি গুরুত্বপূর্ণ?', `${topicLabel} কেন গুরুত্বপূর্ণ এবং কোথায় ব্যবহার হয় তা ব্যাখ্যা করো।`],
+        ['মূল অংশগুলো কী?', `${topicLabel} এর প্রধান উপাদান বা ধাপগুলো তালিকা করো।`],
+        ['একটি উদাহরণ দাও', `${topicLabel} বোঝাতে একটি সহজ উদাহরণ দাও।`],
+        ['কীভাবে মনে রাখবে?', `${topicLabel} মনে রাখতে 3টি ছোট কিওয়ার্ড ব্যবহার করো।`],
+        ['সাধারণ ভুল কী?', `${topicLabel} পড়ার সময় শিক্ষার্থীরা যে সাধারণ ভুল করে তা লিখো।`],
+      ]
+    : lang === 'banglish'
+      ? [
+          ['Ei topic er definition ki?', `${topicLabel} er short definition nijer moto kore bolo.`],
+          ['Keno important?', `${topicLabel} keno important ar kothay use hoy seta bolo.`],
+          ['Main parts gula ki?', `${topicLabel} er main parts ba steps list koro.`],
+          ['Ekta easy example dao', `${topicLabel} bujhte ekta easy example dao.`],
+          ['Mone rakhbo kivabe?', `${topicLabel} mone rakhte 3ta keyword use koro.`],
+          ['Common mistake ki?', `${topicLabel} porte gele common kon vul hoy?`],
+        ]
+      : [
+          ['What is the definition?', `Write a clear definition of ${topicLabel} in simple words.`],
+          ['Why is it important?', `Explain why ${topicLabel} matters and where it is used.`],
+          ['What are the main parts?', `List the core components or steps of ${topicLabel}.`],
+          ['Give one example', `Give one easy example that explains ${topicLabel}.`],
+          ['How would you remember it?', `Use 3 short keywords to remember ${topicLabel}.`],
+          ['What is a common mistake?', `Describe one common mistake learners make with ${topicLabel}.`],
+        ];
+
+  for (let i = 0; i < count; i++) {
+    const [front, back] = templates[i % templates.length];
+    cards.push({ front, back, hint: _studyHint(back), tag: topicLabel });
+  }
+  return cards;
+}
+
+function _buildLocalQuiz(topic, count, difficulty) {
+  const topicLabel = _studyBaseTopicLabel(topic);
+  const points = _studyExtractPoints(topic);
+  const genericAnswers = [
+    `It defines the basic idea of ${topicLabel}.`,
+    `It explains why ${topicLabel} is useful in practice.`,
+    `It focuses on the main steps or structure of ${topicLabel}.`,
+    `It gives a concrete example of ${topicLabel}.`,
+    `It highlights a common mistake related to ${topicLabel}.`,
+    `It summarises the most important takeaway about ${topicLabel}.`,
+  ];
+  const answerPool = (points.length > 1 ? points : genericAnswers)
+    .map(s => s.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+
+  const questions = [];
+  for (let i = 0; i < count; i++) {
+    const correctText = answerPool[i % answerPool.length];
+    const distractors = answerPool
+      .filter(s => s !== correctText)
+      .slice(0, 3);
+
+    while (distractors.length < 3) {
+      distractors.push(genericAnswers[(i + distractors.length + 1) % genericAnswers.length]);
+    }
+
+    const optionsRaw = [correctText, ...distractors.slice(0, 3)];
+    const rotated = optionsRaw.map((_, idx) => optionsRaw[(idx + i) % optionsRaw.length]);
+    const letters = ['A', 'B', 'C', 'D'];
+    const correctIndex = rotated.indexOf(correctText);
+
+    questions.push({
+      q: `Which statement best matches ${topicLabel}${difficulty === 'hard' ? ' most precisely' : ''}?`,
+      options: rotated.map((opt, idx) => `${letters[idx]}) ${opt}`),
+      correct: letters[correctIndex],
+      explanation: `The best answer is the one that directly matches the study material for ${topicLabel}.`
+    });
+  }
+  return questions;
+}
+
 // ── callStudyAI — lightweight wrapper around the existing OR/Gemini chain
 async function callStudyAI(systemPrompt, userPrompt) {
   _ensureStudyAIKeyValid();
@@ -7660,7 +7820,7 @@ async function callStudyAI(systemPrompt, userPrompt) {
 
   if (chosenMeta?.isCF && _hasCFWorker()) {
     try {
-      const res = await fetch(_getCFWorkerUrl() + '/ai', {
+      const res = await fetchWithTimeout(_getCFWorkerUrl() + '/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -7672,8 +7832,7 @@ async function callStudyAI(systemPrompt, userPrompt) {
           max_tokens: 2200,
           temperature: 0.45,
         }),
-        signal: AbortSignal.timeout(30000),
-      });
+      }, 30000);
       if (res.ok) {
         const d = await res.json();
         const txt = d?.choices?.[0]?.message?.content?.trim();
@@ -7761,7 +7920,7 @@ async function callStudyAI(systemPrompt, userPrompt) {
 
   // Last resort: Pollinations (no key needed) — prefer a model that matches the chosen AI
   try {
-    const res = await fetch('https://text.pollinations.ai/', {
+    const res = await fetchWithTimeout('https://text.pollinations.ai/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -7772,8 +7931,7 @@ async function callStudyAI(systemPrompt, userPrompt) {
           { role: 'user',   content: userPrompt }
         ]
       }),
-      signal: AbortSignal.timeout(20000)
-    });
+    }, 20000);
     if (res.ok) {
       const txt = (await res.text()).trim();
       if (txt) return txt;
@@ -7785,15 +7943,30 @@ async function callStudyAI(systemPrompt, userPrompt) {
 
 // ── Parse JSON safely from AI output ──────────────────────────────────
 function _parseStudyJSON(raw) {
-  // Strip markdown fences
-  let txt = raw.replace(/```json|```/gi, '').trim();
-  // Find first [ or {
+  let txt = String(raw || '').replace(/```json|```/gi, '').trim();
   const arrStart = txt.indexOf('[');
   const objStart = txt.indexOf('{');
-  let start = -1;
-  if (arrStart !== -1 && (objStart === -1 || arrStart < objStart)) start = arrStart;
-  else if (objStart !== -1) start = objStart;
-  if (start > 0) txt = txt.slice(start);
+  const start = arrStart !== -1 && (objStart === -1 || arrStart < objStart) ? arrStart : objStart;
+  if (start === -1) throw new Error('No JSON found');
+  txt = txt.slice(start);
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < txt.length; i++) {
+    const ch = txt[i];
+    if (escaped) { escaped = false; continue; }
+    if (ch === '\\') { escaped = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '[' || ch === '{') depth++;
+    if (ch === ']' || ch === '}') {
+      depth--;
+      if (depth === 0) {
+        return JSON.parse(txt.slice(0, i + 1));
+      }
+    }
+  }
   return JSON.parse(txt);
 }
 
@@ -7932,9 +8105,18 @@ Rules:
   const userPrompt = `Generate exactly ${count} flashcards about: ${topic}`;
 
   try {
-    const raw = await callStudyAI(systemPrompt, userPrompt);
-    fcCards  = _parseStudyJSON(raw);
-    if (!Array.isArray(fcCards) || fcCards.length === 0) throw new Error('Empty array');
+    let raw = null;
+    try {
+      raw = await callStudyAI(systemPrompt, userPrompt);
+      fcCards  = _parseStudyJSON(raw);
+      if (!Array.isArray(fcCards) || fcCards.length === 0) throw new Error('Empty array');
+    } catch(err) {
+      console.warn('Study Mode flashcard AI failed, using local fallback:', err);
+      fcCards = _buildLocalFlashcards(topic, count, lang);
+      _showStudyToast(isTimeoutError(err)
+        ? '⚠️ AI took too long — used smart local cards'
+        : '⚠️ AI unavailable — used smart local cards');
+    }
     // Ensure required fields
     fcCards = fcCards.map(c => ({
       front: c.front || c.question || c.q || '?',
@@ -8146,9 +8328,17 @@ Rules:
   const userPrompt = `Generate ${count} multiple choice questions about: ${topic}`;
 
   try {
-    const raw = await callStudyAI(systemPrompt, userPrompt);
-    quizQuestions = _parseStudyJSON(raw);
-    if (!Array.isArray(quizQuestions) || !quizQuestions.length) throw new Error('Empty');
+    try {
+      const raw = await callStudyAI(systemPrompt, userPrompt);
+      quizQuestions = _parseStudyJSON(raw);
+      if (!Array.isArray(quizQuestions) || !quizQuestions.length) throw new Error('Empty');
+    } catch(err) {
+      console.warn('Study Mode quiz AI failed, using local fallback:', err);
+      quizQuestions = _buildLocalQuiz(topic, count, quizDifficulty);
+      _showStudyToast(isTimeoutError(err)
+        ? '⚠️ AI took too long — used smart local quiz'
+        : '⚠️ AI unavailable — used smart local quiz');
+    }
     quizQuestions = quizQuestions.map(q => ({
       q:           q.q || q.question || '?',
       options:     Array.isArray(q.options) ? q.options : ['A) ?','B) ?','C) ?','D) ?'],

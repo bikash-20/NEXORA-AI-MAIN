@@ -1,9 +1,44 @@
 {
-  "name": "Nexora",
+  "name": "Nexora — Your AI Companion",
   "short_name": "Nexora",
-  "description": "Nexora — Your personal AI companion. Chat, ask, explore.",
+  "description": "Your personal AI companion built by Bikash Talukder",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#0b0f1a",
-  "theme_color": "#7c5cff"
+  "orientation": "portrait",
+  "background_color": "#020617",
+  "theme_color": "#7c5cff",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any monochrome"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ]
 }
