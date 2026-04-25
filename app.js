@@ -2862,6 +2862,14 @@ async function performOCR(file, userQuestion) {
 // Pending image state
 let pendingImageFile = null;
 
+// ── Compare Mode pending image state ──
+let pendingCmpImageFile  = null;   // File object
+let pendingCmpImageB64   = null;   // base64 data-URL (set on preview)
+
+// ── Compare Mode mic state ──
+let cmpMicOn = false;
+let cmpRecognition = null;
+
 function handleImageUpload(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -2894,6 +2902,224 @@ function dismissImagePreview() {
   if (thumb) thumb.src = '';
   const inp = document.getElementById('userInput');
   if (inp)   inp.placeholder = 'Tell Nexora how you feel…';
+}
+
+// ==============================
+//  COMPARE MODE — CAMERA / IMAGE UPLOAD
+// ==============================
+
+/**
+ * Called by the hidden <input id="cmpImgInput"> in the Compare Panel.
+ * Stores the file, reads it as base64, and shows a thumbnail strip.
+ */
+function handleCmpImageUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = ''; // allow re-selecting same file
+
+  pendingCmpImageFile = file;
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    pendingCmpImageB64 = e.target.result; // full data-URL
+
+    // Show preview bar inside Compare Panel
+    const bar   = document.getElementById('cmpImgPreviewBar');
+    const thumb = document.getElementById('cmpImgPreviewThumb');
+    if (bar && thumb) {
+      thumb.src = pendingCmpImageB64;
+      bar.classList.add('active');
+    }
+
+    // Update placeholder so user knows they can add a question
+    const ci = document.getElementById('cmpInput');
+    if (ci) {
+      ci.placeholder = 'Ask all AIs about this image… (or send as-is)';
+      ci.focus();
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+/** Dismisses the pending image in Compare Mode. */
+function dismissCmpImagePreview() {
+  pendingCmpImageFile = null;
+  pendingCmpImageB64  = null;
+
+  const bar   = document.getElementById('cmpImgPreviewBar');
+  const thumb = document.getElementById('cmpImgPreviewThumb');
+  if (bar)   bar.classList.remove('active');
+  if (thumb) thumb.src = '';
+
+  const ci = document.getElementById('cmpInput');
+  if (ci) ci.placeholder = 'Ask all selected AIs the same question…';
+}
+
+/**
+ * Vision runner for a single Compare card.
+ *
+ * Strategy:
+ *   1. Gemini direct key  (if user has one)
+ *   2. callVisionAI()     (Gemini → OpenRouter vision → Pollinations)
+ *   3. OCR fallback       (Tesseract) → send extracted text as normal query
+ *
+ * Non-vision models (Nexora local, CF workers, Groq text models) receive
+ * the OCR-extracted text instead so every card still shows an answer.
+ */
+async function _runCmpVision(imageFile, imageB64, userQuestion, mk, card, qNum, groupAnswers, orKey, history) {
+  const question = userQuestion || 'Analyse this image and explain it clearly.';
+
+  // ── Nexora local — no native vision; use OCR text ──
+  if (mk === 'nexora') {
+    try {
+      const ocrText = await _cmpExtractOCRText(imageFile);
+      const combinedQuery = ocrText
+        ? `[Image content — OCR extracted]: "${ocrText}"\n\n${question}`
+        : question;
+      await _runNexora(combinedQuery, mk, card, qNum, groupAnswers);
+    } catch(e) {
+      _cardError(mk, card, 'Vision/OCR error for Nexora: ' + (e.message || 'unknown'), qNum);
+    }
+    return;
+  }
+
+  const mime = imageB64 ? imageB64.split(';')[0].split(':')[1] || 'image/jpeg' : 'image/jpeg';
+  const b64  = imageB64 ? imageB64.split(',')[1] : null;
+
+  const VISION_SYSTEM = `You are a brilliant AI assistant with expert knowledge across all subjects.
+Analyse the provided image carefully and respond to the user's question.
+If it is a math problem → show full step-by-step solution.
+If it is a diagram → label all parts and explain the concept.
+If it is code → explain what it does and flag any bugs.
+If it is a document/text → read all text and answer based on it.
+Format your reply with clear sections, bold key terms, and numbered steps where needed.`;
+
+  // ── Vision-capable models — send the image directly ──
+  const supportsVision = !CMP_MODELS[mk]?.isCF; // CF Workers don't support vision payloads
+
+  if (supportsVision && b64) {
+    // Build a multimodal message array
+    const visionUserContent = [
+      { type: 'image_url', image_url: { url: `data:${mime};base64,${b64}`, detail: 'high' } },
+      { type: 'text', text: question }
+    ];
+
+    // Premium models — Grok, ChatGPT, Claude, Perplexity
+    if (CMP_MODELS[mk]?.premium) {
+      const key = _getPremiumKey(mk);
+      if (!key) {
+        _cardError(mk, card, `🔑 No API key set for ${CMP_MODELS[mk].label}. Add one via the 🔑 button.`, qNum);
+        return;
+      }
+      try {
+        let reply = null;
+        if (mk === 'chatgpt') {
+          const messages = [
+            { role: 'system', content: VISION_SYSTEM },
+            { role: 'user', content: visionUserContent }
+          ];
+          reply = await _callOpenAICompat('https://api.openai.com/v1/chat/completions', key, 'gpt-4o-mini', messages);
+        } else if (mk === 'claude_ai') {
+          // Anthropic vision format
+          const res = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+              'x-api-key': key,
+              'anthropic-version': '2023-06-01',
+              'content-type': 'application/json',
+              'anthropic-dangerous-direct-browser-access': 'true',
+            },
+            body: JSON.stringify({
+              model: 'claude-sonnet-4-5',
+              max_tokens: 1200,
+              system: VISION_SYSTEM,
+              messages: [{
+                role: 'user',
+                content: [
+                  { type: 'image', source: { type: 'base64', media_type: mime, data: b64 } },
+                  { type: 'text', text: question }
+                ]
+              }]
+            })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            reply = data?.content?.[0]?.text?.trim() || null;
+          }
+        } else if (mk === 'grok') {
+          // xAI Grok vision — use OpenAI-compat with vision content
+          const messages = [
+            { role: 'system', content: VISION_SYSTEM },
+            { role: 'user', content: visionUserContent }
+          ];
+          for (const gModel of ['grok-2-vision-1212', 'grok-2-1212', 'grok-beta']) {
+            try {
+              reply = await _callOpenAICompat('https://api.x.ai/v1/chat/completions', key, gModel, messages);
+              if (reply) break;
+            } catch(e2) { if (e2.message.includes('401')) break; }
+          }
+        } else {
+          // Perplexity — no vision; fall through to OCR text
+          reply = null;
+        }
+
+        if (reply) { _cardSuccess(mk, card, reply, false, qNum); groupAnswers[mk] = reply; return; }
+        // Vision call failed → fall through to OCR text path
+      } catch(e) {
+        const msg = e.message || '';
+        if (msg.includes('401') || msg.includes('Unauthorized')) {
+          _cardError(mk, card, `❌ Invalid API key for ${CMP_MODELS[mk].label}.`, qNum);
+          return;
+        }
+        // Other error → fall through to OCR
+      }
+    } else {
+      // Free models — try Gemini direct key first, then OpenRouter vision, then Pollinations
+      try {
+        const visionReply = await callVisionAI(imageFile, question);
+        if (visionReply) {
+          _cardSuccess(mk, card, visionReply, false, qNum);
+          groupAnswers[mk] = visionReply;
+          return;
+        }
+      } catch(e) { /* fall through to OCR */ }
+    }
+  }
+
+  // ── Fallback: OCR → send extracted text as a text query ──
+  try {
+    _cardError(mk, card, '🔄 Vision API busy — extracting text from image…', qNum);
+    const ocrText = await _cmpExtractOCRText(imageFile);
+    if (!ocrText) {
+      _cardError(mk, card, '😓 Could not read image content. Try a clearer photo or Online Mode.', qNum);
+      return;
+    }
+    const fallbackQuery = `[Extracted from image]: "${ocrText}"\n\n${question}`;
+    // Re-route through the normal text runner for this model
+    if (CMP_MODELS[mk]?.isCF) {
+      await _runCF(fallbackQuery, mk, card, qNum, groupAnswers, history);
+    } else if (CMP_MODELS[mk]?.premium) {
+      await _runPremium(fallbackQuery, mk, card, qNum, groupAnswers, history);
+    } else {
+      await _runWithBridge(fallbackQuery, mk, card, qNum, groupAnswers, orKey, history);
+    }
+  } catch(e) {
+    _cardError(mk, card, '⚠️ Vision fallback error: ' + (e.message || 'unknown'), qNum);
+  }
+}
+
+/**
+ * Lightweight OCR helper — uses Tesseract if available, otherwise returns null.
+ * Returns plain extracted text string (or null on failure).
+ */
+async function _cmpExtractOCRText(file) {
+  try {
+    await ensureTesseract();
+    const { data: { text } } = await window.Tesseract.recognize(file, 'eng', { logger: () => {} });
+    return text.replace(/\n+/g, ' ').trim() || null;
+  } catch(e) {
+    return null;
+  }
 }
 
 // ==============================
@@ -5519,11 +5745,173 @@ function openComparePanel() {
   _refreshAllChipStates();
   _updateSelectorBar();
   renderAISheet();
+
+  // ── Inject camera button + image preview bar (idempotent) ──
+  _injectCmpCameraUI();
+
   setTimeout(() => { const ci = document.getElementById('cmpInput'); if (ci) ci.focus(); }, 80);
 }
 function closeComparePanel() {
   document.getElementById('comparePanel').classList.remove('open');
   closeKeyModal();
+}
+
+// ── Build camera button + mic button + export button + image preview bar (idempotent) ──
+function _injectCmpCameraUI() {
+  // Guard: already injected
+  if (document.getElementById('cmpImgInput')) return;
+
+  const panel = document.getElementById('comparePanel');
+  if (!panel) return;
+
+  // ── 1. Hidden file input ──
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.id   = 'cmpImgInput';
+  fileInput.accept = 'image/*';
+  fileInput.style.display = 'none';
+  fileInput.addEventListener('change', handleCmpImageUpload);
+  panel.appendChild(fileInput);
+
+  // ── 2. All new CSS (camera, mic, vote, diff, export) ──
+  const style = document.createElement('style');
+  style.textContent = `
+    /* ── Image preview bar ── */
+    #cmpImgPreviewBar { display: none; align-items: center; gap: 10px;
+      padding: 8px 14px;
+      background: rgba(124,92,255,0.08);
+      border-top: 1px solid rgba(124,92,255,0.18);
+      border-bottom: 1px solid rgba(124,92,255,0.12); }
+    #cmpImgPreviewBar.active { display: flex !important; }
+    #cmpImgPreviewThumb { width:52px; height:52px; object-fit:cover;
+      border-radius:10px; border:1px solid rgba(124,92,255,0.35); flex-shrink:0; }
+    #cmpImgPreviewLabel { flex:1; font-size:12px; color:var(--text2);
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    #cmpImgDismissBtn { background:none; border:none; cursor:pointer;
+      font-size:18px; color:var(--text3); line-height:1; padding:4px;
+      border-radius:6px; transition:color 0.2s; }
+    #cmpImgDismissBtn:hover { color:#f87171; }
+
+    /* ── Camera & Mic buttons (input row) ── */
+    #cmpCameraBtn, #cmpMicBtn {
+      background:none; border:none; cursor:pointer; font-size:20px;
+      padding:0 5px; line-height:1; color:var(--text3);
+      transition:color 0.2s, transform 0.15s; flex-shrink:0; }
+    #cmpCameraBtn:hover, #cmpMicBtn:hover { color:var(--accent); transform:scale(1.15); }
+    #cmpCameraBtn.has-image { color:var(--accent); }
+    #cmpMicBtn.active { color:#f87171; animation:mic-pulse 1s infinite; }
+    @keyframes mic-pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+    /* ── Export button (panel header area) ── */
+    #cmpExportBtn {
+      background:none; border:1px solid rgba(124,92,255,0.25); cursor:pointer;
+      font-size:11px; color:var(--text2); padding:4px 9px; border-radius:8px;
+      transition:all 0.2s; white-space:nowrap; }
+    #cmpExportBtn:hover { background:rgba(124,92,255,0.12); color:var(--accent); border-color:var(--accent); }
+
+    /* ── Vote buttons ── */
+    .cmp-vote-wrap { display:inline-flex; align-items:center; gap:3px; margin-left:6px; }
+    .cmp-vote-btn  { background:none; border:none; cursor:pointer; font-size:14px;
+      opacity:0.45; transition:opacity 0.15s, transform 0.15s; line-height:1; padding:1px 2px; }
+    .cmp-vote-btn:hover { opacity:1; transform:scale(1.2); }
+    .cmp-vote-btn.active { opacity:1; }
+    .cmp-vote-tally { font-size:11px; opacity:0.7; }
+    .cmp-vote-lifetime { margin-left:4px; font-size:10px; opacity:0.45;
+      padding:1px 5px; border-radius:5px; background:rgba(255,255,255,0.05); }
+
+    /* ── Auto-Diff card ── */
+    .cmp-diff-card {
+      background: rgba(14,20,36,0.7);
+      border: 1px solid rgba(34,211,238,0.2);
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin-top: 10px;
+    }
+    .cmp-diff-header { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+    .cmp-diff-title  { font-size:13px; font-weight:700; color:#67e8f9; }
+    .cmp-diff-sub    { font-size:11px; color:var(--text3); }
+    .cmp-diff-body   { display:flex; flex-direction:column; gap:8px; }
+    .diff-row        { display:flex; gap:10px; font-size:12px; line-height:1.5; }
+    .diff-label      { font-weight:700; font-size:11px; color:var(--text2);
+      white-space:nowrap; min-width:90px; padding-top:1px; }
+    .diff-text       { color:var(--text1); flex:1; }
+    .diff-agree   .diff-label { color:#6ee7b7; }
+    .diff-disagree .diff-label{ color:#fca5a5; }
+    .diff-unique  .diff-label { color:#a78bfa; }
+    .diff-best    .diff-label { color:#fcd34d; }
+  `;
+  document.head.appendChild(style);
+
+  // ── 3. Image preview bar ──
+  const previewBar = document.createElement('div');
+  previewBar.id = 'cmpImgPreviewBar';
+
+  const thumb = document.createElement('img');
+  thumb.id = 'cmpImgPreviewThumb';
+  thumb.alt = 'image preview';
+
+  const label = document.createElement('span');
+  label.id = 'cmpImgPreviewLabel';
+  label.textContent = 'Image ready — type a question or send as-is';
+
+  const dismissBtn = document.createElement('button');
+  dismissBtn.id = 'cmpImgDismissBtn';
+  dismissBtn.textContent = '✕';
+  dismissBtn.title = 'Remove image';
+  dismissBtn.addEventListener('click', dismissCmpImagePreview);
+
+  previewBar.appendChild(thumb);
+  previewBar.appendChild(label);
+  previewBar.appendChild(dismissBtn);
+
+  // ── 4. Wire into the Compare Panel input row ──
+  const cmpInput = document.getElementById('cmpInput');
+  if (cmpInput) {
+    const inputRow = cmpInput.parentElement;
+
+    // Insert preview bar before the input row
+    inputRow.parentElement.insertBefore(previewBar, inputRow);
+
+    // 📷 Camera button
+    const camBtn = document.createElement('button');
+    camBtn.id    = 'cmpCameraBtn';
+    camBtn.title = 'Upload image — ask all AIs about it';
+    camBtn.textContent = '📷';
+    camBtn.addEventListener('click', () => document.getElementById('cmpImgInput').click());
+    inputRow.insertBefore(camBtn, inputRow.firstChild);
+
+    // 🎤 Mic button (after camera)
+    const micBtn = document.createElement('button');
+    micBtn.id    = 'cmpMicBtn';
+    micBtn.title = 'Speak your question';
+    micBtn.textContent = '🎤';
+    micBtn.addEventListener('click', toggleCmpMic);
+    inputRow.insertBefore(micBtn, camBtn.nextSibling);
+  }
+
+  // ── 5. Export button — inject near the compare panel header ──
+  // Try to find the panel header / clear button area to inject near it
+  const clearBtn = panel.querySelector('[onclick*="clearCompareChat"], button[class*="clear"]');
+  if (clearBtn) {
+    const exportBtn = document.createElement('button');
+    exportBtn.id = 'cmpExportBtn';
+    exportBtn.textContent = '📄 Export';
+    exportBtn.title = 'Download this comparison as Markdown';
+    exportBtn.addEventListener('click', exportComparison);
+    clearBtn.parentElement.insertBefore(exportBtn, clearBtn.nextSibling);
+  } else {
+    // Fallback: inject at the top of the results area
+    const resultsEl = document.getElementById('cmpResults');
+    if (resultsEl) {
+      const exportBtn = document.createElement('button');
+      exportBtn.id = 'cmpExportBtn';
+      exportBtn.textContent = '📄 Export';
+      exportBtn.title = 'Download this comparison as Markdown';
+      exportBtn.style.cssText = 'display:block;margin:8px auto;';
+      exportBtn.addEventListener('click', exportComparison);
+      resultsEl.parentElement.insertBefore(exportBtn, resultsEl);
+    }
+  }
 }
 
 // ── Chip state management ──
@@ -5956,7 +6344,15 @@ async function sendCompare() {
   if (cmpIsRunning) return;
   const inp   = document.getElementById('cmpInput');
   const query = inp.value.trim();
-  if (!query) return;
+
+  // ── Image-only send is allowed (no text required) ──
+  const hasImage = !!(pendingCmpImageFile && pendingCmpImageB64);
+  if (!query && !hasImage) return;
+
+  // Capture and clear image state before going async
+  const imageFile = pendingCmpImageFile;
+  const imageB64  = pendingCmpImageB64;
+  if (hasImage) dismissCmpImagePreview();
 
   inp.value = ''; inp.style.height = '';
   inp.disabled = true; // disable during fetch
@@ -5970,7 +6366,7 @@ async function sendCompare() {
 
   // Snapshot answers for THIS group (closure-isolated)
   const groupAnswers = {};
-  const groupQuery   = query;
+  const groupQuery   = query || '(image)';
 
   const orKey     = _cmpGetKey();
   const resultsEl = document.getElementById('cmpResults');
@@ -5983,9 +6379,15 @@ async function sendCompare() {
   group.className = 'cmp-group';
   resultsEl.appendChild(group);
 
+  // Question header — show image thumbnail if present
   const qDiv = document.createElement('div');
   qDiv.className = 'cmp-q-header';
-  qDiv.innerHTML = `<span class="cmp-q-label"><span class="cmp-q-num">Q${qNum}</span> Your Question</span>${_escHtml(query)}`;
+  let qHeaderHTML = `<span class="cmp-q-label"><span class="cmp-q-num">Q${qNum}</span> Your Question</span>`;
+  if (hasImage) {
+    qHeaderHTML += `<div class="cmp-q-img-wrap"><img src="${imageB64}" class="cmp-q-thumb" alt="uploaded image"></div>`;
+  }
+  if (query) qHeaderHTML += `<div class="cmp-q-text">${_escHtml(query)}</div>`;
+  qDiv.innerHTML = qHeaderHTML;
   group.appendChild(qDiv);
 
   // ── Build cards ──
@@ -6003,7 +6405,7 @@ async function sendCompare() {
           <span class="cmp-model-label" style="color:${meta.color}">${meta.label}</span>
           <span class="cmp-specialty-badge ${meta.specialtyClass}">${meta.specialty}</span>
         </div>
-        <span class="cmp-status" id="cmpStatus-${mk}-${qNum}">⏳ Thinking…</span>
+        <span class="cmp-status" id="cmpStatus-${mk}-${qNum}">${hasImage ? '📷 Analysing…' : '⏳ Thinking…'}</span>
       </div>
       <div class="cmp-card-body" id="cmpBody-${mk}-${qNum}">
         <div class="dot"></div><div class="dot"></div><div class="dot"></div>
@@ -6017,6 +6419,11 @@ async function sendCompare() {
   const promises = [...cmpActiveModels]
     .filter(mk => !CMP_MODELS[mk]?.isKeyBooster) // skip Groq key chip — it just powers other models
     .map(mk => {
+      if (hasImage) {
+        // Vision path — handles its own routing per model
+        return _runCmpVision(imageFile, imageB64, query, mk, cards[mk], qNum, groupAnswers, orKey, historySlice);
+      }
+      // Normal text path
       if (mk === 'nexora')  return _runNexora(query, mk, cards[mk], qNum, groupAnswers);
       if (CMP_MODELS[mk]?.isCF) return _runCF(query, mk, cards[mk], qNum, groupAnswers, historySlice);
       if (CMP_MODELS[mk]?.premium) return _runPremium(query, mk, cards[mk], qNum, groupAnswers, historySlice);
@@ -6024,6 +6431,14 @@ async function sendCompare() {
     });
 
   await Promise.allSettled(promises);
+
+  // ── Inject vote buttons into every card that responded ──
+  _injectVoteButtons(qNum);
+
+  // ── Auto-diff: run in background — doesn't block UI ──
+  if (Object.keys(groupAnswers).length >= 2) {
+    runAutoDiff(groupAnswers, groupQuery, group, qNum); // intentionally not awaited
+  }
 
   // ── Add isolated verdict button for THIS group ──
   if (Object.keys(groupAnswers).length >= 2) {
@@ -6550,6 +6965,391 @@ function cmpCopyText(btn, mk, qNum) {
   if (!b) return;
   navigator.clipboard.writeText(b.dataset.raw || b.textContent)
     .then(() => { btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy'; }, 1800); });
+}
+
+// ══════════════════════════════════════════════════════════════
+//  FEATURE: EXPORT COMPARISON
+//  One-click download of the full compare session as Markdown
+// ══════════════════════════════════════════════════════════════
+function exportComparison() {
+  const resultsEl = document.getElementById('cmpResults');
+  if (!resultsEl) return;
+
+  const groups = resultsEl.querySelectorAll('.cmp-group');
+  if (!groups.length) {
+    _showKeyToast('⚠️ Nothing to export yet — ask a question first!');
+    return;
+  }
+
+  let md = `# Nexora AI Compare — Session Export\n`;
+  md += `**Date:** ${new Date().toLocaleString()}\n`;
+  md += `**Models:** ${[...cmpActiveModels].map(mk => CMP_MODELS[mk]?.label || mk).join(', ')}\n\n`;
+  md += `---\n\n`;
+
+  groups.forEach((group, gi) => {
+    // Question header
+    const qHeader = group.querySelector('.cmp-q-header');
+    const qText   = group.querySelector('.cmp-q-text');
+    const qNum    = gi + 1;
+    const question = qText ? qText.textContent.trim() : (qHeader ? qHeader.textContent.replace(/Q\d+\s*Your Question/,'').trim() : '');
+    md += `## Q${qNum}: ${question || '(image question)'}\n\n`;
+
+    // Each model card
+    group.querySelectorAll('.cmp-card').forEach(card => {
+      const mk      = card.dataset.modelKey;
+      const label   = CMP_MODELS[mk]?.label || mk || 'AI';
+      const bodyEl  = card.querySelector('[id^="cmpBody-"]');
+      const answer  = bodyEl ? (bodyEl.dataset.raw || bodyEl.innerText || bodyEl.textContent).trim() : '(no answer)';
+      // Vote tally
+      const voteEl  = card.querySelector('.cmp-vote-tally');
+      const votes   = voteEl ? ' ' + voteEl.textContent.trim() : '';
+
+      md += `### ${CMP_MODELS[mk]?.icon || '🤖'} ${label}${votes}\n\n`;
+      md += answer + '\n\n';
+      md += `---\n\n`;
+    });
+
+    // Verdict card if present
+    const verdictBody = group.querySelector('.vd-body');
+    if (verdictBody) {
+      md += `### 🏆 Final Verdict\n\n`;
+      md += verdictBody.innerText.trim() + '\n\n';
+      md += `---\n\n`;
+    }
+
+    // Auto-diff card if present
+    const diffBody = group.querySelector('.cmp-diff-body');
+    if (diffBody) {
+      md += `### 📊 Auto-Diff\n\n`;
+      md += diffBody.innerText.trim() + '\n\n';
+      md += `---\n\n`;
+    }
+  });
+
+  const blob = new Blob([md], { type: 'text/markdown' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = `nexora-compare-${Date.now()}.md`;
+  a.click();
+  _showKeyToast('📄 Comparison exported!');
+}
+
+// ══════════════════════════════════════════════════════════════
+//  FEATURE: VOTE / FEEDBACK PER ANSWER
+//  👍 / 👎 per card, persisted in localStorage per model+topic
+// ══════════════════════════════════════════════════════════════
+const LS_VOTES = 'nexora_cmp_votes';
+
+function _loadVotes() {
+  try { return JSON.parse(localStorage.getItem(LS_VOTES) || '{}'); } catch(e) { return {}; }
+}
+function _saveVotes(data) {
+  try { localStorage.setItem(LS_VOTES, JSON.stringify(data)); } catch(e) {}
+}
+
+/**
+ * Called when the user taps 👍 or 👎 on a card.
+ * @param {string} mk    - model key
+ * @param {number} qNum  - question number (used for DOM IDs)
+ * @param {number} val   - +1 (up) or -1 (down)
+ */
+function cmpVote(mk, qNum, val) {
+  // Update DOM
+  const upBtn   = document.getElementById(`cmpVoteUp-${mk}-${qNum}`);
+  const downBtn = document.getElementById(`cmpVoteDown-${mk}-${qNum}`);
+  const tally   = document.getElementById(`cmpVoteTally-${mk}-${qNum}`);
+  if (!upBtn || !downBtn || !tally) return;
+
+  const alreadyUp   = upBtn.classList.contains('active');
+  const alreadyDown = downBtn.classList.contains('active');
+
+  // Toggle logic — clicking active button removes vote
+  let effective = val;
+  if (val === 1  && alreadyUp)   effective = 0;
+  if (val === -1 && alreadyDown) effective = 0;
+
+  upBtn.classList.toggle('active',   effective === 1);
+  downBtn.classList.toggle('active', effective === -1);
+
+  const emoji = effective === 1 ? '👍' : effective === -1 ? '👎' : '';
+  tally.textContent = emoji;
+
+  // Persist — keyed by model, accumulate thumbs-up count
+  const votes = _loadVotes();
+  if (!votes[mk]) votes[mk] = { up: 0, down: 0 };
+  // Remove previous vote for this question if any
+  const prevKey = `q_${qNum}_${mk}`;
+  if (votes[prevKey]) {
+    if (votes[prevKey] === 1)  votes[mk].up   = Math.max(0, (votes[mk].up   || 0) - 1);
+    if (votes[prevKey] === -1) votes[mk].down = Math.max(0, (votes[mk].down || 0) - 1);
+  }
+  if (effective !== 0) {
+    votes[prevKey] = effective;
+    if (effective === 1)  votes[mk].up   = (votes[mk].up   || 0) + 1;
+    if (effective === -1) votes[mk].down = (votes[mk].down || 0) + 1;
+  } else {
+    delete votes[prevKey];
+  }
+  _saveVotes(votes);
+
+  // Micro-toast
+  if (effective === 1)  _showKeyToast(`👍 ${CMP_MODELS[mk]?.label || mk} marked helpful!`);
+  if (effective === -1) _showKeyToast(`👎 ${CMP_MODELS[mk]?.label || mk} marked unhelpful.`);
+}
+
+/**
+ * Returns a short stats string for a model, e.g. "👍 12  👎 3"
+ */
+function _getVoteStats(mk) {
+  const votes = _loadVotes();
+  const d = votes[mk];
+  if (!d) return '';
+  const parts = [];
+  if (d.up)   parts.push(`👍 ${d.up}`);
+  if (d.down) parts.push(`👎 ${d.down}`);
+  return parts.join('  ');
+}
+
+/**
+ * Injects vote buttons into every loaded card for a given question group.
+ * Called at the end of sendCompare after all cards succeed/fail.
+ */
+function _injectVoteButtons(qNum) {
+  [...cmpActiveModels].forEach(mk => {
+    if (CMP_MODELS[mk]?.isKeyBooster) return;
+    const sEl = document.getElementById(`cmpStatus-${mk}-${qNum}`);
+    if (!sEl) return;
+    // Don't double-inject
+    if (sEl.querySelector('.cmp-vote-wrap')) return;
+
+    const stats = _getVoteStats(mk);
+    const wrap  = document.createElement('span');
+    wrap.className = 'cmp-vote-wrap';
+    wrap.innerHTML = `
+      <button class="cmp-vote-btn up"   id="cmpVoteUp-${mk}-${qNum}"   onclick="cmpVote('${mk}',${qNum},1)"  title="Helpful">👍</button>
+      <button class="cmp-vote-btn down" id="cmpVoteDown-${mk}-${qNum}" onclick="cmpVote('${mk}',${qNum},-1)" title="Not helpful">👎</button>
+      <span   class="cmp-vote-tally"   id="cmpVoteTally-${mk}-${qNum}"></span>`;
+
+    // Append a tiny lifetime stats badge to the card header
+    const card = document.querySelector(`[data-model-key="${mk}"] .cmp-card-head, .cmp-card[data-model-key="${mk}"] .cmp-card-head`);
+    sEl.appendChild(wrap);
+
+    // Show cumulative stats in a small badge on the card header
+    if (stats) {
+      const statBadge = document.createElement('span');
+      statBadge.className = 'cmp-vote-tally cmp-vote-lifetime';
+      statBadge.title = 'All-time votes for this model';
+      statBadge.textContent = stats;
+      sEl.appendChild(statBadge);
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+//  FEATURE: AUTO-DIFF SUMMARY
+//  After all answers load, show "Where they agree / disagree"
+//  Uses a cheap model (or heuristics if offline)
+// ══════════════════════════════════════════════════════════════
+
+/**
+ * Builds and appends the Auto-Diff card to a group.
+ * Triggered automatically in sendCompare when ≥2 models responded.
+ */
+async function runAutoDiff(groupAnswers, groupQuery, group, qNum) {
+  if (Object.keys(groupAnswers).length < 2) return;
+
+  // ── Create placeholder card immediately ──
+  const diffCard = document.createElement('div');
+  diffCard.className = 'cmp-diff-card';
+  diffCard.innerHTML = `
+    <div class="cmp-diff-header">
+      <span class="cmp-diff-title">📊 Auto-Diff</span>
+      <span class="cmp-diff-sub">Analysing agreement…</span>
+    </div>
+    <div class="cmp-diff-body" id="cmpDiff-${qNum}">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+    </div>`;
+  group.appendChild(diffCard);
+
+  const bodyEl = document.getElementById(`cmpDiff-${qNum}`);
+
+  // ── Build prompt ──
+  const answerBlock = Object.entries(groupAnswers)
+    .map(([mk, ans]) => `[${CMP_MODELS[mk]?.label || mk}]:\n${ans.slice(0, 600)}`)
+    .join('\n\n---\n\n');
+
+  const diffPrompt =
+`Question asked: "${groupQuery}"
+
+AI responses:
+${answerBlock}
+
+Analyse these responses and reply in EXACTLY this format (plain text, no markdown):
+
+AGREE: [1-2 sentences: what all/most models agreed on]
+DISAGREE: [1-2 sentences: where they differed or contradicted each other. If no real disagreement, write "All models aligned on this topic."]
+UNIQUE: [Which model added a unique point the others missed, and what was it. If none, write "No unique additions noted."]
+BEST: [Name of the model whose answer was clearest/most complete and why — 1 sentence]
+
+Be concise. Total response under 100 words.`;
+
+  let diff = null;
+
+  // ── Try AI (OR key → Pollinations) ──
+  const orKey = _cmpGetKey();
+  if (orKey && orKey.startsWith('sk-or-')) {
+    for (const model of [VERDICT_MODEL, VERDICT_FALLBACK]) {
+      try {
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + orKey, 'Content-Type': 'application/json',
+                     'HTTP-Referer': window.location.origin || 'https://nexora.app', 'X-Title': 'Nexora AutoDiff' },
+          body: JSON.stringify({ model, max_tokens: 220, temperature: 0.25,
+            messages: [{ role: 'user', content: diffPrompt }] })
+        });
+        if (!res.ok) continue;
+        const data = await res.json();
+        diff = data?.choices?.[0]?.message?.content?.trim();
+        if (diff) break;
+      } catch(e) { continue; }
+    }
+  }
+
+  // Pollinations fallback
+  if (!diff) {
+    try {
+      const res = await fetch('https://text.pollinations.ai/', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'openai', seed: 77, messages: [{ role: 'user', content: diffPrompt }] })
+      });
+      if (res.ok) diff = (await res.text()).trim() || null;
+    } catch(e) {}
+  }
+
+  // ── Heuristic offline fallback ──
+  if (!diff) {
+    diff = _localAutoDiff(groupAnswers);
+  }
+
+  // ── Render ──
+  if (!bodyEl) return;
+
+  if (diff) {
+    // Parse the structured sections
+    const sections = _parseDiffSections(diff);
+    bodyEl.innerHTML = sections.map(s => `
+      <div class="diff-row">
+        <span class="diff-label">${s.label}</span>
+        <span class="diff-text">${_escHtml(s.text)}</span>
+      </div>`).join('');
+  } else {
+    bodyEl.innerHTML = `<span style="color:var(--text3);font-size:12px">Could not generate diff — try again in a moment.</span>`;
+  }
+}
+
+/** Parse "AGREE: ...\nDISAGREE: ...\nUNIQUE: ...\nBEST: ..." into labelled sections */
+function _parseDiffSections(raw) {
+  const labelMap = {
+    'AGREE':     { emoji: '✅', cls: 'diff-agree'    },
+    'DISAGREE':  { emoji: '⚡', cls: 'diff-disagree' },
+    'UNIQUE':    { emoji: '💡', cls: 'diff-unique'   },
+    'BEST':      { emoji: '🏅', cls: 'diff-best'     },
+  };
+  const results = [];
+  for (const [key, meta] of Object.entries(labelMap)) {
+    const re = new RegExp(`${key}\\s*:\\s*(.+?)(?=\\n[A-Z]+:|$)`, 'si');
+    const m  = raw.match(re);
+    if (m && m[1].trim()) {
+      results.push({ label: `${meta.emoji} ${key}`, text: m[1].trim(), cls: meta.cls });
+    }
+  }
+  // If parsing found nothing, show raw text in one block
+  if (!results.length) {
+    results.push({ label: '📊 Analysis', text: raw.trim(), cls: '' });
+  }
+  return results;
+}
+
+/** Pure heuristic diff — no AI needed, works offline */
+function _localAutoDiff(groupAnswers) {
+  const entries  = Object.entries(groupAnswers);
+  const lengths  = entries.map(([mk, ans]) => ({ mk, len: ans.split(/\s+/).length }));
+  const longest  = lengths.reduce((a, b) => a.len > b.len ? a : b);
+  const shortest = lengths.reduce((a, b) => a.len < b.len ? a : b);
+
+  // Simple word-overlap check for agreement signal
+  const wordSets  = entries.map(([mk, ans]) => new Set(ans.toLowerCase().replace(/[^a-z\s]/g,'').split(/\s+/).filter(w => w.length > 4)));
+  const allWords  = [...wordSets[0]].filter(w => wordSets.every(s => s.has(w)));
+  const agreeRate = allWords.length / Math.max(...wordSets.map(s => s.size), 1);
+  const agreeDesc = agreeRate > 0.3
+    ? 'Models largely agreed on the core concepts.'
+    : 'Models took noticeably different angles on this topic.';
+
+  const bestLabel = CMP_MODELS[longest.mk]?.label || longest.mk;
+  const worstLabel = CMP_MODELS[shortest.mk]?.label || shortest.mk;
+
+  return `AGREE: ${agreeDesc}
+DISAGREE: ${worstLabel} gave a shorter answer — may have missed some detail.
+UNIQUE: ${bestLabel} provided the most comprehensive response (${longest.len} words).
+BEST: ${bestLabel} — most complete answer based on response length and depth.`;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  FEATURE: VOICE MIC BUTTON IN COMPARE
+//  Speaks → populates cmpInput → fires sendCompare
+// ══════════════════════════════════════════════════════════════
+
+function toggleCmpMic() {
+  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+    _showKeyToast('⚠️ Voice not supported in this browser. Try Chrome or Edge.');
+    return;
+  }
+
+  if (cmpMicOn) {
+    _stopCmpMic();
+    return;
+  }
+
+  const micBtn = document.getElementById('cmpMicBtn');
+  if (micBtn) micBtn.classList.add('active');
+  cmpMicOn = true;
+  _showKeyToast('🎤 Listening… speak your question');
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  cmpRecognition = new SR();
+  cmpRecognition.lang = 'en-US';
+  cmpRecognition.interimResults = false;
+  cmpRecognition.continuous     = false;
+
+  cmpRecognition.onresult = e => {
+    const text = e.results[0][0].transcript;
+    _stopCmpMic();
+    const ci = document.getElementById('cmpInput');
+    if (ci) {
+      ci.value = text;
+      ci.style.height = 'auto';
+      ci.style.height = Math.min(ci.scrollHeight, 80) + 'px';
+    }
+    // Auto-send
+    setTimeout(sendCompare, 120);
+  };
+
+  cmpRecognition.onerror = err => {
+    _stopCmpMic();
+    if (err.error === 'not-allowed') {
+      _showKeyToast('🎤 Mic access denied — allow it in browser settings.');
+    }
+  };
+
+  cmpRecognition.onend = () => _stopCmpMic();
+  cmpRecognition.start();
+}
+
+function _stopCmpMic() {
+  cmpMicOn = false;
+  if (cmpRecognition) { try { cmpRecognition.stop(); } catch(e) {} cmpRecognition = null; }
+  const micBtn = document.getElementById('cmpMicBtn');
+  if (micBtn) micBtn.classList.remove('active');
 }
 
 
