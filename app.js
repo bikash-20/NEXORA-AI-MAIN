@@ -5776,12 +5776,14 @@ function _injectCmpCameraUI() {
   // ── 2. All new CSS (camera, mic, vote, diff, export) ──
   const style = document.createElement('style');
   style.textContent = `
-    /* ── Image preview bar ── */
-    #cmpImgPreviewBar { display: none; align-items: center; gap: 10px;
-      padding: 8px 14px;
+    /* ── Image preview bar — full-width strip sitting above #cmpInputBar ── */
+    #cmpImgPreviewBar {
+      display: none; align-items: center; gap: 10px;
+      padding: 8px 14px; flex-shrink: 0; width: 100%;
       background: rgba(124,92,255,0.08);
       border-top: 1px solid rgba(124,92,255,0.18);
-      border-bottom: 1px solid rgba(124,92,255,0.12); }
+      border-bottom: 1px solid rgba(124,92,255,0.12);
+      box-sizing: border-box; }
     #cmpImgPreviewBar.active { display: flex !important; }
     #cmpImgPreviewThumb { width:52px; height:52px; object-fit:cover;
       border-radius:10px; border:1px solid rgba(124,92,255,0.35); flex-shrink:0; }
@@ -5792,22 +5794,25 @@ function _injectCmpCameraUI() {
       border-radius:6px; transition:color 0.2s; }
     #cmpImgDismissBtn:hover { color:#f87171; }
 
-    /* ── Camera & Mic buttons (input row) ── */
+    /* ── Camera & Mic buttons — direct flex items in #cmpInputBar ── */
     #cmpCameraBtn, #cmpMicBtn {
-      background:none; border:none; cursor:pointer; font-size:20px;
-      padding:0 5px; line-height:1; color:var(--text3);
-      transition:color 0.2s, transform 0.15s; flex-shrink:0; }
-    #cmpCameraBtn:hover, #cmpMicBtn:hover { color:var(--accent); transform:scale(1.15); }
-    #cmpCameraBtn.has-image { color:var(--accent); }
-    #cmpMicBtn.active { color:#f87171; animation:mic-pulse 1s infinite; }
+      width:36px; height:36px; border-radius:12px;
+      background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);
+      cursor:pointer; font-size:18px; line-height:1; color:var(--text3);
+      transition:color 0.2s, transform 0.15s, background 0.15s;
+      flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+    #cmpCameraBtn:hover, #cmpMicBtn:hover {
+      color:var(--accent); background:rgba(124,92,255,0.12); transform:scale(1.05); }
+    #cmpCameraBtn.has-image { color:var(--accent); background:rgba(124,92,255,0.15); border-color:rgba(124,92,255,0.4); }
+    #cmpMicBtn.active { color:#f87171; background:rgba(248,113,113,0.1); border-color:rgba(248,113,113,0.3); animation:mic-pulse 1s infinite; }
     @keyframes mic-pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
 
-    /* ── Export button (panel header area) ── */
+    /* ── Export button — lives in .cmp-header, styled like the close button ── */
     #cmpExportBtn {
       background:none; border:1px solid rgba(124,92,255,0.25); cursor:pointer;
-      font-size:11px; color:var(--text2); padding:4px 9px; border-radius:8px;
-      transition:all 0.2s; white-space:nowrap; }
-    #cmpExportBtn:hover { background:rgba(124,92,255,0.12); color:var(--accent); border-color:var(--accent); }
+      font-size:11px; color:var(--text2); padding:5px 10px; border-radius:10px;
+      font-family:'DM Sans',sans-serif; transition:all 0.2s; white-space:nowrap; }
+    #cmpExportBtn:hover { background:rgba(124,92,255,0.12); color:var(--accent); border-color:rgba(124,92,255,0.5); }
 
     /* ── Vote buttons ── */
     .cmp-vote-wrap { display:inline-flex; align-items:center; gap:3px; margin-left:6px; }
@@ -5864,52 +5869,45 @@ function _injectCmpCameraUI() {
   previewBar.appendChild(label);
   previewBar.appendChild(dismissBtn);
 
-  // ── 4. Wire into the Compare Panel input row ──
+  // ── 4. Wire into the Compare Panel input bar ──
   const cmpInput = document.getElementById('cmpInput');
   if (cmpInput) {
-    const inputRow = cmpInput.parentElement;
+    const inputWrap   = cmpInput.parentElement;   // .input-wrap
+    const cmpInputBar = inputWrap.parentElement;   // #cmpInputBar
 
-    // Insert preview bar before the input row
-    inputRow.parentElement.insertBefore(previewBar, inputRow);
+    // Preview bar sits ABOVE #cmpInputBar (full-width strip), not inside the flex row
+    cmpInputBar.parentElement.insertBefore(previewBar, cmpInputBar);
 
-    // 📷 Camera button
+    // 📷 Camera button — direct child of #cmpInputBar, before .input-wrap
     const camBtn = document.createElement('button');
     camBtn.id    = 'cmpCameraBtn';
     camBtn.title = 'Upload image — ask all AIs about it';
     camBtn.textContent = '📷';
     camBtn.addEventListener('click', () => document.getElementById('cmpImgInput').click());
-    inputRow.insertBefore(camBtn, inputRow.firstChild);
+    cmpInputBar.insertBefore(camBtn, inputWrap);
 
-    // 🎤 Mic button (after camera)
+    // 🎤 Mic button — inserted between camera and .input-wrap
     const micBtn = document.createElement('button');
     micBtn.id    = 'cmpMicBtn';
     micBtn.title = 'Speak your question';
     micBtn.textContent = '🎤';
     micBtn.addEventListener('click', toggleCmpMic);
-    inputRow.insertBefore(micBtn, camBtn.nextSibling);
+    cmpInputBar.insertBefore(micBtn, inputWrap);
   }
 
-  // ── 5. Export button — inject near the compare panel header ──
-  // Try to find the panel header / clear button area to inject near it
-  const clearBtn = panel.querySelector('[onclick*="clearCompareChat"], button[class*="clear"]');
-  if (clearBtn) {
+  // ── 5. Export button — injected into the panel header, before the ✕ Close button ──
+  const cmpHeader = panel.querySelector('.cmp-header');
+  if (cmpHeader) {
+    const closeBtn  = cmpHeader.querySelector('.cmp-close');
     const exportBtn = document.createElement('button');
-    exportBtn.id = 'cmpExportBtn';
+    exportBtn.id        = 'cmpExportBtn';
     exportBtn.textContent = '📄 Export';
-    exportBtn.title = 'Download this comparison as Markdown';
+    exportBtn.title     = 'Download this comparison as Markdown';
     exportBtn.addEventListener('click', exportComparison);
-    clearBtn.parentElement.insertBefore(exportBtn, clearBtn.nextSibling);
-  } else {
-    // Fallback: inject at the top of the results area
-    const resultsEl = document.getElementById('cmpResults');
-    if (resultsEl) {
-      const exportBtn = document.createElement('button');
-      exportBtn.id = 'cmpExportBtn';
-      exportBtn.textContent = '📄 Export';
-      exportBtn.title = 'Download this comparison as Markdown';
-      exportBtn.style.cssText = 'display:block;margin:8px auto;';
-      exportBtn.addEventListener('click', exportComparison);
-      resultsEl.parentElement.insertBefore(exportBtn, resultsEl);
+    if (closeBtn) {
+      cmpHeader.insertBefore(exportBtn, closeBtn);
+    } else {
+      cmpHeader.appendChild(exportBtn);
     }
   }
 }
@@ -6329,6 +6327,8 @@ function _cmpGetKey() {
 
 // ── Clear chat ──
 function clearCompareChat() {
+  // Dismiss any pending image upload first
+  dismissCmpImagePreview();
   const res = document.getElementById('cmpResults');
   res.innerHTML = `<div class="cmp-empty" id="cmpEmpty">
     <div class="cmp-icon">⚖️</div>
@@ -7130,8 +7130,6 @@ function _injectVoteButtons(qNum) {
       <button class="cmp-vote-btn down" id="cmpVoteDown-${mk}-${qNum}" onclick="cmpVote('${mk}',${qNum},-1)" title="Not helpful">👎</button>
       <span   class="cmp-vote-tally"   id="cmpVoteTally-${mk}-${qNum}"></span>`;
 
-    // Append a tiny lifetime stats badge to the card header
-    const card = document.querySelector(`[data-model-key="${mk}"] .cmp-card-head, .cmp-card[data-model-key="${mk}"] .cmp-card-head`);
     sEl.appendChild(wrap);
 
     // Show cumulative stats in a small badge on the card header
@@ -7621,9 +7619,7 @@ function infoAddToCompare() {
   closeInfoModal();
 }
 
-// ── Track model use whenever sendCompare fires ──
-// (hook into existing sendCompare result handling)
-const _origSendCompare = typeof sendCompare !== 'undefined' ? sendCompare : null;
+// ── Escape helper used by compare panel ──
 
 
 function _escHtml(str) {
