@@ -5533,6 +5533,7 @@ async function saveCFWorkerUrl() {
       if (status) { status.textContent = '✅ Connected! CF models unlocked.'; status.className = 'cf-test-status ok'; }
       document.getElementById('cfRemoveBtn').style.display = 'inline-flex';
       _refreshCFChips();
+      _refreshStudyAIPickerUI();
       _showKeyToast('☁️ Cloudflare AI connected! CF models are now active.');
     } else {
       if (status) { status.textContent = `❌ Worker returned ${res.status}. Check it's deployed correctly.`; status.className = 'cf-test-status err'; }
@@ -5542,6 +5543,7 @@ async function saveCFWorkerUrl() {
     if (status) { status.textContent = '⚠️ Saved! Could not verify (CORS/network). Will try when used.'; status.className = 'cf-test-status err'; }
     document.getElementById('cfRemoveBtn').style.display = 'inline-flex';
     _refreshCFChips();
+    _refreshStudyAIPickerUI();
   }
 }
 function removeCFWorkerUrl() {
@@ -5553,6 +5555,7 @@ function removeCFWorkerUrl() {
   if (status) { status.textContent = '🗑️ Worker URL removed.'; status.className = 'cf-test-status'; }
   if (removeBtn) removeBtn.style.display = 'none';
   _refreshCFChips();
+  _refreshStudyAIPickerUI();
   _showKeyToast('🗑️ Cloudflare AI disconnected.');
 }
 function _refreshCFChips() {
@@ -5727,6 +5730,17 @@ const CMP_MODELS = {
 
 const VERDICT_MODEL    = 'google/gemini-flash-1.5:free';
 const VERDICT_FALLBACK = 'meta-llama/llama-3.1-8b-instruct:free';
+const CMP_SYSTEM_PROMPT = `You are a helpful AI assistant with strong technical knowledge.
+
+FORMATTING RULES — follow these exactly, they are rendered as Markdown:
+- For ALL code: use triple backtick fences with language tag. Example: \`\`\`cpp ... \`\`\`
+- NEVER write code as plain prose — always use a code block
+- Use **bold** for key terms
+- Use numbered lists for steps
+- Use ### headers to separate sections
+- For casual/simple answers: plain text is fine
+
+When writing code: show the COMPLETE working code first, then explain below.`;
 
 let cmpActiveModels    = new Set(['nexora']); // Single default
 let cmpIsRunning       = false;
@@ -6337,17 +6351,7 @@ async function _runCF(query, mk, card, qNum, groupAnswers, history) {
   }
 
   const messages = [
-    { role: 'system', content: 'You are a helpful AI assistant with strong technical knowledge.
-
-FORMATTING RULES — follow these exactly, they are rendered as Markdown:
-- For ALL code: use triple backtick fences with language tag. Example: \`\`\`cpp ... \`\`\`
-- NEVER write code as plain prose — always use a code block
-- Use **bold** for key terms
-- Use numbered lists for steps
-- Use ### headers to separate sections
-- For casual/simple answers: plain text is fine
-
-When writing code: show the COMPLETE working code first, then explain below.' },
+    { role: 'system', content: CMP_SYSTEM_PROMPT },
     ...history.slice(-4),
     { role: 'user', content: query }
   ];
@@ -6405,17 +6409,7 @@ async function _runPremium(query, mk, card, qNum, groupAnswers, history) {
     return;
   }
 
-  const SYSTEM = 'You are a helpful AI assistant with strong technical knowledge.
-
-FORMATTING RULES — follow these exactly, they are rendered as Markdown:
-- For ALL code: use triple backtick fences with language tag. Example: \`\`\`cpp ... \`\`\`
-- NEVER write code as plain prose — always use a code block
-- Use **bold** for key terms
-- Use numbered lists for steps
-- Use ### headers to separate sections
-- For casual/simple answers: plain text is fine
-
-When writing code: show the COMPLETE working code first, then explain below.';
+  const SYSTEM = CMP_SYSTEM_PROMPT;
   const messages = [
     { role: 'system', content: SYSTEM },
     ...history,
@@ -6532,17 +6526,7 @@ async function _runWithBridge(query, mk, card, qNum, groupAnswers, orKey, histor
   if (groqKey && groqKey.startsWith('gsk_') && GROQ_MODEL_MAP[mk]) {
     try {
       const groqMessages = [
-        { role: 'system', content: 'You are a helpful AI assistant with strong technical knowledge.
-
-FORMATTING RULES — follow these exactly, they are rendered as Markdown:
-- For ALL code: use triple backtick fences with language tag. Example: \`\`\`cpp ... \`\`\`
-- NEVER write code as plain prose — always use a code block
-- Use **bold** for key terms
-- Use numbered lists for steps
-- Use ### headers to separate sections
-- For casual/simple answers: plain text is fine
-
-When writing code: show the COMPLETE working code first, then explain below.' },
+        { role: 'system', content: CMP_SYSTEM_PROMPT },
         ...history.slice(-4),
         { role: 'user', content: query }
       ];
@@ -6574,17 +6558,7 @@ When writing code: show the COMPLETE working code first, then explain below.' },
 // ── Pollinations.ai — zero-key free bridge ──
 async function _runPollinations(query, mk, card, qNum, groupAnswers, history) {
   const meta = CMP_MODELS[mk];
-  const SYSTEM = 'You are a helpful AI assistant with strong technical knowledge.
-
-FORMATTING RULES — follow these exactly, they are rendered as Markdown:
-- For ALL code: use triple backtick fences with language tag. Example: \`\`\`cpp ... \`\`\`
-- NEVER write code as plain prose — always use a code block
-- Use **bold** for key terms
-- Use numbered lists for steps
-- Use ### headers to separate sections
-- For casual/simple answers: plain text is fine
-
-When writing code: show the COMPLETE working code first, then explain below.';
+  const SYSTEM = CMP_SYSTEM_PROMPT;
   const pollinationsModels = [meta.pollinationsModel || 'openai', 'mistral', 'llama', 'openai']
     .filter((v, i, a) => a.indexOf(v) === i || i === a.length - 1);
 
@@ -6640,17 +6614,7 @@ async function _runOR(query, mk, card, qNum, groupAnswers, key, history) {
   const meta = CMP_MODELS[mk];
   const modelsToTry = [meta.orModel, 'meta-llama/llama-3.1-8b-instruct:free', 'stepfun/step-3.5-flash:free'].filter(Boolean);
   const messages = [
-    { role: 'system', content: 'You are a helpful AI assistant with strong technical knowledge.
-
-FORMATTING RULES — follow these exactly, they are rendered as Markdown:
-- For ALL code: use triple backtick fences with language tag. Example: \`\`\`cpp ... \`\`\`
-- NEVER write code as plain prose — always use a code block
-- Use **bold** for key terms
-- Use numbered lists for steps
-- Use ### headers to separate sections
-- For casual/simple answers: plain text is fine
-
-When writing code: show the COMPLETE working code first, then explain below.' },
+    { role: 'system', content: CMP_SYSTEM_PROMPT },
     ...history.slice(-4),
     { role: 'user', content: query }
   ];
@@ -7623,7 +7587,8 @@ window.addEventListener('appinstalled', () => {
 
 // ── State ──────────────────────────────────────────────────────────────
 let studyCurrentTab  = 'flashcard';
-let studyAIKey       = 'gemini';       // which model to use in study mode
+const STUDY_AI_LS_KEY = 'nexora_study_ai';
+let studyAIKey       = localStorage.getItem(STUDY_AI_LS_KEY) || 'gemini'; // which model to use in study mode
 let studyLoading     = false;
 
 // Flashcard state
@@ -7649,19 +7614,75 @@ let srsSessionIdx   = 0;
 let srsDayStreak    = 0;
 
 // ── AI model options shown in the picker ──────────────────────────────
-const STUDY_AI_OPTIONS = [
-  { key: 'gemini',   label: 'Gemini 2.0 Flash', color: '#00e0ff' },
-  { key: 'llama',    label: 'Llama 3.3 70B',    color: '#10b981' },
-  { key: 'deepseek', label: 'DeepSeek R1',       color: '#a855f7' },
-  { key: 'mistral',  label: 'Mistral Small',     color: '#f59e0b' },
-  { key: 'qwenbig',  label: 'Qwen3 235B',        color: '#c084fc' },
+const STUDY_AI_BASE_OPTIONS = [
+  { key: 'gemini',   label: 'Gemini 2.0 Flash', color: '#00e0ff', shortLabel: 'Gemini' },
+  { key: 'llama',    label: 'Llama 3.3 70B',    color: '#10b981', shortLabel: 'Llama' },
+  { key: 'deepseek', label: 'DeepSeek R1',      color: '#a855f7', shortLabel: 'DeepSeek' },
+  { key: 'mistral',  label: 'Mistral Small',    color: '#f59e0b', shortLabel: 'Mistral' },
+  { key: 'qwenbig',  label: 'Qwen3 235B',       color: '#c084fc', shortLabel: 'Qwen3' },
 ];
+const STUDY_AI_CF_OPTIONS = [
+  { key: 'cf-claude',   label: 'CF Claude (Haiku)', color: '#fb923c', shortLabel: 'CF Claude' },
+  { key: 'cf-deepseek', label: 'CF DeepSeek R1',    color: '#fb923c', shortLabel: 'CF DeepSeek' },
+  { key: 'cf-llama',    label: 'CF Llama 3.3 70B',  color: '#fb923c', shortLabel: 'CF Llama' },
+  { key: 'cf-qwen',     label: 'CF Qwen 2.5 72B',   color: '#fb923c', shortLabel: 'CF Qwen' },
+];
+
+function getStudyAIOptions() {
+  return _hasCFWorker()
+    ? [...STUDY_AI_BASE_OPTIONS, ...STUDY_AI_CF_OPTIONS]
+    : [...STUDY_AI_BASE_OPTIONS];
+}
+
+function _ensureStudyAIKeyValid() {
+  if (getStudyAIOptions().some(opt => opt.key === studyAIKey)) return;
+  studyAIKey = 'gemini';
+  try { localStorage.setItem(STUDY_AI_LS_KEY, studyAIKey); } catch(e) {}
+}
+
+function _refreshStudyAIPickerUI() {
+  _ensureStudyAIKeyValid();
+  if (currentScreen === 'studyScreen') {
+    _renderStudyAIPicker();
+    _updateStudyAIPill();
+  }
+}
+
+_ensureStudyAIKeyValid();
 
 // ── callStudyAI — lightweight wrapper around the existing OR/Gemini chain
 async function callStudyAI(systemPrompt, userPrompt) {
-  // Try Gemini direct first (fast, free)
+  _ensureStudyAIKeyValid();
+  const chosenMeta = CMP_MODELS[studyAIKey] || CMP_MODELS.gemini;
   const geminiKey = localStorage.getItem('nexora_gemini_key') || '';
-  if (geminiKey) {
+  const canUseGeminiDirect = studyAIKey === 'gemini' && geminiKey &&
+    (geminiKey.startsWith('AIza') || geminiKey.startsWith('AQ.'));
+
+  if (chosenMeta?.isCF && _hasCFWorker()) {
+    try {
+      const res = await fetch(_getCFWorkerUrl() + '/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: chosenMeta.cfAlias,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          max_tokens: 2200,
+          temperature: 0.45,
+        }),
+        signal: AbortSignal.timeout(30000),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        const txt = d?.choices?.[0]?.message?.content?.trim();
+        if (txt) return txt;
+      }
+    } catch(e) {}
+  }
+
+  if (canUseGeminiDirect) {
     try {
       const res = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
@@ -7683,11 +7704,10 @@ async function callStudyAI(systemPrompt, userPrompt) {
     } catch(e) {}
   }
 
-  // Fall back to OpenRouter with the chosen model
+  // Use the selected study model via OpenRouter when available
   const orKey = localStorage.getItem('nexora_user_key') ||
                 (typeof resolveActiveKey === 'function' ? resolveActiveKey().key : '');
   if (orKey && orKey.startsWith('sk-or-')) {
-    const chosenMeta = CMP_MODELS[studyAIKey];
     const orModel = chosenMeta?.orModel || 'google/gemini-2.0-flash-exp:free';
     try {
       const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -7716,13 +7736,36 @@ async function callStudyAI(systemPrompt, userPrompt) {
     } catch(e) {}
   }
 
-  // Last resort: Pollinations (no key needed) — use POST JSON format
+  // If the user selected a non-Gemini model but has only a Gemini key, still give them a working fallback.
+  if (!canUseGeminiDirect && geminiKey && (geminiKey.startsWith('AIza') || geminiKey.startsWith('AQ.'))) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: systemPrompt }] },
+            contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+            generationConfig: { temperature: 0.5, maxOutputTokens: 2048 }
+          })
+        }
+      );
+      if (res.ok) {
+        const d = await res.json();
+        const txt = d?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        if (txt) return txt;
+      }
+    } catch(e) {}
+  }
+
+  // Last resort: Pollinations (no key needed) — prefer a model that matches the chosen AI
   try {
     const res = await fetch('https://text.pollinations.ai/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'openai',
+        model: chosenMeta?.pollinationsModel || 'openai',
         seed: 42,
         messages: [
           { role: 'system', content: systemPrompt },
@@ -7765,6 +7808,7 @@ function openStudyMode() {
   const cmpPanel = document.getElementById('comparePanel');
   if (cmpPanel) cmpPanel.classList.remove('open');
 
+  _ensureStudyAIKeyValid();
   showScreen('studyScreen');
   _renderStudyAIPicker();
   _updateStudyAIPill();
@@ -7793,7 +7837,8 @@ function switchStudyTab(tab) {
 function _renderStudyAIPicker() {
   const grid = document.getElementById('studyAIPickerGrid');
   if (!grid) return;
-  grid.innerHTML = STUDY_AI_OPTIONS.map(opt => `
+  _ensureStudyAIKeyValid();
+  grid.innerHTML = getStudyAIOptions().map(opt => `
     <div class="study-ai-option ${opt.key === studyAIKey ? 'selected' : ''}"
          onclick="selectStudyAI('${opt.key}')">
       <div class="study-ai-option-dot" style="background:${opt.color}"></div>
@@ -7803,19 +7848,28 @@ function _renderStudyAIPicker() {
 }
 
 function selectStudyAI(key) {
+  if (CMP_MODELS[key]?.isCF && !_hasCFWorker()) {
+    toggleStudyAIPicker(false);
+    openCFPanel();
+    return;
+  }
+  if (!getStudyAIOptions().some(opt => opt.key === key)) return;
   studyAIKey = key;
+  localStorage.setItem(STUDY_AI_LS_KEY, key);
   _updateStudyAIPill();
   _renderStudyAIPicker();
   toggleStudyAIPicker(false);
 }
 
 function _updateStudyAIPill() {
-  const opt = STUDY_AI_OPTIONS.find(o => o.key === studyAIKey) || STUDY_AI_OPTIONS[0];
+  _ensureStudyAIKeyValid();
+  const options = getStudyAIOptions();
+  const opt = options.find(o => o.key === studyAIKey) || options[0] || STUDY_AI_BASE_OPTIONS[0];
   const pill  = document.getElementById('studyAIPill');
   const dot   = document.getElementById('studyAIPillDot');
   const label = document.getElementById('studyAIPillLabel');
   if (dot)   dot.style.background = opt.color;
-  if (label) label.textContent = opt.label.split(' ')[0]; // short name
+  if (label) label.textContent = opt.shortLabel || opt.label;
 }
 
 function toggleStudyAIPicker(forceClose) {
@@ -8431,4 +8485,3 @@ function _showStudyToast(msg) {
   const t = document.getElementById('copyToast');
   if (t) { t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2200); }
 }
-
