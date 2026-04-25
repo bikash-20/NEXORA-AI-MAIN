@@ -500,154 +500,148 @@
       <div class="study-loading-text" id="studyLoadingText">Generating with AI…</div>
     </div>
 
-  </div><!-- /studyScreen -->
+    <!-- ══ AI COMPARE MODE — overlay inside #phone so position:absolute fills phone, not body ══ -->
+  <div id="comparePanel">
+
+    <div class="cmp-header">
+      <h3>⚖️ AI Compare Mode</h3>
+      <button id="cmpExportBtn" onclick="exportComparison()" title="Download as Markdown">📄 Export</button>
+      <button class="cmp-close" onclick="closeComparePanel()">✕ Close</button>
+    </div>
+
+    <!-- ── AI Selector Bar ── -->
+    <div class="cmp-selector-bar" id="cmpSelectorBar">
+      <button class="ai-select-btn" onclick="openAISheet()">
+        <span class="ai-select-icon">✦</span>
+        <span class="ai-select-label" id="aiSelectLabel">Choose AIs</span>
+        <span class="ai-select-count" id="aiSelectCount">3</span>
+      </button>
+      <div class="ai-active-dots" id="aiActiveDots"></div>
+    </div>
+
+    <!-- ── AI Selection Sheet (bottom overlay) ── -->
+    <div class="ai-sheet-backdrop" id="aiSheetBackdrop" onclick="closeAISheet()"></div>
+    <div class="ai-sheet" id="aiSheet">
+      <div class="ai-sheet-handle"></div>
+      <div class="ai-sheet-top">
+        <div class="ai-sheet-title">✦ Select AIs</div>
+        <button class="ai-sheet-done" onclick="closeAISheet()">Done ✓</button>
+      </div>
+
+      <!-- ── Recommended + Category Filters ── -->
+      <div class="ai-sheet-controls">
+        <div class="ai-recommended-row">
+          <span class="ai-rec-label">⭐ Recommended:</span>
+          <div class="ai-rec-chips" id="aiRecChips"></div>
+        </div>
+        <div class="ai-cat-row" id="aiCatRow">
+          <button class="ai-cat-chip" data-cat="coding"   onclick="selectAICat(this)">💻 Coding</button>
+          <button class="ai-cat-chip" data-cat="math"     onclick="selectAICat(this)">📐 Math</button>
+          <button class="ai-cat-chip" data-cat="writing"  onclick="selectAICat(this)">✍️ Writing</button>
+          <button class="ai-cat-chip" data-cat="research" onclick="selectAICat(this)">🔬 Research</button>
+          <button class="ai-cat-chip" data-cat="fast"     onclick="selectAICat(this)">⚡ Fast</button>
+        </div>
+      </div>
+
+      <div class="ai-sheet-scroll">
+        <div class="ai-sheet-grid" id="aiSheetGrid"></div>
+      </div>
+    </div>
+
+    <!-- ── Model Info Modal (slides up over the sheet) ── -->
+    <div class="ai-info-backdrop" id="aiInfoBackdrop" onclick="closeInfoModal()"></div>
+    <div class="ai-info-modal" id="aiInfoModal">
+      <div class="ai-info-handle"></div>
+      <div class="ai-info-header">
+        <div class="ai-info-icon-wrap" id="aiInfoIcon">🤖</div>
+        <div class="ai-info-title-col">
+          <div class="ai-info-name" id="aiInfoName">Model</div>
+          <div class="ai-info-tags" id="aiInfoTags"></div>
+        </div>
+      </div>
+      <div class="ai-info-body">
+        <div>
+          <div class="ai-info-section-label">Best for</div>
+          <div class="ai-info-bestfor" id="aiInfoBestFor"></div>
+        </div>
+        <div>
+          <div class="ai-info-section-label">Why this model?</div>
+          <div class="ai-info-why" id="aiInfoWhy"></div>
+        </div>
+      </div>
+      <div class="ai-info-actions">
+        <button class="ai-info-use-btn" id="aiInfoUseBtn" onclick="infoUseModel()">✅ Use this model</button>
+        <button class="ai-info-add-btn" id="aiInfoAddBtn" onclick="infoAddToCompare()">➕ Add to compare</button>
+      </div>
+      <div class="ai-info-close-row">
+        <button class="ai-info-close-btn" onclick="closeInfoModal()">Close</button>
+      </div>
+    </div>
+
+    <!-- ☁️ Cloudflare Worker URL Panel -->
+    <div id="cfWorkerPanel">
+      <div class="cf-panel-inner">
+        <div class="cf-panel-title">☁️ Connect Cloudflare AI (Free)</div>
+        <div class="cf-panel-sub">
+          Deploy <strong>nexora-worker.js</strong> to your Cloudflare account to unlock 6 free models
+          (Claude, Llama 3.3 70B, Qwen 72B, DeepSeek R1 and more) — completely free, no credit card needed.<br><br>
+          <a href="https://dash.cloudflare.com/?to=/:account/workers-and-pages/create" target="_blank" rel="noopener">→ Open Cloudflare Workers Dashboard</a>
+        </div>
+        <div class="cf-panel-steps">
+          <b>Quick Setup (2 min):</b><br>
+          1. Open Cloudflare → Workers &amp; Pages → Create Worker<br>
+          2. Paste the <b>nexora-worker.js</b> code → Deploy<br>
+          3. Go to Worker Settings → Bindings → Add <b>AI</b> binding<br>
+          4. Copy your Worker URL and paste below 👇
+        </div>
+        <div class="cf-input-row">
+          <input id="cfWorkerUrlInput" class="cf-url-input" type="url"
+            placeholder="https://nexora-ai.YOUR-NAME.workers.dev" autocomplete="off" spellcheck="false"/>
+          <button class="cf-save-btn" onclick="saveCFWorkerUrl()">Save</button>
+          <button class="cf-remove-btn" id="cfRemoveBtn" style="display:none" onclick="removeCFWorkerUrl()">✕</button>
+        </div>
+        <div class="cf-test-status" id="cfTestStatus"></div>
+        <button class="cf-close-btn" onclick="closeCFPanel()">Done</button>
+      </div>
+    </div>
+
+    <!-- Key Input Modal -->
+    <div id="cmpKeyModal" class="cmp-key-modal" style="display:none">
+      <div class="cmp-key-modal-inner">
+        <div class="cmp-key-modal-title" id="cmpKeyModalTitle">Add API Key</div>
+        <div class="cmp-key-modal-sub" id="cmpKeyModalSub"></div>
+        <div class="cmp-key-input-row">
+          <input type="password" id="cmpKeyInput" class="cmp-key-input" placeholder="Paste your API key…" autocomplete="off"/>
+          <button class="cmp-key-save-btn" onclick="saveKeyModal()">Save</button>
+          <button class="cmp-key-remove-btn" id="cmpKeyRemoveBtn" onclick="removeKeyModal()" style="display:none">Remove</button>
+        </div>
+        <div class="cmp-key-modal-links" id="cmpKeyModalLinks"></div>
+        <button class="cmp-key-close-btn" onclick="closeKeyModal()">✕ Cancel</button>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="cmpResults">
+      <div class="cmp-empty" id="cmpEmpty">
+        <div class="cmp-icon">⚖️</div>
+        <p>Ask a question below — all active AIs respond at the same time.</p>
+        <p style="opacity:0.6;font-size:12px;">Use <strong>Final Verdict</strong> after answers load to get a combined best answer!</p>
+      </div>
+    </div>
+
+    <!-- Input bar — always pinned at bottom -->
+    <div id="cmpInputBar">
+      <button class="cmp-clear-btn" onclick="clearCompareChat()" title="Clear chat">🗑️</button>
+      <div class="input-wrap">
+        <textarea id="cmpInput" placeholder="Ask all AIs… follow-ups welcome!" rows="1" maxlength="500"></textarea>
+      </div>
+      <button class="send-btn" onclick="sendCompare()">
+        <svg viewBox="0 0 24 24" fill="white" width="18" height="18"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+      </button>
+    </div>
+  </div><!-- /comparePanel -->
 
 </div><!-- /phone -->
-
-<!-- ═══════════════════════════════════════════════
-     AI COMPARE MODE — Multi-model parallel responses
-     ═══════════════════════════════════════════════ -->
-
-<!-- Compare Panel -->
-<div id="comparePanel">
-
-  <div class="cmp-header">
-    <h3>⚖️ AI Compare Mode</h3>
-    <button id="cmpExportBtn" onclick="exportComparison()" title="Download as Markdown">📄 Export</button>
-    <button class="cmp-close" onclick="closeComparePanel()">✕ Close</button>
-  </div>
-
-  <!-- ── AI Selector Bar ── -->
-  <div class="cmp-selector-bar" id="cmpSelectorBar">
-    <button class="ai-select-btn" onclick="openAISheet()">
-      <span class="ai-select-icon">✦</span>
-      <span class="ai-select-label" id="aiSelectLabel">Choose AIs</span>
-      <span class="ai-select-count" id="aiSelectCount">3</span>
-    </button>
-    <div class="ai-active-dots" id="aiActiveDots"></div>
-  </div>
-
-  <!-- ── AI Selection Sheet (bottom overlay) ── -->
-  <div class="ai-sheet-backdrop" id="aiSheetBackdrop" onclick="closeAISheet()"></div>
-  <div class="ai-sheet" id="aiSheet">
-    <div class="ai-sheet-handle"></div>
-    <div class="ai-sheet-top">
-      <div class="ai-sheet-title">✦ Select AIs</div>
-      <button class="ai-sheet-done" onclick="closeAISheet()">Done ✓</button>
-    </div>
-
-    <!-- ── Recommended + Category Filters ── -->
-    <div class="ai-sheet-controls">
-      <div class="ai-recommended-row">
-        <span class="ai-rec-label">⭐ Recommended:</span>
-        <div class="ai-rec-chips" id="aiRecChips"></div>
-      </div>
-      <div class="ai-cat-row" id="aiCatRow">
-        <button class="ai-cat-chip" data-cat="coding"   onclick="selectAICat(this)">💻 Coding</button>
-        <button class="ai-cat-chip" data-cat="math"     onclick="selectAICat(this)">📐 Math</button>
-        <button class="ai-cat-chip" data-cat="writing"  onclick="selectAICat(this)">✍️ Writing</button>
-        <button class="ai-cat-chip" data-cat="research" onclick="selectAICat(this)">🔬 Research</button>
-        <button class="ai-cat-chip" data-cat="fast"     onclick="selectAICat(this)">⚡ Fast</button>
-      </div>
-    </div>
-
-    <div class="ai-sheet-scroll">
-      <div class="ai-sheet-grid" id="aiSheetGrid"></div>
-    </div>
-  </div>
-
-  <!-- ── Model Info Modal (slides up over the sheet) ── -->
-  <div class="ai-info-backdrop" id="aiInfoBackdrop" onclick="closeInfoModal()"></div>
-  <div class="ai-info-modal" id="aiInfoModal">
-    <div class="ai-info-handle"></div>
-    <div class="ai-info-header">
-      <div class="ai-info-icon-wrap" id="aiInfoIcon">🤖</div>
-      <div class="ai-info-title-col">
-        <div class="ai-info-name" id="aiInfoName">Model</div>
-        <div class="ai-info-tags" id="aiInfoTags"></div>
-      </div>
-    </div>
-    <div class="ai-info-body">
-      <div>
-        <div class="ai-info-section-label">Best for</div>
-        <div class="ai-info-bestfor" id="aiInfoBestFor"></div>
-      </div>
-      <div>
-        <div class="ai-info-section-label">Why this model?</div>
-        <div class="ai-info-why" id="aiInfoWhy"></div>
-      </div>
-    </div>
-    <div class="ai-info-actions">
-      <button class="ai-info-use-btn" id="aiInfoUseBtn" onclick="infoUseModel()">✅ Use this model</button>
-      <button class="ai-info-add-btn" id="aiInfoAddBtn" onclick="infoAddToCompare()">➕ Add to compare</button>
-    </div>
-    <div class="ai-info-close-row">
-      <button class="ai-info-close-btn" onclick="closeInfoModal()">Close</button>
-    </div>
-  </div>
-
-  <!-- ☁️ Cloudflare Worker URL Panel -->
-  <div id="cfWorkerPanel">
-    <div class="cf-panel-inner">
-      <div class="cf-panel-title">☁️ Connect Cloudflare AI (Free)</div>
-      <div class="cf-panel-sub">
-        Deploy <strong>nexora-worker.js</strong> to your Cloudflare account to unlock 6 free models
-        (Claude, Llama 3.3 70B, Qwen 72B, DeepSeek R1 and more) — completely free, no credit card needed.<br><br>
-        <a href="https://dash.cloudflare.com/?to=/:account/workers-and-pages/create" target="_blank" rel="noopener">→ Open Cloudflare Workers Dashboard</a>
-      </div>
-      <div class="cf-panel-steps">
-        <b>Quick Setup (2 min):</b><br>
-        1. Open Cloudflare → Workers &amp; Pages → Create Worker<br>
-        2. Paste the <b>nexora-worker.js</b> code → Deploy<br>
-        3. Go to Worker Settings → Bindings → Add <b>AI</b> binding<br>
-        4. Copy your Worker URL and paste below 👇
-      </div>
-      <div class="cf-input-row">
-        <input id="cfWorkerUrlInput" class="cf-url-input" type="url"
-          placeholder="https://nexora-ai.YOUR-NAME.workers.dev" autocomplete="off" spellcheck="false"/>
-        <button class="cf-save-btn" onclick="saveCFWorkerUrl()">Save</button>
-        <button class="cf-remove-btn" id="cfRemoveBtn" style="display:none" onclick="removeCFWorkerUrl()">✕</button>
-      </div>
-      <div class="cf-test-status" id="cfTestStatus"></div>
-      <button class="cf-close-btn" onclick="closeCFPanel()">Done</button>
-    </div>
-  </div>
-
-  <!-- Key Input Modal (inline, slides in below chips) -->
-  <div id="cmpKeyModal" class="cmp-key-modal" style="display:none">
-    <div class="cmp-key-modal-inner">
-      <div class="cmp-key-modal-title" id="cmpKeyModalTitle">Add API Key</div>
-      <div class="cmp-key-modal-sub" id="cmpKeyModalSub"></div>
-      <div class="cmp-key-input-row">
-        <input type="password" id="cmpKeyInput" class="cmp-key-input" placeholder="Paste your API key…" autocomplete="off"/>
-        <button class="cmp-key-save-btn" onclick="saveKeyModal()">Save</button>
-        <button class="cmp-key-remove-btn" id="cmpKeyRemoveBtn" onclick="removeKeyModal()" style="display:none">Remove</button>
-      </div>
-      <div class="cmp-key-modal-links" id="cmpKeyModalLinks"></div>
-      <button class="cmp-key-close-btn" onclick="closeKeyModal()">✕ Cancel</button>
-    </div>
-  </div>
-
-  <!-- Results -->
-  <div id="cmpResults">
-    <div class="cmp-empty" id="cmpEmpty">
-      <div class="cmp-icon">⚖️</div>
-      <p>Ask a question below — all active AIs respond at the same time.</p>
-      <p style="opacity:0.6;font-size:12px;">Use <strong>Final Verdict</strong> after answers load to get a combined best answer!</p>
-    </div>
-  </div>
-
-  <!-- Input bar — always pinned at bottom -->
-  <div id="cmpInputBar">
-    <button class="cmp-clear-btn" onclick="clearCompareChat()" title="Clear chat">🗑️</button>
-    <div class="input-wrap">
-      <textarea id="cmpInput" placeholder="Ask all AIs… follow-ups welcome!" rows="1" maxlength="500"></textarea>
-    </div>
-    <button class="send-btn" onclick="sendCompare()">
-      <svg viewBox="0 0 24 24" fill="white" width="18" height="18"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
-    </button>
-  </div>
-</div>
 
 <!-- ═══════════════════════════════════════════════
      PWA — Service Worker Registration + Install Prompt

@@ -6833,51 +6833,46 @@ function exportComparison() {
   md += `---\n\n`;
 
   groups.forEach((group, gi) => {
-    // Question header
-    const qHeader = group.querySelector('.cmp-q-header');
-    const qText   = group.querySelector('.cmp-q-text');
-    const qNum    = gi + 1;
-    const question = qText ? qText.textContent.trim() : (qHeader ? qHeader.textContent.replace(/Q\d+\s*Your Question/,'').trim() : '');
-    md += `## Q${qNum}: ${question || '(image question)'}\n\n`;
+    const qText = group.querySelector('.cmp-q-text');
+    const qNum  = gi + 1;
+    const question = qText ? qText.textContent.trim() : '';
+    md += `## Q${qNum}${question ? ': ' + question : ''}\n\n`;
 
-    // Each model card
     group.querySelectorAll('.cmp-card').forEach(card => {
-      const mk      = card.dataset.modelKey;
-      const label   = CMP_MODELS[mk]?.label || mk || 'AI';
-      const bodyEl  = card.querySelector('[id^="cmpBody-"]');
-      const answer  = bodyEl ? (bodyEl.dataset.raw || bodyEl.innerText || bodyEl.textContent).trim() : '(no answer)';
-      // Vote tally
-      const voteEl  = card.querySelector('.cmp-vote-tally');
-      const votes   = voteEl ? ' ' + voteEl.textContent.trim() : '';
+      const mk     = card.dataset.modelKey;
+      const label  = CMP_MODELS[mk]?.label || mk || 'AI';
+      const bodyEl = card.querySelector('[id^="cmpBody-"]');
+      const answer = bodyEl ? (bodyEl.dataset.raw || bodyEl.innerText || bodyEl.textContent).trim() : '(no answer)';
+      const voteEl = card.querySelector('.cmp-vote-tally');
+      const votes  = voteEl ? ' ' + voteEl.textContent.trim() : '';
 
       md += `### ${CMP_MODELS[mk]?.icon || '🤖'} ${label}${votes}\n\n`;
       md += answer + '\n\n';
       md += `---\n\n`;
     });
 
-    // Verdict card if present
     const verdictBody = group.querySelector('.vd-body');
     if (verdictBody) {
-      md += `### 🏆 Final Verdict\n\n`;
-      md += verdictBody.innerText.trim() + '\n\n';
-      md += `---\n\n`;
+      md += `### 🏆 Final Verdict\n\n${verdictBody.innerText.trim()}\n\n---\n\n`;
     }
 
-    // Auto-diff card if present
     const diffBody = group.querySelector('.cmp-diff-body');
     if (diffBody) {
-      md += `### 📊 Auto-Diff\n\n`;
-      md += diffBody.innerText.trim() + '\n\n';
-      md += `---\n\n`;
+      md += `### 📊 Auto-Diff\n\n${diffBody.innerText.trim()}\n\n---\n\n`;
     }
   });
 
-  const blob = new Blob([md], { type: 'text/markdown' });
+  // Proper cross-browser download: append to body, click, remove
+  const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
-  a.href     = URL.createObjectURL(blob);
+  a.href     = url;
   a.download = `nexora-compare-${Date.now()}.md`;
+  a.style.display = 'none';
+  document.body.appendChild(a);
   a.click();
-  _showKeyToast('📄 Comparison exported!');
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
+  _showKeyToast('📄 Exported! Check your Downloads folder.');
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -7721,14 +7716,25 @@ async function callStudyAI(systemPrompt, userPrompt) {
     } catch(e) {}
   }
 
-  // Last resort: Pollinations (no key needed)
+  // Last resort: Pollinations (no key needed) — use POST JSON format
   try {
-    const combined = systemPrompt + '\n\n' + userPrompt;
-    const res = await fetch(
-      `https://text.pollinations.ai/${encodeURIComponent(combined)}?model=openai&seed=42`,
-      { signal: AbortSignal.timeout(18000) }
-    );
-    if (res.ok) return (await res.text()).trim();
+    const res = await fetch('https://text.pollinations.ai/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'openai',
+        seed: 42,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user',   content: userPrompt }
+        ]
+      }),
+      signal: AbortSignal.timeout(20000)
+    });
+    if (res.ok) {
+      const txt = (await res.text()).trim();
+      if (txt) return txt;
+    }
   } catch(e) {}
 
   throw new Error('All AI endpoints failed — check your API key.');
