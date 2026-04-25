@@ -5739,7 +5739,11 @@ let _keyModalModel = null;
 
 // ── Panel open/close ──
 function openComparePanel() {
-  if (typeof toggleMenu === 'function') toggleMenu();
+  // Close menu if open
+  if (menuOpen) {
+    menuOpen = false;
+    document.getElementById('modeToggle').classList.remove('open');
+  }
   // Activate CF Claude as default if worker is configured
   if (_hasCFWorker()) cmpActiveModels.add('cf-claude');
   document.getElementById('comparePanel').classList.add('open');
@@ -5747,7 +5751,7 @@ function openComparePanel() {
   _updateSelectorBar();
   renderAISheet();
 
-  // ── Inject camera button + image preview bar (idempotent) ──
+  // ── Camera UI is now removed — no injection needed ──
   _injectCmpCameraUI();
 
   setTimeout(() => { const ci = document.getElementById('cmpInput'); if (ci) ci.focus(); }, 80);
@@ -6181,8 +6185,6 @@ function _cmpGetKey() {
 
 // ── Clear chat ──
 function clearCompareChat() {
-  // Dismiss any pending image upload first
-  dismissCmpImagePreview();
   const res = document.getElementById('cmpResults');
   res.innerHTML = `<div class="cmp-empty" id="cmpEmpty">
     <div class="cmp-icon">⚖️</div>
@@ -6199,14 +6201,11 @@ async function sendCompare() {
   const inp   = document.getElementById('cmpInput');
   const query = inp.value.trim();
 
-  // ── Image-only send is allowed (no text required) ──
-  const hasImage = !!(pendingCmpImageFile && pendingCmpImageB64);
-  if (!query && !hasImage) return;
-
-  // Capture and clear image state before going async
-  const imageFile = pendingCmpImageFile;
-  const imageB64  = pendingCmpImageB64;
-  if (hasImage) dismissCmpImagePreview();
+  // Image upload removed — always text only
+  const hasImage = false;
+  const imageFile = null;
+  const imageB64  = null;
+  if (!query) return;
 
   inp.value = ''; inp.style.height = '';
   inp.disabled = true; // disable during fetch
@@ -6220,7 +6219,7 @@ async function sendCompare() {
 
   // Snapshot answers for THIS group (closure-isolated)
   const groupAnswers = {};
-  const groupQuery   = query || '(image)';
+  const groupQuery   = query;
 
   const orKey     = _cmpGetKey();
   const resultsEl = document.getElementById('cmpResults');
@@ -6233,13 +6232,10 @@ async function sendCompare() {
   group.className = 'cmp-group';
   resultsEl.appendChild(group);
 
-  // Question header — show image thumbnail if present
+  // Question header
   const qDiv = document.createElement('div');
   qDiv.className = 'cmp-q-header';
   let qHeaderHTML = `<span class="cmp-q-label"><span class="cmp-q-num">Q${qNum}</span> Your Question</span>`;
-  if (hasImage) {
-    qHeaderHTML += `<div class="cmp-q-img-wrap"><img src="${imageB64}" class="cmp-q-thumb" alt="uploaded image"></div>`;
-  }
   if (query) qHeaderHTML += `<div class="cmp-q-text">${_escHtml(query)}</div>`;
   qDiv.innerHTML = qHeaderHTML;
   group.appendChild(qDiv);
@@ -6259,7 +6255,7 @@ async function sendCompare() {
           <span class="cmp-model-label" style="color:${meta.color}">${meta.label}</span>
           <span class="cmp-specialty-badge ${meta.specialtyClass}">${meta.specialty}</span>
         </div>
-        <span class="cmp-status" id="cmpStatus-${mk}-${qNum}">${hasImage ? '📷 Analysing…' : '⏳ Thinking…'}</span>
+        <span class="cmp-status" id="cmpStatus-${mk}-${qNum}">⏳ Thinking…</span>
       </div>
       <div class="cmp-card-body" id="cmpBody-${mk}-${qNum}">
         <div class="dot"></div><div class="dot"></div><div class="dot"></div>
@@ -6273,11 +6269,7 @@ async function sendCompare() {
   const promises = [...cmpActiveModels]
     .filter(mk => !CMP_MODELS[mk]?.isKeyBooster) // skip Groq key chip — it just powers other models
     .map(mk => {
-      if (hasImage) {
-        // Vision path — handles its own routing per model
-        return _runCmpVision(imageFile, imageB64, query, mk, cards[mk], qNum, groupAnswers, orKey, historySlice);
-      }
-      // Normal text path
+      // Normal text path only (image upload removed)
       if (mk === 'nexora')  return _runNexora(query, mk, cards[mk], qNum, groupAnswers);
       if (CMP_MODELS[mk]?.isCF) return _runCF(query, mk, cards[mk], qNum, groupAnswers, historySlice);
       if (CMP_MODELS[mk]?.premium) return _runPremium(query, mk, cards[mk], qNum, groupAnswers, historySlice);
@@ -7758,7 +7750,15 @@ function _parseStudyJSON(raw) {
 
 // ── Screen open / close ────────────────────────────────────────────────
 function openStudyMode() {
-  if (typeof toggleMenu === 'function') toggleMenu();
+  // Close menu if open
+  if (menuOpen) {
+    menuOpen = false;
+    document.getElementById('modeToggle').classList.remove('open');
+  }
+  // Close compare panel if it's open (it sits on top as an overlay)
+  const cmpPanel = document.getElementById('comparePanel');
+  if (cmpPanel) cmpPanel.classList.remove('open');
+
   showScreen('studyScreen');
   _renderStudyAIPicker();
   _updateStudyAIPill();
