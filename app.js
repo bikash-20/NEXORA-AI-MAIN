@@ -315,6 +315,7 @@ function showScreen(id) {
 
 function handleBack() {
   if (currentScreen === 'voiceScreen') switchToChat();
+  if (currentScreen === 'studyScreen') closeStudyMode();
 }
 
 function switchToVoice() {
@@ -7625,4 +7626,803 @@ window.addEventListener('appinstalled', () => {
   document.getElementById('pwaInstallBanner')?.classList.remove('show');
   console.log('[Nexora PWA] App installed successfully!');
 });
+
+
+// ══════════════════════════════════════════════════════════════════════
+//  STUDY MODE — Flashcards · Quiz · Spaced Repetition
+//  All AI calls go through callStudyAI() which reuses the OpenRouter /
+//  Gemini / Pollinations chain already in the app.
+// ══════════════════════════════════════════════════════════════════════
+
+// ── State ──────────────────────────────────────────────────────────────
+let studyCurrentTab  = 'flashcard';
+let studyAIKey       = 'gemini';       // which model to use in study mode
+let studyLoading     = false;
+
+// Flashcard state
+let fcCards          = [];             // [{front,back,hint,tag}]
+let fcIndex          = 0;
+let fcFlipped        = false;
+let fcReverseMode    = false;
+let fcCurrentTopic   = '';
+
+// Quiz state
+let quizQuestions    = [];             // [{q, options:[A..D], correct, explanation}]
+let quizIndex        = 0;
+let quizScore        = 0;
+let quizAnswered     = [];
+let quizCurrentTopic = '';
+let quizDifficulty   = 'medium';
+
+// SRS — SM-2 lite
+const SRS_LS_KEY = 'nexora_srs_cards';
+let srsCards        = [];              // loaded from localStorage
+let srsDue          = [];              // filtered by next_review
+let srsSessionIdx   = 0;
+let srsDayStreak    = 0;
+
+// ── AI model options shown in the picker ──────────────────────────────
+const STUDY_AI_OPTIONS = [
+  { key: 'gemini',   label: 'Gemini 2.0 Flash', color: '#00e0ff' },
+  { key: 'llama',    label: 'Llama 3.3 70B',    color: '#10b981' },
+  { key: 'deepseek', label: 'DeepSeek R1',       color: '#a855f7' },
+  { key: 'mistral',  label: 'Mistral Small',     color: '#f59e0b' },
+  { key: 'qwenbig',  label: 'Qwen3 235B',        color: '#c084fc' },
+];
+
+// ── callStudyAI — lightweight wrapper around the existing OR/Gemini chain
+async function callStudyAI(systemPrompt, userPrompt) {
+  // Try Gemini direct first (fast, free)
+  const geminiKey = localStorage.getItem('nexora_gemini_key') || '';
+  if (geminiKey) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: systemPrompt }] },
+            contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+            generationConfig: { temperature: 0.5, maxOutputTokens: 2048 }
+          })
+        }
+      );
+      if (res.ok) {
+        const d = await res.json();
+        const txt = d?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        if (txt) return txt;
+      }
+    } catch(e) {}
+  }
+
+  // Fall back to OpenRouter with the chosen model
+  const orKey = localStorage.getItem('nexora_user_key') ||
+                (typeof resolveActiveKey === 'function' ? resolveActiveKey().key : '');
+  if (orKey && orKey.startsWith('sk-or-')) {
+    const chosenMeta = CMP_MODELS[studyAIKey];
+    const orModel = chosenMeta?.orModel || 'google/gemini-2.0-flash-exp:free';
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${orKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': window.location.origin || 'https://nexora.ai',
+          'X-Title': 'Nexora Study Mode'
+        },
+        body: JSON.stringify({
+          model: orModel,
+          max_tokens: 2048,
+          temperature: 0.5,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user',   content: userPrompt }
+          ]
+        })
+      });
+      if (res.ok) {
+        const d = await res.json();
+        const txt = d?.choices?.[0]?.message?.content?.trim();
+        if (txt) return txt;
+      }
+    } catch(e) {}
+  }
+
+  // Last resort: Pollinations (no key needed)
+  try {
+    const combined = systemPrompt + '\n\n' + userPrompt;
+    const res = await fetch(
+      `https://text.pollinations.ai/${encodeURIComponent(combined)}?model=openai&seed=42`,
+      { signal: AbortSignal.timeout(18000) }
+    );
+    if (res.ok) return (await res.text()).trim();
+  } catch(e) {}
+
+  throw new Error('All AI endpoints failed — check your API key.');
+}
+
+// ── Parse JSON safely from AI output ──────────────────────────────────
+function _parseStudyJSON(raw) {
+  // Strip markdown fences
+  let txt = raw.replace(/```json|```/gi, '').trim();
+  // Find first [ or {
+  const arrStart = txt.indexOf('[');
+  const objStart = txt.indexOf('{');
+  let start = -1;
+  if (arrStart !== -1 && (objStart === -1 || arrStart < objStart)) start = arrStart;
+  else if (objStart !== -1) start = objStart;
+  if (start > 0) txt = txt.slice(start);
+  return JSON.parse(txt);
+}
+
+// ── Screen open / close ────────────────────────────────────────────────
+function openStudyMode() {
+  if (typeof toggleMenu === 'function') toggleMenu();
+  showScreen('studyScreen');
+  _renderStudyAIPicker();
+  _updateStudyAIPill();
+  srsLoadCards();
+  switchStudyTab(studyCurrentTab);
+}
+
+function closeStudyMode() {
+  showScreen('chatScreen');
+}
+
+// ── Tab switching ──────────────────────────────────────────────────────
+function switchStudyTab(tab) {
+  studyCurrentTab = tab;
+  document.querySelectorAll('.study-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.study-panel').forEach(p => p.classList.remove('active'));
+  const tabBtn = document.getElementById('stab-' + tab);
+  const panel  = document.getElementById('spanel-' + tab);
+  if (tabBtn) tabBtn.classList.add('active');
+  if (panel)  panel.classList.add('active');
+  if (tab === 'srs') _renderSrsState();
+  if (tab === 'flashcard') _renderSavedDecks();
+}
+
+// ── AI picker ──────────────────────────────────────────────────────────
+function _renderStudyAIPicker() {
+  const grid = document.getElementById('studyAIPickerGrid');
+  if (!grid) return;
+  grid.innerHTML = STUDY_AI_OPTIONS.map(opt => `
+    <div class="study-ai-option ${opt.key === studyAIKey ? 'selected' : ''}"
+         onclick="selectStudyAI('${opt.key}')">
+      <div class="study-ai-option-dot" style="background:${opt.color}"></div>
+      <div class="study-ai-option-label">${opt.label}</div>
+    </div>
+  `).join('');
+}
+
+function selectStudyAI(key) {
+  studyAIKey = key;
+  _updateStudyAIPill();
+  _renderStudyAIPicker();
+  toggleStudyAIPicker(false);
+}
+
+function _updateStudyAIPill() {
+  const opt = STUDY_AI_OPTIONS.find(o => o.key === studyAIKey) || STUDY_AI_OPTIONS[0];
+  const pill  = document.getElementById('studyAIPill');
+  const dot   = document.getElementById('studyAIPillDot');
+  const label = document.getElementById('studyAIPillLabel');
+  if (dot)   dot.style.background = opt.color;
+  if (label) label.textContent = opt.label.split(' ')[0]; // short name
+}
+
+function toggleStudyAIPicker(forceClose) {
+  const picker = document.getElementById('studyAIPicker');
+  if (!picker) return;
+  if (forceClose === false || picker.style.display !== 'none') {
+    picker.style.display = 'none';
+  } else {
+    picker.style.display = 'block';
+    _renderStudyAIPicker();
+  }
+}
+
+// Close picker when clicking outside
+document.addEventListener('click', e => {
+  const picker = document.getElementById('studyAIPicker');
+  const pill   = document.getElementById('studyAIPill');
+  if (picker && picker.style.display !== 'none' &&
+      !picker.contains(e.target) && e.target !== pill && !pill?.contains(e.target)) {
+    picker.style.display = 'none';
+  }
+});
+
+// ── Loading helpers ────────────────────────────────────────────────────
+function _showStudyLoading(text) {
+  studyLoading = true;
+  const el = document.getElementById('studyLoading');
+  const tx = document.getElementById('studyLoadingText');
+  if (el) el.style.display = 'flex';
+  if (tx) tx.textContent = text || 'Generating with AI…';
+}
+function _hideStudyLoading() {
+  studyLoading = false;
+  const el = document.getElementById('studyLoading');
+  if (el) el.style.display = 'none';
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  FLASHCARD GENERATOR
+// ══════════════════════════════════════════════════════════════════════
+
+async function generateFlashcards() {
+  const topic = (document.getElementById('fcTopicInput')?.value || '').trim();
+  if (!topic) { _showStudyToast('⚠️ Enter a topic first'); return; }
+  const count = parseInt(document.getElementById('fcCountSelect')?.value || '8');
+  const lang  = document.getElementById('fcLangSelect')?.value || 'english';
+
+  const btn = document.getElementById('fcGenBtn');
+  if (btn) btn.disabled = true;
+  _showStudyLoading(`Generating ${count} flashcards…`);
+
+  const systemPrompt = `You are a study assistant. Generate flashcards as a JSON array.
+Each card: {"front":"<question>","back":"<answer>","hint":"<optional short hint>","tag":"<topic tag>"}
+Rules:
+- Respond ONLY with the JSON array — no preamble, no markdown fences
+- Language: ${lang}
+- Make cards concise and educational
+- Hint should be very short (max 8 words), or empty string if not useful`;
+
+  const userPrompt = `Generate exactly ${count} flashcards about: ${topic}`;
+
+  try {
+    const raw = await callStudyAI(systemPrompt, userPrompt);
+    fcCards  = _parseStudyJSON(raw);
+    if (!Array.isArray(fcCards) || fcCards.length === 0) throw new Error('Empty array');
+    // Ensure required fields
+    fcCards = fcCards.map(c => ({
+      front: c.front || c.question || c.q || '?',
+      back:  c.back  || c.answer  || c.a || '?',
+      hint:  c.hint  || '',
+      tag:   c.tag   || topic.slice(0,20)
+    }));
+    fcIndex      = 0;
+    fcFlipped    = false;
+    fcReverseMode = false;
+    fcCurrentTopic = topic.slice(0, 30);
+    _renderFlashcardDeck();
+  } catch(err) {
+    _showStudyToast('❌ Failed to generate cards — try again');
+    console.error('FC gen error:', err);
+  } finally {
+    _hideStudyLoading();
+    if (btn) btn.disabled = false;
+  }
+}
+
+function _renderFlashcardDeck() {
+  const area = document.getElementById('fcDeckArea');
+  if (!area) return;
+  area.style.display = 'flex';
+  area.style.flexDirection = 'column';
+  area.style.gap = '12px';
+
+  document.getElementById('fcDeckTopic').textContent = fcCurrentTopic;
+  _renderFlashcard();
+  _renderFcDots();
+}
+
+function _renderFlashcard() {
+  if (!fcCards.length) return;
+  const card = fcCards[fcIndex];
+  const front = fcReverseMode ? card.back  : card.front;
+  const back  = fcReverseMode ? card.front : card.back;
+  const hint  = fcReverseMode ? '' : (card.hint || '');
+
+  document.getElementById('fcFrontText').textContent = front;
+  document.getElementById('fcBackText').textContent  = back;
+  document.getElementById('fcDeckProgress').textContent = `${fcIndex + 1} / ${fcCards.length}`;
+
+  // Reset flip state
+  const el = document.getElementById('fcCard');
+  if (el) { el.classList.remove('flipped'); fcFlipped = false; }
+
+  // Hint
+  const hintRow = document.getElementById('fcHintRow');
+  const hintTxt = document.getElementById('fcHintText');
+  if (hintRow) hintRow.style.display = hint ? 'flex' : 'none';
+  if (hintTxt) { hintTxt.style.display = 'none'; hintTxt.textContent = hint; }
+
+  // Close explain panel
+  const ep = document.getElementById('fcExplainPanel');
+  if (ep) ep.style.display = 'none';
+}
+
+function _renderFcDots() {
+  const wrap = document.getElementById('fcDots');
+  if (!wrap) return;
+  wrap.innerHTML = fcCards.slice(0, 12).map((_, i) =>
+    `<div class="fc-dot ${i === fcIndex ? 'active' : ''}"></div>`
+  ).join('');
+}
+
+function flipFlashcard() {
+  const el = document.getElementById('fcCard');
+  if (!el) return;
+  fcFlipped = !fcFlipped;
+  el.classList.toggle('flipped', fcFlipped);
+}
+
+function showFlashcardHint() {
+  const hint = document.getElementById('fcHintText');
+  if (hint) hint.style.display = 'inline';
+}
+
+function fcNav(dir) {
+  if (!fcCards.length) return;
+  fcIndex = (fcIndex + dir + fcCards.length) % fcCards.length;
+  _renderFlashcard();
+  _renderFcDots();
+}
+
+function toggleFlipAll() {
+  fcReverseMode = !fcReverseMode;
+  const btn = document.getElementById('fcFlipAllBtn');
+  if (btn) btn.style.background = fcReverseMode
+    ? 'rgba(251,191,36,0.2)' : 'rgba(251,191,36,0.08)';
+  _renderFlashcard();
+  _showStudyToast(fcReverseMode ? '🔄 Reverse mode on' : '🔄 Normal mode');
+}
+
+async function explainFlashcard() {
+  const panel  = document.getElementById('fcExplainPanel');
+  const body   = document.getElementById('fcExplainBody');
+  const card   = fcCards[fcIndex];
+  if (!panel || !body || !card) return;
+
+  panel.style.display = 'block';
+  body.innerHTML = '<span style="color:var(--text3)">Asking AI…</span>';
+
+  try {
+    const reply = await callStudyAI(
+      'You are a helpful tutor. Give a clear, concise explanation in 3-5 sentences.',
+      `Explain this concept:\nQuestion: ${card.front}\nAnswer: ${card.back}`
+    );
+    body.textContent = reply;
+  } catch(e) {
+    body.textContent = 'Failed to get explanation. Try again.';
+  }
+}
+
+function closeExplainPanel() {
+  const p = document.getElementById('fcExplainPanel');
+  if (p) p.style.display = 'none';
+}
+
+// ── Save cards ──────────────────────────────────────────────────────
+function saveSingleCard() {
+  if (!fcCards.length) return;
+  const card = fcCards[fcIndex];
+  _addSrsCard(card.front, card.back, card.tag || fcCurrentTopic);
+  _showStudyToast('💾 Card saved to Review deck!');
+  _refreshSrsBadge();
+}
+
+function saveAllFlashcards() {
+  if (!fcCards.length) return;
+  const deckKey = 'deck_' + Date.now();
+  try {
+    const decks = JSON.parse(localStorage.getItem('nexora_fc_decks') || '[]');
+    decks.unshift({ key: deckKey, topic: fcCurrentTopic, cards: fcCards, savedAt: Date.now() });
+    if (decks.length > 20) decks.length = 20;
+    localStorage.setItem('nexora_fc_decks', JSON.stringify(decks));
+  } catch(e) {}
+  // Also add all to SRS
+  fcCards.forEach(c => _addSrsCard(c.front, c.back, c.tag || fcCurrentTopic));
+  _showStudyToast(`💾 ${fcCards.length} cards saved!`);
+  _refreshSrsBadge();
+  _renderSavedDecks();
+}
+
+function _renderSavedDecks() {
+  const list = document.getElementById('fcSavedList');
+  if (!list) return;
+  let decks = [];
+  try { decks = JSON.parse(localStorage.getItem('nexora_fc_decks') || '[]'); } catch(e) {}
+  if (!decks.length) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:12px 0;">No saved decks yet</div>';
+    return;
+  }
+  list.innerHTML = decks.map((d, i) => `
+    <div class="fc-saved-deck" onclick="loadSavedDeck(${i})">
+      <div class="fc-saved-deck-icon">🃏</div>
+      <div class="fc-saved-deck-info">
+        <div class="fc-saved-deck-name">${_esc(d.topic)}</div>
+        <div class="fc-saved-deck-meta">${d.cards.length} cards · ${_timeAgo(d.savedAt)}</div>
+      </div>
+      <button class="fc-saved-deck-del" onclick="event.stopPropagation();deleteSavedDeck(${i})" title="Delete deck">🗑️</button>
+    </div>
+  `).join('');
+}
+
+function loadSavedDeck(idx) {
+  let decks = [];
+  try { decks = JSON.parse(localStorage.getItem('nexora_fc_decks') || '[]'); } catch(e) {}
+  if (!decks[idx]) return;
+  const d = decks[idx];
+  fcCards = d.cards; fcIndex = 0; fcFlipped = false;
+  fcReverseMode = false; fcCurrentTopic = d.topic;
+  document.getElementById('fcTopicInput').value = d.topic;
+  _renderFlashcardDeck();
+}
+
+function deleteSavedDeck(idx) {
+  try {
+    const decks = JSON.parse(localStorage.getItem('nexora_fc_decks') || '[]');
+    decks.splice(idx, 1);
+    localStorage.setItem('nexora_fc_decks', JSON.stringify(decks));
+    _renderSavedDecks();
+  } catch(e) {}
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  QUIZ MODE
+// ══════════════════════════════════════════════════════════════════════
+
+async function generateQuiz() {
+  const topic = (document.getElementById('quizTopicInput')?.value || '').trim();
+  if (!topic) { _showStudyToast('⚠️ Enter a topic first'); return; }
+  const count = parseInt(document.getElementById('quizCountSelect')?.value || '5');
+  quizDifficulty = document.getElementById('quizDiffSelect')?.value || 'medium';
+
+  const btn = document.getElementById('quizGenBtn');
+  if (btn) btn.disabled = true;
+  _showStudyLoading(`Generating ${count}-question quiz…`);
+
+  const systemPrompt = `You are a quiz generator. Return ONLY a JSON array — no text outside it.
+Each item: {"q":"<question>","options":["A) ...","B) ...","C) ...","D) ..."],"correct":"A","explanation":"<1-2 sentence explanation of the correct answer>"}
+Rules:
+- Exactly 4 options labelled A) B) C) D)
+- correct field is just the letter: A, B, C, or D
+- Difficulty: ${quizDifficulty}
+- Make distractors plausible`;
+
+  const userPrompt = `Generate ${count} multiple choice questions about: ${topic}`;
+
+  try {
+    const raw = await callStudyAI(systemPrompt, userPrompt);
+    quizQuestions = _parseStudyJSON(raw);
+    if (!Array.isArray(quizQuestions) || !quizQuestions.length) throw new Error('Empty');
+    quizQuestions = quizQuestions.map(q => ({
+      q:           q.q || q.question || '?',
+      options:     Array.isArray(q.options) ? q.options : ['A) ?','B) ?','C) ?','D) ?'],
+      correct:     (q.correct || 'A').toUpperCase().replace(/[^ABCD]/g,'').slice(0,1) || 'A',
+      explanation: q.explanation || ''
+    }));
+    quizIndex   = 0;
+    quizScore   = 0;
+    quizAnswered = [];
+    quizCurrentTopic = topic.slice(0, 30);
+    _renderQuizQuestion();
+    document.getElementById('quizSetup').style.display  = 'none';
+    document.getElementById('quizActive').style.display = 'block';
+    document.getElementById('quizReview').style.display = 'none';
+  } catch(err) {
+    _showStudyToast('❌ Failed to generate quiz — try again');
+    console.error('Quiz gen error:', err);
+  } finally {
+    _hideStudyLoading();
+    if (btn) btn.disabled = false;
+  }
+}
+
+function _renderQuizQuestion() {
+  const q = quizQuestions[quizIndex];
+  if (!q) return;
+
+  // Header
+  document.getElementById('quizQCounter').textContent = `Q ${quizIndex + 1} / ${quizQuestions.length}`;
+  const pct = (quizIndex / quizQuestions.length) * 100;
+  document.getElementById('quizProgressFill').style.width = pct + '%';
+  document.getElementById('quizScoreLive').textContent = quizScore + ' pts';
+
+  // Question
+  document.getElementById('quizQuestion').textContent = q.q;
+
+  // Options
+  const optWrap = document.getElementById('quizOptions');
+  optWrap.innerHTML = q.options.map((opt, i) => `
+    <button class="quiz-option-btn" onclick="quizAnswer(${i})">${_esc(opt)}</button>
+  `).join('');
+
+  document.getElementById('quizNextBtn').style.display = 'none';
+}
+
+function quizAnswer(choiceIdx) {
+  const q = quizQuestions[quizIndex];
+  const letters = ['A','B','C','D'];
+  const chosen  = letters[choiceIdx];
+  const correct = q.correct;
+  const isRight = chosen === correct;
+
+  if (isRight) quizScore++;
+  quizAnswered.push({ q: q.q, chosen, correct, options: q.options, explanation: q.explanation, isRight });
+
+  // Colour the buttons
+  const btns = document.querySelectorAll('#quizOptions .quiz-option-btn');
+  btns.forEach((btn, i) => {
+    btn.disabled = true;
+    if (letters[i] === correct) btn.classList.add('correct');
+    else if (i === choiceIdx && !isRight) btn.classList.add('wrong');
+  });
+
+  // Update score display
+  document.getElementById('quizScoreLive').textContent = quizScore + ' pts';
+
+  // Show next/finish button
+  const nextBtn = document.getElementById('quizNextBtn');
+  nextBtn.style.display = 'block';
+  nextBtn.textContent = quizIndex < quizQuestions.length - 1 ? 'Next →' : 'See Results 🎉';
+}
+
+function quizNext() {
+  quizIndex++;
+  if (quizIndex < quizQuestions.length) {
+    _renderQuizQuestion();
+  } else {
+    _renderQuizResults();
+  }
+}
+
+function _renderQuizResults() {
+  document.getElementById('quizActive').style.display = 'none';
+  document.getElementById('quizReview').style.display = 'block';
+
+  const total = quizQuestions.length;
+  const pct   = Math.round((quizScore / total) * 100);
+
+  const emoji = pct >= 80 ? '🎉' : pct >= 50 ? '🤔' : '😅';
+  document.getElementById('quizResultEmoji').textContent = emoji;
+  document.getElementById('quizResultScore').textContent = `${quizScore} / ${total}`;
+  document.getElementById('quizResultSub').textContent   =
+    pct >= 80 ? 'Excellent! You nailed it.' :
+    pct >= 50 ? 'Good effort! Review the wrong ones.' :
+                'Keep practicing — you\'ll get there!';
+
+  // Review list
+  const list = document.getElementById('quizReviewList');
+  list.innerHTML = quizAnswered.map((a, i) => `
+    <div class="quiz-review-item ${a.isRight ? 'correct' : 'wrong'}">
+      <div class="quiz-review-q">${i+1}. ${_esc(a.q)}</div>
+      ${!a.isRight ? `<div class="quiz-review-your">Your answer: ${a.chosen}</div>
+        <div class="quiz-review-correct">✓ Correct: ${a.correct} — ${_esc(a.options['ABCD'.indexOf(a.correct)] || '')}</div>` : ''}
+      ${a.explanation ? `<div class="quiz-review-your" style="margin-top:4px;font-style:italic">${_esc(a.explanation)}</div>` : ''}
+      ${!a.isRight ? `<button class="quiz-re-explain-btn" onclick="quizReExplain(${i})">🧠 Re-explain</button>` : ''}
+    </div>
+  `).join('');
+
+  // Save quiz result to localStorage
+  try {
+    const hist = JSON.parse(localStorage.getItem('nexora_quiz_hist') || '[]');
+    hist.unshift({ topic: quizCurrentTopic, score: quizScore, total, pct, ts: Date.now(), diff: quizDifficulty });
+    if (hist.length > 50) hist.length = 50;
+    localStorage.setItem('nexora_quiz_hist', JSON.stringify(hist));
+  } catch(e) {}
+}
+
+async function quizReExplain(idx) {
+  const a   = quizAnswered[idx];
+  const btn = document.querySelectorAll('.quiz-re-explain-btn')[
+    [...quizAnswered].filter((x,i) => !x.isRight && i <= idx).length - 1
+  ];
+  if (btn) { btn.textContent = '⏳ Asking AI…'; btn.disabled = true; }
+  try {
+    const reply = await callStudyAI(
+      'You are a patient tutor. Explain in 2-3 sentences why the correct answer is right.',
+      `Question: ${a.q}\nCorrect answer: ${a.correct} — ${a.options['ABCD'.indexOf(a.correct)] || ''}`
+    );
+    if (btn) { btn.textContent = reply; btn.style.fontSize = '11px'; btn.style.cursor = 'default'; }
+  } catch(e) {
+    if (btn) { btn.textContent = '❌ Failed'; btn.disabled = false; }
+  }
+}
+
+function retakeQuiz() {
+  quizIndex = 0; quizScore = 0; quizAnswered = [];
+  document.getElementById('quizReview').style.display  = 'none';
+  document.getElementById('quizActive').style.display  = 'block';
+  _renderQuizQuestion();
+}
+
+function newQuiz() {
+  quizQuestions = [];
+  document.getElementById('quizReview').style.display  = 'none';
+  document.getElementById('quizActive').style.display  = 'none';
+  document.getElementById('quizSetup').style.display   = 'block';
+  document.getElementById('quizTopicInput').value      = '';
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  SPACED REPETITION (SM-2 lite)
+// ══════════════════════════════════════════════════════════════════════
+
+function srsLoadCards() {
+  try { srsCards = JSON.parse(localStorage.getItem(SRS_LS_KEY) || '[]'); } catch(e) { srsCards = []; }
+  _refreshSrsBadge();
+}
+
+function srsSaveCards() {
+  try { localStorage.setItem(SRS_LS_KEY, JSON.stringify(srsCards)); } catch(e) {}
+}
+
+// Add a new card (from flashcard save)
+function _addSrsCard(front, back, tag) {
+  // Avoid exact duplicates
+  if (srsCards.some(c => c.front === front)) return;
+  srsCards.push({
+    id: Date.now() + Math.random(),
+    front, back, tag: tag || '',
+    interval: 1,      // days until next review
+    ease: 2.5,        // ease factor (SM-2)
+    reps: 0,
+    next_review: Date.now() // due immediately
+  });
+  srsSaveCards();
+}
+
+function _refreshSrsBadge() {
+  const now = Date.now();
+  const due = srsCards.filter(c => c.next_review <= now).length;
+  const badge = document.getElementById('srsDueBadge');
+  if (!badge) return;
+  if (due > 0) { badge.style.display = 'inline-flex'; badge.textContent = due > 99 ? '99+' : due; }
+  else badge.style.display = 'none';
+}
+
+function _renderSrsState() {
+  const now = Date.now();
+  srsDue = srsCards.filter(c => c.next_review <= now);
+
+  document.getElementById('srsEmpty').style.display      = srsCards.length === 0 ? 'block' : 'none';
+  document.getElementById('srsAllDone').style.display    = srsCards.length > 0 && srsDue.length === 0 ? 'block' : 'none';
+  document.getElementById('srsSession').style.display    = srsDue.length > 0 ? 'flex' : 'none';
+  document.getElementById('srsBrowsePanel').style.display = 'none';
+
+  if (srsDue.length === 0 && srsCards.length > 0) {
+    // Find next due card
+    const next = srsCards.reduce((a, b) => a.next_review < b.next_review ? a : b);
+    const mins = Math.round((next.next_review - now) / 60000);
+    const txt = mins < 60 ? `Next card in ${mins} min` :
+                mins < 1440 ? `Next card in ${Math.round(mins/60)} hr` :
+                `Next card in ${Math.round(mins/1440)} day(s)`;
+    document.getElementById('srsNextDueText').textContent = txt;
+  }
+
+  if (srsDue.length > 0) {
+    srsSessionIdx = 0;
+    document.getElementById('srsSessionCount').textContent = `${srsDue.length} card${srsDue.length !== 1 ? 's' : ''} due`;
+    // Streak
+    const streak = _getSrsStreak();
+    const sb = document.getElementById('srsStreakBadge');
+    const sn = document.getElementById('srsStreakNum');
+    if (streak > 0 && sb && sn) { sb.style.display = 'flex'; sn.textContent = streak; }
+    _showSrsCard();
+  }
+}
+
+function _showSrsCard() {
+  const card = srsDue[srsSessionIdx];
+  if (!card) { _srsSessionDone(); return; }
+
+  document.getElementById('srsFrontText').textContent = card.front;
+  document.getElementById('srsBackText').textContent  = card.back;
+
+  const cardEl = document.getElementById('srsCard');
+  if (cardEl) cardEl.classList.remove('flipped');
+  document.getElementById('srsRatingRow').style.display = 'none';
+}
+
+function flipSrsCard() {
+  const cardEl = document.getElementById('srsCard');
+  if (!cardEl) return;
+  cardEl.classList.add('flipped');
+  document.getElementById('srsRatingRow').style.display = 'flex';
+}
+
+function rateSrsCard(rating) {
+  // rating: 0=hard, 1=okay, 2=easy
+  const card = srsDue[srsSessionIdx];
+  if (!card) return;
+
+  // SM-2 lite
+  const ease = Math.max(1.3, card.ease + [-0.3, 0, 0.1][rating]);
+  let interval;
+  if (rating === 0) {
+    interval = 1; // reset to 1 day
+    card.reps = 0;
+  } else {
+    card.reps++;
+    interval = card.reps === 1 ? 1 :
+               card.reps === 2 ? 3 :
+               Math.round(card.interval * ease);
+  }
+  card.ease        = ease;
+  card.interval    = interval;
+  card.next_review = Date.now() + interval * 24 * 60 * 60 * 1000;
+
+  // Persist
+  const idx = srsCards.findIndex(c => c.id === card.id);
+  if (idx !== -1) srsCards[idx] = card;
+  srsSaveCards();
+
+  srsSessionIdx++;
+  _refreshSrsBadge();
+
+  if (srsSessionIdx >= srsDue.length) {
+    _srsSessionDone();
+  } else {
+    _showSrsCard();
+  }
+}
+
+function _srsSessionDone() {
+  _recordSrsStreak();
+  _renderSrsState();
+}
+
+function srsBrowseAll() {
+  document.getElementById('srsAllDone').style.display    = 'none';
+  document.getElementById('srsBrowsePanel').style.display = 'block';
+  const list = document.getElementById('srsBrowseList');
+  if (!list) return;
+  if (!srsCards.length) { list.innerHTML = '<div style="color:var(--text3);font-size:12px">No cards</div>'; return; }
+  list.innerHTML = srsCards.map(c => `
+    <div class="srs-browse-card">
+      <div class="srs-browse-card-q">${_esc(c.front)}</div>
+      <div class="srs-browse-card-a">${_esc(c.back)}</div>
+      <div class="srs-browse-card-meta">Interval: ${c.interval}d · Ease: ${c.ease?.toFixed(1)} · ${c.tag}</div>
+    </div>
+  `).join('');
+}
+
+function closeSrsBrowse() {
+  document.getElementById('srsBrowsePanel').style.display = 'none';
+  document.getElementById('srsAllDone').style.display     = srsCards.length > 0 ? 'block' : 'none';
+}
+
+// Daily streak tracking
+function _getSrsStreak() {
+  try {
+    const d = JSON.parse(localStorage.getItem('nexora_srs_streak') || '{}');
+    const today = new Date().toDateString();
+    const yesterday = new Date(Date.now() - 86400000).toDateString();
+    if (d.last === today) return d.streak || 0;
+    if (d.last === yesterday) return d.streak || 0;
+    return 0;
+  } catch(e) { return 0; }
+}
+function _recordSrsStreak() {
+  try {
+    const d = JSON.parse(localStorage.getItem('nexora_srs_streak') || '{}');
+    const today = new Date().toDateString();
+    const yesterday = new Date(Date.now() - 86400000).toDateString();
+    let streak = d.streak || 0;
+    if (d.last === yesterday) streak++;
+    else if (d.last !== today) streak = 1;
+    localStorage.setItem('nexora_srs_streak', JSON.stringify({ last: today, streak }));
+  } catch(e) {}
+}
+
+// ── Shared utils ──────────────────────────────────────────────────────
+function _esc(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function _timeAgo(ts) {
+  const diff = Date.now() - ts;
+  if (diff < 60000)  return 'just now';
+  if (diff < 3600000) return Math.round(diff/60000) + 'm ago';
+  if (diff < 86400000) return Math.round(diff/3600000) + 'h ago';
+  return Math.round(diff/86400000) + 'd ago';
+}
+function _showStudyToast(msg) {
+  if (typeof _showKeyToast === 'function') { _showKeyToast(msg); return; }
+  const t = document.getElementById('copyToast');
+  if (t) { t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2200); }
+}
 

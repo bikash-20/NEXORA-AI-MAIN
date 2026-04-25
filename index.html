@@ -69,6 +69,7 @@
     <div class="mode-item" onclick="clearChat()" style="color:#f87171"><span>🗑️</span> Clear Chat</div>
     <div class="mode-item" onclick="openApiPanel()"><span>🔑</span> API Key Setup</div>
     <div class="mode-item" onclick="openComparePanel()"><span>⚖️</span> AI Compare Mode</div>
+    <div class="mode-item" onclick="openStudyMode()"><span>📚</span> Study Mode</div>
   </div>
 
   <!-- Search overlay -->
@@ -251,6 +252,255 @@
       </div>
     </div>
   </div>
+
+  <!-- STUDY MODE SCREEN -->
+  <div class="screen" id="studyScreen">
+
+    <!-- Header bar -->
+    <div class="study-header">
+      <button class="study-back-btn" onclick="closeStudyMode()">
+        <svg viewBox="0 0 24 24" stroke-width="2.2" fill="none" stroke="currentColor" width="20" height="20"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="study-header-title">
+        <span class="study-header-icon">📚</span>
+        <span>Study Mode</span>
+      </div>
+      <!-- AI picker pill -->
+      <button class="study-ai-pill" id="studyAIPill" onclick="toggleStudyAIPicker()">
+        <span id="studyAIPillDot" class="study-ai-dot"></span>
+        <span id="studyAIPillLabel">Gemini</span>
+        <svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke="currentColor" width="12" height="12"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+    </div>
+
+    <!-- AI picker dropdown -->
+    <div class="study-ai-picker" id="studyAIPicker" style="display:none">
+      <div class="study-ai-picker-title">Choose AI for Study Mode</div>
+      <div class="study-ai-picker-grid" id="studyAIPickerGrid"></div>
+    </div>
+
+    <!-- Tab bar -->
+    <div class="study-tab-bar">
+      <button class="study-tab active" id="stab-flashcard" onclick="switchStudyTab('flashcard')">
+        <span>🃏</span> Flashcards
+      </button>
+      <button class="study-tab" id="stab-quiz" onclick="switchStudyTab('quiz')">
+        <span>📝</span> Quiz
+      </button>
+      <button class="study-tab" id="stab-srs" onclick="switchStudyTab('srs')">
+        <span>🔁</span> Review
+        <span class="srs-due-badge" id="srsDueBadge" style="display:none">0</span>
+      </button>
+    </div>
+
+    <!-- ═══ FLASHCARD TAB ═══ -->
+    <div class="study-panel active" id="spanel-flashcard">
+
+      <div class="study-input-section">
+        <div class="study-input-label">Topic or paste text to generate cards</div>
+        <textarea id="fcTopicInput" class="study-textarea"
+          placeholder="e.g. Merge Sort, Photosynthesis, World War 2 causes…"
+          rows="3" maxlength="800"></textarea>
+        <div class="study-input-row">
+          <select id="fcCountSelect" class="study-select">
+            <option value="5">5 cards</option>
+            <option value="8" selected>8 cards</option>
+            <option value="12">12 cards</option>
+            <option value="15">15 cards</option>
+          </select>
+          <select id="fcLangSelect" class="study-select">
+            <option value="english">English</option>
+            <option value="bangla">বাংলা</option>
+            <option value="banglish">Banglish</option>
+          </select>
+          <button class="study-gen-btn" id="fcGenBtn" onclick="generateFlashcards()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            Generate
+          </button>
+        </div>
+      </div>
+
+      <!-- Deck / carousel area -->
+      <div id="fcDeckArea" style="display:none">
+        <div class="fc-deck-meta">
+          <span id="fcDeckTopic" class="fc-deck-topic-tag"></span>
+          <span id="fcDeckProgress" class="fc-progress-text">1 / 8</span>
+          <button class="fc-save-all-btn" id="fcSaveAllBtn" onclick="saveAllFlashcards()">💾 Save All</button>
+        </div>
+        <!-- Card -->
+        <div class="fc-card-wrap" id="fcCardWrap">
+          <div class="fc-card" id="fcCard" onclick="flipFlashcard()">
+            <div class="fc-card-inner" id="fcCardInner">
+              <div class="fc-card-face front" id="fcFront">
+                <div class="fc-card-label">QUESTION</div>
+                <div class="fc-card-text" id="fcFrontText"></div>
+                <div class="fc-hint-row" id="fcHintRow" style="display:none">
+                  <button class="fc-hint-btn" onclick="event.stopPropagation();showFlashcardHint()">💡 Show hint</button>
+                  <span class="fc-hint-text" id="fcHintText" style="display:none"></span>
+                </div>
+                <div class="fc-tap-hint">tap to flip</div>
+              </div>
+              <div class="fc-card-face back" id="fcBack">
+                <div class="fc-card-label">ANSWER</div>
+                <div class="fc-card-text" id="fcBackText"></div>
+                <button class="fc-explain-btn" onclick="event.stopPropagation();explainFlashcard()" id="fcExplainBtn">🧠 Ask AI to explain</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Navigation -->
+        <div class="fc-nav">
+          <button class="fc-nav-btn" onclick="fcNav(-1)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="18" height="18"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <div class="fc-dots" id="fcDots"></div>
+          <button class="fc-nav-btn" onclick="fcNav(1)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="18" height="18"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+        <!-- Per-card actions -->
+        <div class="fc-card-actions">
+          <button class="fc-action-btn save" onclick="saveSingleCard()" title="Save this card to Review deck">💾 Save card</button>
+          <button class="fc-action-btn flip-all" onclick="toggleFlipAll()" id="fcFlipAllBtn" title="Reverse mode: answer → question">🔄 Reverse</button>
+        </div>
+      </div>
+
+      <!-- AI Explain panel (slides in) -->
+      <div class="fc-explain-panel" id="fcExplainPanel" style="display:none">
+        <div class="fc-explain-header">
+          <span>🧠 AI Explanation</span>
+          <button onclick="closeExplainPanel()">✕</button>
+        </div>
+        <div class="fc-explain-body" id="fcExplainBody"></div>
+      </div>
+
+      <!-- Saved decks -->
+      <div class="study-saved-section" id="fcSavedSection">
+        <div class="study-saved-title">💾 Saved Decks</div>
+        <div id="fcSavedList" class="fc-saved-list"></div>
+      </div>
+    </div>
+
+    <!-- ═══ QUIZ TAB ═══ -->
+    <div class="study-panel" id="spanel-quiz">
+
+      <div class="study-input-section" id="quizSetup">
+        <div class="study-input-label">Quiz topic</div>
+        <textarea id="quizTopicInput" class="study-textarea"
+          placeholder="e.g. Binary Search Trees, The French Revolution, Ohm's Law…"
+          rows="2" maxlength="400"></textarea>
+        <div class="study-input-row">
+          <select id="quizCountSelect" class="study-select">
+            <option value="3">3 questions</option>
+            <option value="5" selected>5 questions</option>
+            <option value="8">8 questions</option>
+          </select>
+          <select id="quizDiffSelect" class="study-select">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+          <button class="study-gen-btn" id="quizGenBtn" onclick="generateQuiz()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            Generate
+          </button>
+        </div>
+      </div>
+
+      <!-- Active quiz -->
+      <div id="quizActive" style="display:none">
+        <div class="quiz-header-row">
+          <span class="quiz-q-counter" id="quizQCounter">Q 1 / 5</span>
+          <div class="quiz-progress-bar"><div class="quiz-progress-fill" id="quizProgressFill"></div></div>
+          <span class="quiz-score-live" id="quizScoreLive">0 pts</span>
+        </div>
+        <div class="quiz-question" id="quizQuestion"></div>
+        <div class="quiz-options" id="quizOptions"></div>
+        <button class="quiz-next-btn" id="quizNextBtn" onclick="quizNext()" style="display:none">Next →</button>
+      </div>
+
+      <!-- Quiz review / results -->
+      <div id="quizReview" style="display:none">
+        <div class="quiz-result-header">
+          <div class="quiz-result-emoji" id="quizResultEmoji">🎉</div>
+          <div class="quiz-result-score" id="quizResultScore"></div>
+          <div class="quiz-result-sub" id="quizResultSub"></div>
+        </div>
+        <div class="quiz-review-list" id="quizReviewList"></div>
+        <div class="quiz-result-actions">
+          <button class="quiz-retake-btn" onclick="retakeQuiz()">🔁 Retake</button>
+          <button class="quiz-new-btn" onclick="newQuiz()">✨ New Quiz</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ SPACED REP TAB ═══ -->
+    <div class="study-panel" id="spanel-srs">
+
+      <div id="srsEmpty" style="display:none">
+        <div class="study-empty-state">
+          <div class="study-empty-icon">🌱</div>
+          <div class="study-empty-title">No cards saved yet</div>
+          <div class="study-empty-sub">Generate flashcards and tap 💾 Save to build your review deck.</div>
+          <button class="study-gen-btn" style="margin-top:12px" onclick="switchStudyTab('flashcard')">Go to Flashcards</button>
+        </div>
+      </div>
+
+      <div id="srsAllDone" style="display:none">
+        <div class="study-empty-state">
+          <div class="study-empty-icon">✅</div>
+          <div class="study-empty-title">All caught up!</div>
+          <div class="study-empty-sub" id="srsNextDueText">No cards due right now. Come back tomorrow.</div>
+          <button class="srs-browse-btn" onclick="srsBrowseAll()">Browse all cards</button>
+        </div>
+      </div>
+
+      <!-- Review session -->
+      <div id="srsSession" style="display:none">
+        <div class="srs-session-header">
+          <span id="srsSessionCount" class="srs-session-count">12 cards due</span>
+          <span id="srsStreakBadge" class="srs-streak" style="display:none">🔥 <span id="srsStreakNum">0</span>-day streak</span>
+        </div>
+        <div class="fc-card-wrap">
+          <div class="fc-card" id="srsCard" onclick="flipSrsCard()">
+            <div class="fc-card-inner" id="srsCardInner">
+              <div class="fc-card-face front" id="srsFront">
+                <div class="fc-card-label">QUESTION</div>
+                <div class="fc-card-text" id="srsFrontText"></div>
+                <div class="fc-tap-hint">tap to flip</div>
+              </div>
+              <div class="fc-card-face back" id="srsBack">
+                <div class="fc-card-label">ANSWER</div>
+                <div class="fc-card-text" id="srsBackText"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Rating buttons — only shown after flip -->
+        <div class="srs-rating-row" id="srsRatingRow" style="display:none">
+          <button class="srs-rate-btn hard" onclick="rateSrsCard(0)">😕<br><span>Hard</span></button>
+          <button class="srs-rate-btn medium" onclick="rateSrsCard(1)">🤔<br><span>Okay</span></button>
+          <button class="srs-rate-btn easy" onclick="rateSrsCard(2)">😊<br><span>Easy</span></button>
+        </div>
+      </div>
+
+      <!-- Browse all (shown when srsAllDone browse is tapped) -->
+      <div id="srsBrowsePanel" style="display:none">
+        <div class="srs-browse-header">
+          <span>All saved cards</span>
+          <button onclick="closeSrsBrowse()">✕</button>
+        </div>
+        <div id="srsBrowseList" class="srs-browse-list"></div>
+      </div>
+    </div>
+
+    <!-- Loading spinner overlay (shared across tabs) -->
+    <div class="study-loading" id="studyLoading" style="display:none">
+      <div class="study-spinner"></div>
+      <div class="study-loading-text" id="studyLoadingText">Generating with AI…</div>
+    </div>
+
+  </div><!-- /studyScreen -->
 
 </div><!-- /phone -->
 
