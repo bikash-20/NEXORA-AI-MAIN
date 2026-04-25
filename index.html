@@ -260,8 +260,13 @@
 
 <!-- Compare Panel -->
 <div id="comparePanel">
+
+  <!-- Hidden file input for image upload -->
+  <input type="file" id="cmpImgInput" accept="image/*" style="display:none" onchange="handleCmpImageUpload(event)">
+
   <div class="cmp-header">
     <h3>⚖️ AI Compare Mode</h3>
+    <button id="cmpExportBtn" onclick="exportComparison()" title="Download as Markdown">📄 Export</button>
     <button class="cmp-close" onclick="closeComparePanel()">✕ Close</button>
   </div>
 
@@ -389,9 +394,18 @@
     </div>
   </div>
 
+  <!-- Image preview strip — shown when an image is loaded -->
+  <div id="cmpImgPreviewBar">
+    <img id="cmpImgPreviewThumb" alt="preview">
+    <span id="cmpImgPreviewLabel">Image ready — type a question or send as-is</span>
+    <button id="cmpImgDismissBtn" onclick="dismissCmpImagePreview()" title="Remove image">✕</button>
+  </div>
+
   <!-- Input bar — always pinned at bottom -->
   <div id="cmpInputBar">
     <button class="cmp-clear-btn" onclick="clearCompareChat()" title="Clear chat">🗑️</button>
+    <button id="cmpCameraBtn" onclick="document.getElementById('cmpImgInput').click()" title="Upload image — ask all AIs about it">📷</button>
+    <button id="cmpMicBtn" onclick="toggleCmpMic()" title="Speak your question">🎤</button>
     <div class="input-wrap">
       <textarea id="cmpInput" placeholder="Ask all AIs… follow-ups welcome!" rows="1" maxlength="500"></textarea>
     </div>

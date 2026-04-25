@@ -1750,6 +1750,113 @@
     box-shadow: 0 -6px 24px rgba(0,0,0,0.35);
   }
   #cmpInputBar .input-wrap { flex: 1; }
+
+  /* ── Camera & Mic buttons — flex siblings in #cmpInputBar ── */
+  #cmpCameraBtn, #cmpMicBtn {
+    width: 36px; height: 36px; border-radius: 12px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    cursor: pointer; font-size: 18px; line-height: 1;
+    color: var(--text3);
+    transition: color 0.2s, transform 0.15s, background 0.15s;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #cmpCameraBtn:hover, #cmpMicBtn:hover {
+    color: var(--accent);
+    background: rgba(124,92,255,0.12);
+    transform: scale(1.05);
+  }
+  #cmpCameraBtn.has-image {
+    color: var(--accent);
+    background: rgba(124,92,255,0.15);
+    border-color: rgba(124,92,255,0.4);
+  }
+  #cmpMicBtn.active {
+    color: #f87171;
+    background: rgba(248,113,113,0.1);
+    border-color: rgba(248,113,113,0.3);
+    animation: mic-pulse 1s infinite;
+  }
+  @keyframes mic-pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+  /* ── Export button — lives in .cmp-header ── */
+  #cmpExportBtn {
+    background: none;
+    border: 1px solid rgba(124,92,255,0.25);
+    cursor: pointer; font-size: 11px;
+    color: var(--text2); padding: 5px 10px;
+    border-radius: 10px; font-family: 'DM Sans', sans-serif;
+    transition: all 0.2s; white-space: nowrap; flex-shrink: 0;
+  }
+  #cmpExportBtn:hover {
+    background: rgba(124,92,255,0.12);
+    color: var(--accent);
+    border-color: rgba(124,92,255,0.5);
+  }
+
+  /* ── Image preview bar — full-width strip above #cmpInputBar ── */
+  #cmpImgPreviewBar {
+    display: none; align-items: center; gap: 10px;
+    padding: 8px 14px; flex-shrink: 0;
+    background: rgba(124,92,255,0.08);
+    border-top: 1px solid rgba(124,92,255,0.18);
+    border-bottom: 1px solid rgba(124,92,255,0.12);
+  }
+  #cmpImgPreviewBar.active { display: flex; }
+  #cmpImgPreviewThumb {
+    width: 52px; height: 52px; object-fit: cover;
+    border-radius: 10px;
+    border: 1px solid rgba(124,92,255,0.35);
+    flex-shrink: 0;
+  }
+  #cmpImgPreviewLabel {
+    flex: 1; font-size: 12px; color: var(--text2);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  #cmpImgDismissBtn {
+    background: none; border: none; cursor: pointer;
+    font-size: 18px; color: var(--text3); line-height: 1;
+    padding: 4px; border-radius: 6px; transition: color 0.2s;
+  }
+  #cmpImgDismissBtn:hover { color: #f87171; }
+
+  /* ── Vote buttons ── */
+  .cmp-vote-wrap { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; }
+  .cmp-vote-btn  {
+    background: none; border: none; cursor: pointer; font-size: 14px;
+    opacity: 0.45; transition: opacity 0.15s, transform 0.15s;
+    line-height: 1; padding: 1px 2px;
+  }
+  .cmp-vote-btn:hover { opacity: 1; transform: scale(1.2); }
+  .cmp-vote-btn.active { opacity: 1; }
+  .cmp-vote-tally { font-size: 11px; opacity: 0.7; }
+  .cmp-vote-lifetime {
+    margin-left: 4px; font-size: 10px; opacity: 0.45;
+    padding: 1px 5px; border-radius: 5px;
+    background: rgba(255,255,255,0.05);
+  }
+
+  /* ── Auto-Diff card ── */
+  .cmp-diff-card {
+    background: rgba(14,20,36,0.7);
+    border: 1px solid rgba(34,211,238,0.2);
+    border-radius: 14px; padding: 14px 16px; margin-top: 10px;
+  }
+  .cmp-diff-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .cmp-diff-title  { font-size: 13px; font-weight: 700; color: #67e8f9; }
+  .cmp-diff-sub    { font-size: 11px; color: var(--text3); }
+  .cmp-diff-body   { display: flex; flex-direction: column; gap: 8px; }
+  .diff-row        { display: flex; gap: 10px; font-size: 12px; line-height: 1.5; }
+  .diff-label      {
+    font-weight: 700; font-size: 11px; color: var(--text2);
+    white-space: nowrap; min-width: 90px; padding-top: 1px;
+  }
+  .diff-text       { color: var(--text1); flex: 1; }
+  .diff-agree    .diff-label { color: #6ee7b7; }
+  .diff-disagree .diff-label { color: #fca5a5; }
+  .diff-unique   .diff-label { color: #a78bfa; }
+  .diff-best     .diff-label { color: #fcd34d; }
   #cmpInput {
     flex: 1; background: transparent; border: none; outline: none;
     font-family: 'DM Sans', sans-serif;
