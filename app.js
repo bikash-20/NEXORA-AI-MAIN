@@ -7151,56 +7151,133 @@ BEST: ${bestLabel} — most complete answer based on response length and depth.`
 // ══════════════════════════════════════════════════════════════
 
 function toggleCmpMic() {
+  // ── Already recording → cancel ──
+  if (cmpMicOn) { _stopCmpMic(); return; }
+
+  // ── API not available ──
   if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-    _showKeyToast('⚠️ Voice not supported in this browser. Try Chrome or Edge.');
+    _cmpMicShowError(
+      'Voice not supported in this browser.',
+      'Please use Chrome, Edge, or Samsung Internet.'
+    );
     return;
   }
 
-  if (cmpMicOn) {
-    _stopCmpMic();
-    return;
-  }
-
-  const micBtn = document.getElementById('cmpMicBtn');
-  if (micBtn) micBtn.classList.add('active');
+  // ── Show the listening overlay ──
+  const overlay  = document.getElementById('cmpMicOverlay');
+  const status   = document.getElementById('cmpMicStatus');
+  const interim  = document.getElementById('cmpMicInterim');
+  const micBtn   = document.getElementById('cmpMicBtn');
+  if (overlay) overlay.classList.add('active');
+  if (status)  status.textContent  = 'Listening… speak your question';
+  if (interim) interim.textContent = '';
+  if (micBtn)  micBtn.classList.add('active');
   cmpMicOn = true;
-  _showKeyToast('🎤 Listening… speak your question');
 
+  // ── Create recognition instance ──
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   cmpRecognition = new SR();
-  cmpRecognition.lang = 'en-US';
-  cmpRecognition.interimResults = false;
-  cmpRecognition.continuous     = false;
+  cmpRecognition.lang            = 'en-US';
+  cmpRecognition.interimResults  = true;   // live interim text
+  cmpRecognition.continuous      = false;
+  cmpRecognition.maxAlternatives = 1;
 
+  // Track whether we already got a final result (prevents onend double-firing)
+  let _gotResult = false;
+
+  // ── Live interim transcript ──
   cmpRecognition.onresult = e => {
-    const text = e.results[0][0].transcript;
-    _stopCmpMic();
-    const ci = document.getElementById('cmpInput');
-    if (ci) {
-      ci.value = text;
-      ci.style.height = 'auto';
-      ci.style.height = Math.min(ci.scrollHeight, 80) + 'px';
+    let interimText = '';
+    let finalText   = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) finalText += t;
+      else interimText += t;
     }
-    // Auto-send
-    setTimeout(sendCompare, 120);
+    if (interim) interim.textContent = finalText || interimText;
+    if (status)  status.textContent  = finalText ? '✓ Got it!' : 'Listening…';
+
+    if (finalText) {
+      _gotResult = true;
+      _stopCmpMic();
+      // Populate the textarea
+      const ci = document.getElementById('cmpInput');
+      if (ci) {
+        ci.value = finalText.trim();
+        ci.style.height = 'auto';
+        ci.style.height = Math.min(ci.scrollHeight, 80) + 'px';
+      }
+      // Auto-send after a brief visible pause so user sees the text
+      setTimeout(sendCompare, 350);
+    }
   };
 
-  cmpRecognition.onerror = err => {
+  // ── Error handling — every possible error code ──
+  cmpRecognition.onerror = e => {
     _stopCmpMic();
-    if (err.error === 'not-allowed') {
-      _showKeyToast('🎤 Mic access denied — allow it in browser settings.');
+    const msgs = {
+      'not-allowed':     ['Mic access denied',          'Click the 🔒 icon in your address bar and allow microphone, then try again.'],
+      'audio-capture':   ['No microphone found',        'Make sure a microphone is plugged in and not muted.'],
+      'network':         ['Network error',              'Check your internet connection — speech recognition needs it.'],
+      'no-speech':       ['No speech detected',         'We didn\'t hear anything. Tap the mic and speak clearly.'],
+      'aborted':         ['Listening cancelled',        ''],
+      'service-not-allowed': ['Service blocked',        'Speech recognition is blocked on this site. Try a different browser.'],
+    };
+    const [title, detail] = msgs[e.error] || ['Voice error', `Error: ${e.error}`];
+    if (e.error !== 'aborted' && e.error !== 'no-speech') {
+      _cmpMicShowError(title, detail);
+    } else if (e.error === 'no-speech') {
+      _showKeyToast('🎤 No speech detected — tap the mic and try again.');
     }
   };
 
-  cmpRecognition.onend = () => _stopCmpMic();
-  cmpRecognition.start();
+  // ── onend: only clean up, never double-fire send ──
+  cmpRecognition.onend = () => {
+    if (!_gotResult) _stopCmpMic();
+  };
+
+  try {
+    cmpRecognition.start();
+  } catch(err) {
+    _stopCmpMic();
+    _cmpMicShowError('Could not start microphone', err.message || 'Unknown error.');
+  }
 }
 
 function _stopCmpMic() {
   cmpMicOn = false;
-  if (cmpRecognition) { try { cmpRecognition.stop(); } catch(e) {} cmpRecognition = null; }
-  const micBtn = document.getElementById('cmpMicBtn');
-  if (micBtn) micBtn.classList.remove('active');
+  if (cmpRecognition) {
+    try { cmpRecognition.stop(); } catch(e) {}
+    cmpRecognition = null;
+  }
+  const overlay = document.getElementById('cmpMicOverlay');
+  const micBtn  = document.getElementById('cmpMicBtn');
+  if (overlay) overlay.classList.remove('active');
+  if (micBtn)  micBtn.classList.remove('active');
+}
+
+// Show a clear inline error inside the overlay rather than a disappearing toast
+function _cmpMicShowError(title, detail) {
+  const overlay = document.getElementById('cmpMicOverlay');
+  const status  = document.getElementById('cmpMicStatus');
+  const interim = document.getElementById('cmpMicInterim');
+  const wave    = document.getElementById('cmpMicWaveWrap');
+  if (!overlay) { _showKeyToast('🎤 ' + title); return; }
+
+  // Replace wave with ⚠️, show error text
+  if (wave)    wave.innerHTML = '<span style="font-size:32px">⚠️</span>';
+  if (status)  { status.textContent = title; status.style.color = '#fbbf24'; }
+  if (interim) interim.textContent = detail;
+
+  // Show overlay then auto-dismiss after 3.5 s
+  overlay.classList.add('active');
+  setTimeout(() => {
+    overlay.classList.remove('active');
+    // Restore wave bars for next use
+    if (wave) wave.innerHTML =
+      '<div class="cmp-mic-wave-bar"></div>'.repeat(5);
+    if (status) status.style.color = '';
+  }, 3500);
 }
 
 

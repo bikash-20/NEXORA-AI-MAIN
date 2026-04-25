@@ -401,6 +401,22 @@
     <button id="cmpImgDismissBtn" onclick="dismissCmpImagePreview()" title="Remove image">✕</button>
   </div>
 
+  <!-- 🎤 Mic listening overlay — shown while recording -->
+  <div id="cmpMicOverlay">
+    <div id="cmpMicOverlayInner">
+      <div id="cmpMicWaveWrap">
+        <div class="cmp-mic-wave-bar"></div>
+        <div class="cmp-mic-wave-bar"></div>
+        <div class="cmp-mic-wave-bar"></div>
+        <div class="cmp-mic-wave-bar"></div>
+        <div class="cmp-mic-wave-bar"></div>
+      </div>
+      <div id="cmpMicStatus">Listening… speak your question</div>
+      <div id="cmpMicInterim"></div>
+      <button id="cmpMicCancelBtn" onclick="_stopCmpMic()">✕ Cancel</button>
+    </div>
+  </div>
+
   <!-- Input bar — always pinned at bottom -->
   <div id="cmpInputBar">
     <button class="cmp-clear-btn" onclick="clearCompareChat()" title="Clear chat">🗑️</button>
