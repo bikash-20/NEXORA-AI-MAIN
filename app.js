@@ -10150,8 +10150,22 @@ async function _generateAudioBlobs(lines) {
       }, 12000);
 
       if (res.ok) {
-        const buf  = await res.arrayBuffer();
-        const blob = new Blob([buf], { type: 'audio/wav' });
+        const ct = (res.headers.get('content-type') || '').toLowerCase();
+        let blob = null;
+        if (ct.includes('audio/')) {
+          blob = await res.blob();
+        } else {
+          const payload = await res.json().catch(() => null);
+          const audioB64 = payload?.audio || payload?.result?.audio || '';
+          if (audioB64) {
+            const bytes = Uint8Array.from(atob(audioB64), c => c.charCodeAt(0));
+            blob = new Blob([bytes], { type: 'audio/mpeg' });
+          }
+        }
+        if (!blob || blob.size === 0) throw new Error('Empty audio response');
+        if (!blob.type || blob.type === 'application/octet-stream') {
+          blob = new Blob([await blob.arrayBuffer()], { type: 'audio/mpeg' });
+        }
         if (!_podcastCurrentData.audioBlobData) _podcastCurrentData.audioBlobData = [];
         _podcastCurrentData.audioBlobData[i] = blob;
         _podcastCurrentData.audioBlobs[i] = URL.createObjectURL(blob);

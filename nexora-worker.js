@@ -63,7 +63,7 @@ const SCRIPT_MODEL  = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const SCRIPT_TOKENS = 2048;
 
 // ── CF TTS model (free, available in Workers AI) ────────────────────
-// Returns raw audio bytes (PCM/WAV) — we'll send back as audio/wav
+// MeloTTS returns MP3 audio.
 const TTS_MODEL = '@cf/myshell-ai/melotts'; // free CF TTS model
 
 // ── Router ──────────────────────────────────────────────────────────
@@ -295,21 +295,25 @@ async function handleTTS(request, env) {
   const safeText = text.slice(0, 500);
 
   try {
-    // @cf/myshell-ai/melotts supports: language (en, es, fr, zh, jp, kr) and speed
+    // MeloTTS supports prompt + lang, and returns MP3 audio.
     const result = await env.AI.run(TTS_MODEL, {
       prompt: safeText,
-      language: 'en',
-      speed: voice === 'en-us-female' ? 1.05 : 0.95,
+      lang: 'en',
     });
 
-    // Result is an ArrayBuffer of audio data
-    if (!result || result.byteLength === 0)
+    const audioB64 = typeof result === 'string'
+      ? result
+      : result?.audio || '';
+    if (!audioB64) {
       return cors(JSON.stringify({ error: 'TTS returned empty audio' }), 502);
+    }
 
-    return new Response(result, {
+    const audioBytes = Uint8Array.from(atob(audioB64), c => c.charCodeAt(0));
+
+    return new Response(audioBytes, {
       status: 200,
       headers: {
-        'Content-Type': 'audio/wav',
+        'Content-Type': 'audio/mpeg',
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization',
