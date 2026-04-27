@@ -362,6 +362,7 @@ function resetTransientPanels(preferredScreen) {
 //  NAVIGATION
 // ==============================
 function showScreen(id) {
+  if (typeof closeProgressDashboard === 'function') closeProgressDashboard();
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   currentScreen = id;
@@ -2046,25 +2047,188 @@ function scrollToBottom() {
 // ==============================
 //  EXPORT CHAT
 // ==============================
-function exportChat() {
-  toggleMenu();
-  const rows = getChatRows();
-  if (!rows.length) { alert('No messages to export yet!'); return; }
-  let out = `Nexora Chat — ${new Date().toLocaleString()}\n${'='.repeat(40)}\n\n`;
+let lastChatPdfUrl = '';
+
+function _disposeLastChatPdfUrl() {
+  if (lastChatPdfUrl) {
+    try { URL.revokeObjectURL(lastChatPdfUrl); } catch (_) {}
+    lastChatPdfUrl = '';
+  }
+}
+
+function _chatPdfFileName() {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  return `nexora-chat-${stamp}.pdf`;
+}
+
+function _buildChatExportCard(rows) {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = [
+    'width: 760px',
+    'max-width: 760px',
+    'box-sizing: border-box',
+    'padding: 28px',
+    'background: #f8fafc',
+    'color: #111827',
+    "font-family: Arial, 'Noto Sans', sans-serif",
+  ].join(';');
+
+  const title = document.createElement('div');
+  title.style.cssText = 'font-size: 22px; font-weight: 700; margin: 0 0 6px; color: #0f172a;';
+  title.textContent = 'Nexora Chat';
+
+  const meta = document.createElement('div');
+  meta.style.cssText = 'font-size: 11px; color: #64748b; margin-bottom: 18px;';
+  meta.textContent = new Date().toLocaleString();
+
+  wrap.appendChild(title);
+  wrap.appendChild(meta);
+
   Array.from(rows).forEach(row => {
     const bub = row.querySelector('.bubble');
     const time = row.querySelector('.bubble-time');
     if (!bub) return;
-    const who = row.classList.contains('user') ? (userName || 'You') : 'Nexora';
-    const txt = (bub.innerText || bub.textContent).trim();
-    const ts  = time ? time.textContent : '';
-    out += `[${ts}] ${who}: ${txt}\n\n`;
+    const isUser = row.classList.contains('user');
+    const who = isUser ? (userName || 'You') : 'Nexora';
+    const txt = (bub.innerText || bub.textContent || '').trim();
+    const ts  = time ? (time.textContent || '').trim() : '';
+
+    const rowEl = document.createElement('div');
+    rowEl.style.cssText = `display:flex;justify-content:${isUser ? 'flex-end' : 'flex-start'};margin:12px 0;`;
+
+    const card = document.createElement('div');
+    card.style.cssText = [
+      'max-width: 78%',
+      'border-radius: 16px',
+      'padding: 12px 14px',
+      'border: 1px solid ' + (isUser ? '#c7d2fe' : '#dbe2ea'),
+      'background: ' + (isUser ? 'linear-gradient(135deg, #eef2ff, #e0f2fe)' : '#ffffff'),
+      'box-shadow: 0 4px 16px rgba(15,23,42,0.04)',
+      'white-space: pre-wrap',
+      'word-break: break-word',
+      'line-height: 1.5',
+      'font-size: 13px',
+    ].join(';');
+
+    const head = document.createElement('div');
+    head.style.cssText = 'font-size: 11px; color: #64748b; margin-bottom: 6px; font-weight: 600;';
+    head.textContent = `${who}${ts ? ' · ' + ts : ''}`;
+
+    const body = document.createElement('div');
+    body.style.cssText = 'font-size: 13px; color: #0f172a;';
+    body.textContent = txt;
+
+    card.appendChild(head);
+    card.appendChild(body);
+    rowEl.appendChild(card);
+    wrap.appendChild(rowEl);
   });
-  const blob = new Blob([out], { type: 'text/plain' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `nexora-chat-${Date.now()}.txt`;
-  a.click();
+
+  return wrap;
+}
+
+async function _createChatPdfBlob(rows) {
+  const jsPdfCtor = window.jspdf?.jsPDF;
+  if (!jsPdfCtor || !window.html2canvas) throw new Error('PDF tools not loaded');
+
+  const host = document.createElement('div');
+  host.style.cssText = [
+    'position: fixed',
+    'left: -10000px',
+    'top: 0',
+    'z-index: -1',
+    'opacity: 1',
+  ].join(';');
+  host.appendChild(_buildChatExportCard(rows));
+  document.body.appendChild(host);
+
+  try {
+    const doc = new jsPdfCtor({
+      unit: 'pt',
+      format: 'a4',
+      compress: true,
+    });
+
+    await new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => reject(new Error('PDF generation timed out')), 30000);
+      doc.html(host.firstChild, {
+        x: 24,
+        y: 24,
+        width: 547,
+        windowWidth: 760,
+        autoPaging: 'text',
+        html2canvas: {
+          scale: 1.15,
+          backgroundColor: '#f8fafc',
+          useCORS: true,
+        },
+        callback: () => {
+          clearTimeout(timeoutId);
+          resolve();
+        },
+        margin: [24, 24, 24, 24],
+      });
+    });
+
+    return doc.output('blob');
+  } finally {
+    host.remove();
+  }
+}
+
+async function exportChatPdf({ autoDownload = true } = {}) {
+  const rows = getChatRows();
+  if (!rows.length) { alert('No messages to export yet!'); return null; }
+
+  const filename = _chatPdfFileName();
+  const blob = await _createChatPdfBlob(rows);
+  _disposeLastChatPdfUrl();
+  lastChatPdfUrl = URL.createObjectURL(blob);
+
+  if (autoDownload) {
+    const a = document.createElement('a');
+    a.href = lastChatPdfUrl;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  return { blob, url: lastChatPdfUrl, filename };
+}
+
+function exportChat() {
+  toggleMenu();
+  exportChatPdf({ autoDownload: true }).catch(err => {
+    console.error('PDF export failed:', err);
+    alert('PDF export failed. Falling back to a text download.');
+    const rows = getChatRows();
+    if (!rows.length) return;
+    let out = `Nexora Chat — ${new Date().toLocaleString()}\n${'='.repeat(40)}\n\n`;
+    Array.from(rows).forEach(row => {
+      const bub = row.querySelector('.bubble');
+      const time = row.querySelector('.bubble-time');
+      if (!bub) return;
+      const who = row.classList.contains('user') ? (userName || 'You') : 'Nexora';
+      const txt = (bub.innerText || bub.textContent).trim();
+      const ts  = time ? time.textContent : '';
+      out += `[${ts}] ${who}: ${txt}\n\n`;
+    });
+    const blob = new Blob([out], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `nexora-chat-${Date.now()}.txt`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  });
+}
+
+function isPdfExportRequest(text) {
+  return /\b(download|export|save|convert).*(pdf|portable document format)\b/i.test(text)
+    || /\b(pdf format|as pdf|to pdf|pdf download)\b/i.test(text);
 }
 
 function clearChat() {
@@ -2079,6 +2243,7 @@ function clearChat() {
   // Clear storage
   localStorage.removeItem('nexora_chat_v2');
   sessionLog = [];
+  _disposeLastChatPdfUrl();
   document.getElementById('exportBtn').classList.remove('visible');
   // Confirm message
   setTimeout(() => typeBot("All cleared! Fresh start. 🌱 What's on your mind?"), 300);
@@ -5054,6 +5219,21 @@ async function generateSmartReply(input) {
     if (result) return result;
   }
 
+  // ── PDF export intent ──
+  // If the user asks for a PDF download, generate a real PDF and hand back a link.
+  if (isPdfExportRequest(lower)) {
+    try {
+      const rows = getChatRows();
+      if (!rows.length) return 'There is no chat yet to export as PDF.';
+      const pdf = await exportChatPdf({ autoDownload: true });
+      if (!pdf?.url) return 'I could not generate the PDF right now. Try Export Chat from the menu.';
+      return `__HTML__📄 Your PDF is ready: <a href="${pdf.url}" download="${pdf.filename}" target="_blank" rel="noopener" style="color:var(--accent);font-weight:700;text-decoration:underline;">Download PDF</a>`;
+    } catch (err) {
+      console.error('PDF intent export failed:', err);
+      return 'PDF export is not available right now. Try the Export Chat menu option again after the page finishes loading.';
+    }
+  }
+
   // ── TIER 2: Route based on response mode ──
 
   if (nexoraResponseMode === 'online') {
@@ -8013,8 +8193,207 @@ function _parseStudyJSON(raw) {
   return JSON.parse(txt);
 }
 
+// ── Study source helpers (Notes / Podcast) ───────────────────────────
+let studySourceFile = null;
+let studySourceText = '';
+let studySourceName = '';
+let studySourceKind = '';
+let studyOutputPlainText = '';
+
+function _updateStudySourceSub(text) {
+  const el = document.getElementById('studySourceSub');
+  if (el) el.textContent = text;
+}
+
+function _setStudyUploadPreview(kind, file) {
+  const preview = document.getElementById('studyUploadPreview');
+  const thumb   = document.getElementById('studyUploadThumb');
+  const nameEl  = document.getElementById('studyUploadName');
+  const metaEl  = document.getElementById('studyUploadMeta');
+
+  if (!preview || !nameEl || !metaEl) return;
+
+  if (!file) {
+    preview.style.display = 'none';
+    if (thumb) {
+      thumb.src = '';
+      thumb.style.display = 'none';
+    }
+    nameEl.textContent = '';
+    metaEl.textContent = '';
+    return;
+  }
+
+  preview.style.display = 'flex';
+  nameEl.textContent = file.name || 'Study source';
+  metaEl.textContent = `${kind} · ${Math.max(1, Math.round((file.size || 0) / 1024))} KB`;
+}
+
+async function _studyExtractSourceText(file) {
+  if (!file) return '';
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  const isImage = (file.type || '').startsWith('image/') ||
+    ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'avif'].includes(ext);
+
+  if (isImage) {
+    if (nexoraResponseMode === 'online' && typeof callVisionAI === 'function') {
+      try {
+        const vision = await callVisionAI(
+          file,
+          'Extract the text and the main study points from this image. Return plain text only.'
+        );
+        if (vision && vision.trim()) return vision.trim();
+      } catch(e) {}
+    }
+
+    try {
+      await ensureTesseract();
+      const { data: { text } } = await window.Tesseract.recognize(file, 'eng', { logger: () => {} });
+      return String(text || '').replace(/\s+/g, ' ').trim();
+    } catch(e) {
+      return '';
+    }
+  }
+
+  try {
+    return String(await _readFileAsText(file) || '').trim();
+  } catch(e) {
+    return '';
+  }
+}
+
+async function handleStudyFileUpload(event) {
+  const file = event.target.files && event.target.files[0];
+  event.target.value = '';
+  if (!file) return;
+
+  studySourceFile = file;
+  studySourceName = file.name || 'Study source';
+  studySourceKind = (file.type || '').startsWith('image/') ? 'Image' : 'Document';
+  studySourceText = '';
+
+  _setStudyUploadPreview(studySourceKind, file);
+  _updateStudySourceSub(`Ready to turn "${studySourceName}" into notes or a podcast.`);
+
+  const thumb = document.getElementById('studyUploadThumb');
+  if (thumb && studySourceKind === 'Image') {
+    const reader = new FileReader();
+    reader.onload = e => {
+      thumb.src = e.target.result;
+      thumb.style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+  } else if (thumb) {
+    thumb.src = '';
+    thumb.style.display = 'none';
+  }
+
+  const extracted = await _studyExtractSourceText(file);
+  if (extracted) {
+    studySourceText = extracted;
+    const metaEl = document.getElementById('studyUploadMeta');
+    if (metaEl) metaEl.textContent = `${studySourceKind} · ${Math.max(1, Math.round((file.size || 0) / 1024))} KB · text ready`;
+  } else {
+    const metaEl = document.getElementById('studyUploadMeta');
+    if (metaEl) metaEl.textContent = `${studySourceKind} · ${Math.max(1, Math.round((file.size || 0) / 1024))} KB · no readable text yet`;
+  }
+}
+
+function clearStudyUpload() {
+  studySourceFile = null;
+  studySourceText = '';
+  studySourceName = '';
+  studySourceKind = '';
+
+  const input = document.getElementById('studyFileInput');
+  if (input) input.value = '';
+  _setStudyUploadPreview('', null);
+  _updateStudySourceSub('Upload an image or PDF, then tell Nexora what to make from it.');
+}
+
+function closeStudyOutput() {
+  const panel = document.getElementById('studyOutputPanel');
+  if (panel) panel.style.display = 'none';
+}
+
+function copyStudyOutput(btn) {
+  const text = studyOutputPlainText || document.getElementById('studyOutputBody')?.innerText || '';
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    const prev = btn ? btn.textContent : '';
+    if (btn) {
+      btn.textContent = 'Copied';
+      setTimeout(() => { if (btn) btn.textContent = prev || 'Copy'; }, 1500);
+    }
+  });
+}
+
+function _showStudyOutput(title, content) {
+  const panel = document.getElementById('studyOutputPanel');
+  const titleEl = document.getElementById('studyOutputTitle');
+  const body = document.getElementById('studyOutputBody');
+  if (!panel || !titleEl || !body) return;
+
+  studyOutputPlainText = String(content || '');
+  titleEl.textContent = title || 'Study Output';
+  panel.style.display = 'block';
+
+  if (window.marked && _isMarkdownContent(studyOutputPlainText)) {
+    body.innerHTML = marked.parse(studyOutputPlainText);
+  } else {
+    body.textContent = studyOutputPlainText;
+  }
+}
+
+async function generateStudyNotes() {
+  if (!studySourceFile) {
+    _showStudyToast('Upload a file first.');
+    return;
+  }
+
+  _showStudyLoading('Creating notes…');
+  try {
+    const sourceText = studySourceText || await _studyExtractSourceText(studySourceFile);
+    if (!sourceText) throw new Error('Could not extract readable text from that file.');
+
+    const prompt = `Turn the following study source into concise revision notes. Use headings, bullet points, key terms, and a short recap at the end. Keep it accurate and easy to review.\n\nSOURCE:\n${sourceText.slice(0, 6000)}`;
+    const reply = await callStudyAI('You are an expert note-taking assistant.', prompt);
+    _showStudyOutput(`📝 Notes · ${studySourceName || 'Study Source'}`, reply);
+  } catch(e) {
+    _showStudyToast('❌ ' + (e.message || 'Could not generate notes.'));
+  } finally {
+    _hideStudyLoading();
+  }
+}
+
+async function generateStudyPodcast() {
+  if (!studySourceFile) {
+    _showStudyToast('Upload a file first.');
+    return;
+  }
+
+  _showStudyLoading('Preparing podcast…');
+  try {
+    const sourceText = studySourceText || await _studyExtractSourceText(studySourceFile);
+    if (!sourceText) throw new Error('Could not extract readable text from that file.');
+
+    switchStudyTab('podcast');
+    await new Promise(r => setTimeout(r, 50));
+    await generatePodcast({
+      topic: studySourceName ? studySourceName.replace(/\.[^.]+$/, '') : 'Study source',
+      text: sourceText,
+      title: `📻 ${studySourceName ? studySourceName.replace(/\.[^.]+$/, '') : 'Study Podcast'}`
+    });
+  } catch(e) {
+    _showStudyToast('❌ ' + (e.message || 'Could not generate podcast.'));
+  } finally {
+    _hideStudyLoading();
+  }
+}
+
 // ── Screen open / close ────────────────────────────────────────────────
 function openStudyMode() {
+  if (typeof closeProgressDashboard === 'function') closeProgressDashboard();
   // Close menu if open
   if (menuOpen) {
     menuOpen = false;
@@ -8034,6 +8413,7 @@ function openStudyMode() {
 }
 
 function closeStudyMode() {
+  if (typeof closeProgressDashboard === 'function') closeProgressDashboard();
   setOverlayMode(null);
   showScreen('chatScreen');
 }
@@ -8488,7 +8868,7 @@ function _renderQuizResults() {
       ${!a.isRight ? `<div class="quiz-review-your">Your answer: ${a.chosen}</div>
         <div class="quiz-review-correct">✓ Correct: ${a.correct} — ${_esc(a.options['ABCD'.indexOf(a.correct)] || '')}</div>` : ''}
       ${a.explanation ? `<div class="quiz-review-your" style="margin-top:4px;font-style:italic">${_esc(a.explanation)}</div>` : ''}
-      ${!a.isRight ? `<button class="quiz-re-explain-btn" onclick="quizReExplain(${i})">🧠 Re-explain</button>` : ''}
+      ${!a.isRight ? `<button class="quiz-re-explain-btn" data-quiz-index="${i}" onclick="quizReExplain(${i})">🧠 Re-explain</button>` : ''}
     </div>
   `).join('');
 
@@ -8503,9 +8883,8 @@ function _renderQuizResults() {
 
 async function quizReExplain(idx) {
   const a   = quizAnswered[idx];
-  const btn = document.querySelectorAll('.quiz-re-explain-btn')[
-    [...quizAnswered].filter((x,i) => !x.isRight && i <= idx).length - 1
-  ];
+  const btn = document.querySelector(`.quiz-re-explain-btn[data-quiz-index="${idx}"]`);
+  if (!a) return;
   if (btn) { btn.textContent = '⏳ Asking AI…'; btn.disabled = true; }
   try {
     const reply = await callStudyAI(
@@ -8720,3 +9099,1504 @@ function _showStudyToast(msg) {
   const t = document.getElementById('copyToast');
   if (t) { t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2200); }
 }
+// ══════════════════════════════════════════════════════════════════════
+//  NEXORA — NEW FEATURES v1.0
+//  Drop this entire block at the END of app.js
+//  Features:
+//    1. 📊 Progress Dashboard
+//    2. 📝 Summarizer (with dual-model compare)
+//    3. 🎤 Mock Oral Exam / Viva Mode
+//    4. 📄 PDF Export (SRS cards + Quiz results)
+// ══════════════════════════════════════════════════════════════════════
+
+// ──────────────────────────────────────────────────────────────────────
+//  SHARED: Study time tracking
+//  Auto-starts when Study Mode opens, saves on close
+// ──────────────────────────────────────────────────────────────────────
+const STUDY_TIME_LS  = 'nexora_study_time_log'; // [{ date:'2025-04-27', mins:12 }, …]
+let _studySessionStart = null;
+
+// Call this when Study Mode opens
+function _studyTimeStart() {
+  _studySessionStart = Date.now();
+}
+
+// Call this when Study Mode closes
+function _studyTimeEnd() {
+  if (!_studySessionStart) return;
+  const mins = Math.round((Date.now() - _studySessionStart) / 60000);
+  _studySessionStart = null;
+  if (mins < 1) return; // skip tiny sessions
+  try {
+    const log  = JSON.parse(localStorage.getItem(STUDY_TIME_LS) || '[]');
+    const today = new Date().toDateString();
+    const existing = log.find(e => e.date === today);
+    if (existing) existing.mins += mins;
+    else log.push({ date: today, mins });
+    // keep 30 days
+    while (log.length > 30) log.shift();
+    localStorage.setItem(STUDY_TIME_LS, JSON.stringify(log));
+  } catch(e) {}
+}
+
+// Patch the existing openStudyMode / closeStudyMode to track time
+// Works by wrapping after they are already defined
+(function patchStudyTimeTracking() {
+  const origOpen  = window.openStudyMode;
+  const origClose = window.closeStudyMode;
+  window.openStudyMode = function() {
+    _studyTimeStart();
+    if (origOpen) origOpen();
+  };
+  window.closeStudyMode = function() {
+    _studyTimeEnd();
+    if (origClose) origClose();
+  };
+})();
+
+// ══════════════════════════════════════════════════════════════════════
+//  1. 📊 PROGRESS DASHBOARD
+// ══════════════════════════════════════════════════════════════════════
+
+function openProgressDashboard() {
+  // Close menu if open
+  if (typeof menuOpen !== 'undefined' && menuOpen) {
+    menuOpen = false;
+    const mt = document.getElementById('modeToggle');
+    if (mt) mt.classList.remove('open');
+  }
+
+  _renderDashboard();
+  const overlay = document.getElementById('progressDashboard');
+  if (overlay) overlay.classList.add('open');
+}
+
+function closeProgressDashboard() {
+  const overlay = document.getElementById('progressDashboard');
+  if (overlay) overlay.classList.remove('open');
+}
+
+function _renderDashboard() {
+  // ── Gather data ──────────────────────────────────────────────
+  // SRS cards
+  let srsTotal = 0, srsMastered = 0, srsWeekReviewed = 0;
+  try {
+    const cards = JSON.parse(localStorage.getItem('nexora_srs_cards') || '[]');
+    srsTotal     = cards.length;
+    srsMastered  = cards.filter(c => c.interval >= 7).length;
+    const weekAgo = Date.now() - 7 * 86400000;
+    // Count cards whose next_review was updated in the last 7 days (reps > 0 and recently active)
+    // We approximate using interval/ease as a proxy for reviewed cards
+    srsWeekReviewed = cards.filter(c => c.reps > 0).length;
+  } catch(e) {}
+
+  // SRS streak
+  let srsStreak = 0;
+  try {
+    const d = JSON.parse(localStorage.getItem('nexora_srs_streak') || '{}');
+    const today = new Date().toDateString();
+    const yesterday = new Date(Date.now() - 86400000).toDateString();
+    if (d.last === today || d.last === yesterday) srsStreak = d.streak || 0;
+  } catch(e) {}
+
+  // Quiz history
+  let quizSessions = [], quizAvgPct = 0, quizBestPct = 0, quizTopTopics = [];
+  try {
+    quizSessions = JSON.parse(localStorage.getItem('nexora_quiz_hist') || '[]');
+    if (quizSessions.length) {
+      const last5 = quizSessions.slice(0, 5);
+      quizAvgPct  = Math.round(last5.reduce((a, b) => a + (b.pct || 0), 0) / last5.length);
+      quizBestPct = Math.max(...quizSessions.map(s => s.pct || 0));
+      // Most quizzed topics
+      const topicCounts = {};
+      quizSessions.forEach(s => { if (s.topic) topicCounts[s.topic] = (topicCounts[s.topic] || 0) + 1; });
+      quizTopTopics = Object.entries(topicCounts).sort((a,b) => b[1]-a[1]).slice(0,3).map(([t]) => t);
+    }
+  } catch(e) {}
+
+  // Study time (last 7 days)
+  let totalStudyMins = 0, studyDaysThisWeek = 0;
+  const weeklyMinsByDay = {}; // { 'Mon': 25, … }
+  try {
+    const log = JSON.parse(localStorage.getItem(STUDY_TIME_LS) || '[]');
+    const weekAgo = Date.now() - 7 * 86400000;
+    log.forEach(entry => {
+      const d = new Date(entry.date);
+      if (d.getTime() >= weekAgo) {
+        totalStudyMins += entry.mins;
+        studyDaysThisWeek++;
+        const dayLabel = d.toLocaleDateString('en-US', { weekday: 'short' });
+        weeklyMinsByDay[dayLabel] = (weeklyMinsByDay[dayLabel] || 0) + entry.mins;
+      }
+    });
+  } catch(e) {}
+
+  // ── Build mini bar chart (7 day study time) ──────────────────
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const todayIdx = new Date().getDay();
+  const orderedDays = [];
+  for (let i = 6; i >= 0; i--) {
+    orderedDays.push(days[(todayIdx - i + 7) % 7]);
+  }
+  const maxMins  = Math.max(...orderedDays.map(d => weeklyMinsByDay[d] || 0), 1);
+  const barsHTML = orderedDays.map(d => {
+    const mins = weeklyMinsByDay[d] || 0;
+    const pct  = Math.round((mins / maxMins) * 100);
+    const isToday = d === days[todayIdx];
+    return `<div class="dash-bar-col">
+      <div class="dash-bar-wrap">
+        <div class="dash-bar-fill ${isToday ? 'today' : ''}" style="height:${Math.max(pct, mins > 0 ? 8 : 0)}%"
+             title="${mins} min"></div>
+      </div>
+      <div class="dash-bar-label ${isToday ? 'today' : ''}">${d}</div>
+    </div>`;
+  }).join('');
+
+  // ── Quiz accuracy mini sparkline ──────────────────────────────
+  const last5Quiz = quizSessions.slice(0, 5).reverse();
+  let sparkHTML = '';
+  if (last5Quiz.length >= 2) {
+    const pts = last5Quiz.map(s => s.pct || 0);
+    const maxP = Math.max(...pts, 1);
+    const w = 100 / (pts.length - 1);
+    const polyPoints = pts.map((p, i) => `${i * w},${100 - (p / maxP) * 80}`).join(' ');
+    sparkHTML = `<svg class="dash-spark" viewBox="0 0 100 100" preserveAspectRatio="none">
+      <polyline points="${polyPoints}" fill="none" stroke="var(--primary)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      ${pts.map((p,i) => `<circle cx="${i*w}" cy="${100-(p/maxP)*80}" r="4" fill="var(--primary)"/>`).join('')}
+    </svg>`;
+  } else {
+    sparkHTML = `<div class="dash-no-data">Complete 2+ quizzes to see trend</div>`;
+  }
+
+  // ── Render HTML ───────────────────────────────────────────────
+  const body = document.getElementById('dashboardBody');
+  if (!body) return;
+
+  body.innerHTML = `
+    <!-- Row 1: key stats -->
+    <div class="dash-grid-3">
+      <div class="dash-stat-card">
+        <div class="dash-stat-icon">🔁</div>
+        <div class="dash-stat-val">${srsStreak}</div>
+        <div class="dash-stat-label">Day Streak</div>
+      </div>
+      <div class="dash-stat-card">
+        <div class="dash-stat-icon">🃏</div>
+        <div class="dash-stat-val">${srsTotal}</div>
+        <div class="dash-stat-label">Cards Saved</div>
+      </div>
+      <div class="dash-stat-card">
+        <div class="dash-stat-icon">⏱️</div>
+        <div class="dash-stat-val">${totalStudyMins}</div>
+        <div class="dash-stat-label">Mins This Week</div>
+      </div>
+    </div>
+
+    <!-- Row 2: SRS progress -->
+    <div class="dash-section">
+      <div class="dash-section-title">🃏 Flashcard Progress</div>
+      <div class="dash-progress-row">
+        <div class="dash-progress-label"><span>Mastered</span><span>${srsMastered} / ${srsTotal}</span></div>
+        <div class="dash-progress-track">
+          <div class="dash-progress-bar" style="width:${srsTotal ? Math.round(srsMastered/srsTotal*100) : 0}%"></div>
+        </div>
+      </div>
+      <div class="dash-progress-row" style="margin-top:8px">
+        <div class="dash-progress-label"><span>Reviewed</span><span>${srsWeekReviewed} cards</span></div>
+        <div class="dash-progress-track">
+          <div class="dash-progress-bar secondary" style="width:${srsTotal ? Math.min(Math.round(srsWeekReviewed/srsTotal*100),100) : 0}%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 3: Quiz accuracy -->
+    <div class="dash-section">
+      <div class="dash-section-title">📝 Quiz Accuracy <span class="dash-section-sub">(last 5 sessions)</span></div>
+      <div class="dash-quiz-stats">
+        <div class="dash-quiz-stat"><div class="dash-quiz-val">${quizSessions.length}</div><div class="dash-quiz-lab">Quizzes</div></div>
+        <div class="dash-quiz-stat"><div class="dash-quiz-val">${quizAvgPct}%</div><div class="dash-quiz-lab">Avg Score</div></div>
+        <div class="dash-quiz-stat"><div class="dash-quiz-val">${quizBestPct}%</div><div class="dash-quiz-lab">Best Score</div></div>
+      </div>
+      <div class="dash-spark-wrap">${sparkHTML}</div>
+      ${quizTopTopics.length ? `<div class="dash-topics-row">${quizTopTopics.map(t => `<span class="dash-topic-chip">${t}</span>`).join('')}</div>` : ''}
+    </div>
+
+    <!-- Row 4: Weekly study chart -->
+    <div class="dash-section">
+      <div class="dash-section-title">⏱️ Study Time — Last 7 Days</div>
+      <div class="dash-bar-chart">${barsHTML}</div>
+      <div class="dash-study-footer">${studyDaysThisWeek} active day${studyDaysThisWeek !== 1 ? 's' : ''} · ${totalStudyMins} total mins</div>
+    </div>
+
+    <!-- Row 5: recent quiz history -->
+    ${quizSessions.length ? `
+    <div class="dash-section">
+      <div class="dash-section-title">📋 Recent Quizzes</div>
+      <div class="dash-quiz-hist">
+        ${quizSessions.slice(0, 6).map(s => `
+          <div class="dash-quiz-hist-row">
+            <span class="dash-quiz-hist-topic">${_esc(s.topic || 'Quiz')}</span>
+            <span class="dash-quiz-hist-diff ${s.diff || ''}">${s.diff || ''}</span>
+            <span class="dash-quiz-hist-score ${s.pct >= 80 ? 'good' : s.pct >= 50 ? 'mid' : 'low'}">${s.pct}%</span>
+            <span class="dash-quiz-hist-time">${_timeAgo(s.ts)}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>` : ''}
+  `;
+}
+
+
+// ══════════════════════════════════════════════════════════════════════
+//  2. 📝 SUMMARIZER (with dual-model compare)
+// ══════════════════════════════════════════════════════════════════════
+
+function openSummarizer() {
+  if (typeof menuOpen !== 'undefined' && menuOpen) {
+    menuOpen = false;
+    const mt = document.getElementById('modeToggle');
+    if (mt) mt.classList.remove('open');
+  }
+  const overlay = document.getElementById('summarizerPanel');
+  if (overlay) overlay.classList.add('open');
+  // Reset
+  const ta = document.getElementById('summarizerInput');
+  if (ta) ta.value = '';
+  document.getElementById('summarizerOutput').innerHTML = '';
+  document.getElementById('summarizerOutput').style.display = 'none';
+}
+
+function closeSummarizer() {
+  const overlay = document.getElementById('summarizerPanel');
+  if (overlay) overlay.classList.remove('open');
+}
+
+async function runSummarizer() {
+  const text   = (document.getElementById('summarizerInput')?.value || '').trim();
+  const mode   = document.getElementById('summarizerMode')?.value || 'bullet';
+  const compare = document.getElementById('summarizerCompare')?.checked;
+
+  if (!text || text.length < 40) {
+    _showStudyToast('Please paste at least a sentence or two to summarize.');
+    return;
+  }
+
+  const btn = document.getElementById('summarizerRunBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Summarizing…'; }
+
+  const modeDesc = {
+    bullet:   'Summarize into clear bullet points. Be concise.',
+    paragraph:'Write a concise paragraph summary in plain English.',
+    eli5:     'Explain this in simple terms a 12-year-old would understand.',
+    key:      'Extract only the key terms and their one-line definitions.',
+    tldr:     'Write a 2-sentence TL;DR.',
+  }[mode] || 'Summarize concisely.';
+
+  const systemPrompt = `You are an expert study assistant. ${modeDesc} Keep your response focused and well-structured. Do not add preamble like "Sure!" or "Here is a summary".`;
+  const userPrompt   = `Text to summarize:\n\n${text.slice(0, 4000)}`;
+
+  const out = document.getElementById('summarizerOutput');
+  out.style.display = 'block';
+  out.innerHTML = `<div class="sum-loading">⏳ Generating summary…</div>`;
+
+  if (!compare) {
+    // Single model
+    try {
+      const reply = await callStudyAI(systemPrompt, userPrompt);
+      out.innerHTML = _renderSummaryCard('✨ Summary', reply, studyAIKey);
+    } catch(e) {
+      out.innerHTML = `<div class="sum-error">❌ Failed to summarize. Check your AI key.</div>`;
+    }
+  } else {
+    // Dual model compare: current study AI + a second one
+    out.innerHTML = `
+      <div class="sum-compare-grid">
+        <div id="sumCard1" class="sum-card-wrap"><div class="sum-loading">⏳ Model 1…</div></div>
+        <div id="sumCard2" class="sum-card-wrap"><div class="sum-loading">⏳ Model 2…</div></div>
+      </div>`;
+
+    // Run both in parallel
+    const model1Key = studyAIKey;
+    // Pick a different second model
+    const allOptions = typeof getStudyAIOptions === 'function' ? getStudyAIOptions() : [];
+    const model2Opt  = allOptions.find(o => o.key !== model1Key) || allOptions[0];
+    const model2Key  = model2Opt?.key || 'gemini';
+
+    const origKey = studyAIKey;
+
+    const p1 = callStudyAI(systemPrompt, userPrompt).then(r => {
+      document.getElementById('sumCard1').innerHTML = _renderSummaryCard(
+        (typeof CMP_MODELS !== 'undefined' ? CMP_MODELS[model1Key]?.label : model1Key) || model1Key, r, model1Key);
+    }).catch(() => {
+      document.getElementById('sumCard1').innerHTML = `<div class="sum-error">❌ Model 1 failed.</div>`;
+    });
+
+    // Temporarily swap key to get model 2
+    const p2 = (async () => {
+      studyAIKey = model2Key;
+      try {
+        const r = await callStudyAI(systemPrompt, userPrompt);
+        document.getElementById('sumCard2').innerHTML = _renderSummaryCard(
+          (typeof CMP_MODELS !== 'undefined' ? CMP_MODELS[model2Key]?.label : model2Key) || model2Key, r, model2Key);
+      } catch(e) {
+        document.getElementById('sumCard2').innerHTML = `<div class="sum-error">❌ Model 2 failed.</div>`;
+      } finally {
+        studyAIKey = origKey;
+      }
+    })();
+
+    await Promise.allSettled([p1, p2]);
+  }
+
+  if (btn) { btn.disabled = false; btn.textContent = '✨ Summarize'; }
+}
+
+function _renderSummaryCard(label, text, modelKey) {
+  const color = (typeof CMP_MODELS !== 'undefined' && CMP_MODELS[modelKey]?.color) || 'var(--primary)';
+  const rendered = (window.marked && text) ? marked.parse(text) : _esc(text || '').replace(/\n/g, '<br>');
+  return `<div class="sum-card">
+    <div class="sum-card-header" style="border-left:3px solid ${color}">
+      <span class="sum-card-model">${_esc(label)}</span>
+      <button class="sum-copy-btn" onclick="(function(b){
+        const txt = b.closest('.sum-card').querySelector('.sum-card-body').innerText;
+        navigator.clipboard.writeText(txt).then(()=>{b.textContent='✓ Copied';setTimeout(()=>{b.textContent='Copy'},1800)});
+      })(this)">Copy</button>
+    </div>
+    <div class="sum-card-body">${rendered}</div>
+  </div>`;
+}
+
+
+// ══════════════════════════════════════════════════════════════════════
+//  3. 🎤 MOCK ORAL EXAM / VIVA MODE
+// ══════════════════════════════════════════════════════════════════════
+
+let vivaQuestions   = [];   // [{ q, critique, score, userAnswer }]
+let vivaIndex       = 0;
+let vivaTopic       = '';
+let vivaAnswering   = false; // waiting for user answer
+let vivaSessionDone = false;
+
+function openViva() {
+  if (typeof menuOpen !== 'undefined' && menuOpen) {
+    menuOpen = false;
+    const mt = document.getElementById('modeToggle');
+    if (mt) mt.classList.remove('open');
+  }
+  _vivaReset();
+  const overlay = document.getElementById('vivaPanel');
+  if (overlay) overlay.classList.add('open');
+}
+
+function closeViva() {
+  const overlay = document.getElementById('vivaPanel');
+  if (overlay) overlay.classList.remove('open');
+  // Stop voice if active
+  if (typeof stopMic === 'function') stopMic();
+  if (typeof stopSpeaking === 'function') stopSpeaking();
+}
+
+function _vivaReset() {
+  vivaQuestions   = [];
+  vivaIndex       = 0;
+  vivaTopic       = '';
+  vivaAnswering   = false;
+  vivaSessionDone = false;
+  _vivaShowSetup();
+}
+
+function _vivaShowSetup() {
+  document.getElementById('vivaSetup').style.display     = 'block';
+  document.getElementById('vivaSession').style.display   = 'none';
+  document.getElementById('vivaResults').style.display   = 'none';
+  const inp = document.getElementById('vivaTopicInput');
+  if (inp) { inp.value = ''; inp.focus(); }
+}
+
+async function startViva() {
+  const topicEl = document.getElementById('vivaTopicInput');
+  const qCount  = parseInt(document.getElementById('vivaQCount')?.value || '5', 10);
+  const level   = document.getElementById('vivaLevel')?.value || 'undergraduate';
+  vivaTopic     = (topicEl?.value || '').trim();
+
+  if (!vivaTopic) { _showStudyToast('Please enter a topic.'); return; }
+
+  const btn = document.getElementById('vivaStartBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Preparing questions…'; }
+
+  const systemPrompt = `You are a strict but fair university examiner conducting a viva voce oral exam. Generate exactly ${qCount} open-ended exam questions on the topic provided. Each question should test deep understanding, not just recall. Questions should be appropriate for ${level} level. Format your response as JSON only — an array of strings, no other text. Example: ["Question 1?","Question 2?"]`;
+  const userPrompt   = `Topic: ${vivaTopic}\nGenerate ${qCount} viva questions.`;
+
+  try {
+    const raw = await callStudyAI(systemPrompt, userPrompt);
+    // Parse JSON from response
+    const jsonMatch = raw.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) throw new Error('No JSON found');
+    const qs = JSON.parse(jsonMatch[0]);
+    if (!Array.isArray(qs) || qs.length === 0) throw new Error('Empty array');
+    vivaQuestions = qs.slice(0, qCount).map(q => ({ q: String(q), userAnswer: '', critique: '', score: 0 }));
+    vivaIndex = 0;
+    _vivaShowSession();
+  } catch(e) {
+    // Fallback: generic questions
+    vivaQuestions = [
+      { q: `Define the core concept of ${vivaTopic} in your own words.`, userAnswer:'', critique:'', score:0 },
+      { q: `What are the main components or principles of ${vivaTopic}?`, userAnswer:'', critique:'', score:0 },
+      { q: `Give a real-world example that illustrates ${vivaTopic}.`, userAnswer:'', critique:'', score:0 },
+      { q: `What are the limitations or drawbacks of ${vivaTopic}?`, userAnswer:'', critique:'', score:0 },
+      { q: `How does ${vivaTopic} compare to an alternative approach?`, userAnswer:'', critique:'', score:0 },
+    ].slice(0, qCount);
+    vivaIndex = 0;
+    _vivaShowSession();
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🎤 Start Exam'; }
+  }
+}
+
+function _vivaShowSession() {
+  document.getElementById('vivaSetup').style.display   = 'none';
+  document.getElementById('vivaSession').style.display = 'block';
+  document.getElementById('vivaResults').style.display = 'none';
+  _vivaRenderQuestion();
+}
+
+function _vivaRenderQuestion() {
+  const q = vivaQuestions[vivaIndex];
+  if (!q) { _vivaShowResults(); return; }
+
+  const progress = `Q${vivaIndex + 1} of ${vivaQuestions.length}`;
+  document.getElementById('vivaProgress').textContent = progress;
+  document.getElementById('vivaProgressFill').style.width = `${((vivaIndex) / vivaQuestions.length) * 100}%`;
+  document.getElementById('vivaQuestion').textContent = q.q;
+  document.getElementById('vivaAnswerInput').value = '';
+  document.getElementById('vivaCritique').style.display = 'none';
+  document.getElementById('vivaSubmitRow').style.display = 'flex';
+  document.getElementById('vivaNextRow').style.display   = 'none';
+  vivaAnswering = true;
+}
+
+async function submitVivaAnswer() {
+  const ans = (document.getElementById('vivaAnswerInput')?.value || '').trim();
+  if (!ans) { _showStudyToast('Please write your answer before submitting.'); return; }
+
+  const q = vivaQuestions[vivaIndex];
+  q.userAnswer = ans;
+  vivaAnswering = false;
+
+  const submitBtn = document.getElementById('vivaSubmitBtn');
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = '⏳ Evaluating…'; }
+
+  const systemPrompt = `You are a strict but constructive university examiner. Evaluate the student's answer to a viva question. Respond ONLY with a JSON object: {"score": <0-10>, "critique": "<2-3 sentence evaluation mentioning what was good, what was missing, and the ideal answer>"}. No other text.`;
+  const userPrompt   = `Topic: ${vivaTopic}\nQuestion: ${q.q}\nStudent's answer: ${ans}`;
+
+  try {
+    const raw  = await callStudyAI(systemPrompt, userPrompt);
+    const json = JSON.parse(raw.match(/\{[\s\S]*\}/)?.[0] || '{}');
+    q.score    = Math.max(0, Math.min(10, parseInt(json.score || 0, 10)));
+    q.critique = json.critique || 'No critique returned.';
+  } catch(e) {
+    q.score    = 5;
+    q.critique = 'Could not evaluate automatically. Review your answer and compare with course materials.';
+  }
+
+  // Show critique
+  const critiqueEl = document.getElementById('vivaCritique');
+  const scoreEl    = document.getElementById('vivaCritiqueScore');
+  const textEl     = document.getElementById('vivaCritiqueText');
+
+  const scoreClass = q.score >= 8 ? 'good' : q.score >= 5 ? 'mid' : 'low';
+  if (scoreEl) { scoreEl.textContent = `${q.score}/10`; scoreEl.className = `viva-score-badge ${scoreClass}`; }
+  if (textEl)  textEl.textContent = q.critique;
+  if (critiqueEl) critiqueEl.style.display = 'block';
+
+  document.getElementById('vivaSubmitRow').style.display = 'none';
+  document.getElementById('vivaNextRow').style.display   = 'flex';
+
+  if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '✅ Submit Answer'; }
+}
+
+function vivaNext() {
+  vivaIndex++;
+  if (vivaIndex >= vivaQuestions.length) {
+    _vivaShowResults();
+  } else {
+    _vivaRenderQuestion();
+  }
+}
+
+function _vivaShowResults() {
+  document.getElementById('vivaSession').style.display = 'none';
+  document.getElementById('vivaResults').style.display = 'block';
+  document.getElementById('vivaProgressFill').style.width = '100%';
+
+  const answered = vivaQuestions.filter(q => q.userAnswer);
+  const total    = answered.length;
+  const avgScore = total ? Math.round(answered.reduce((a,b) => a + b.score, 0) / total * 10) : 0;
+
+  const grade = avgScore >= 80 ? 'Distinction 🎓' : avgScore >= 65 ? 'Merit 🌟' : avgScore >= 50 ? 'Pass ✅' : 'Needs Work 📚';
+  document.getElementById('vivaGrade').textContent       = grade;
+  document.getElementById('vivaFinalScore').textContent  = `${avgScore}%`;
+  document.getElementById('vivaFinalTopic').textContent  = vivaTopic;
+
+  const reviewList = document.getElementById('vivaReviewList');
+  if (reviewList) {
+    reviewList.innerHTML = vivaQuestions.map((q, i) => `
+      <div class="viva-review-item">
+        <div class="viva-review-q"><span class="viva-review-num">Q${i+1}</span> ${_esc(q.q)}</div>
+        ${q.userAnswer ? `
+          <div class="viva-review-answer">${_esc(q.userAnswer)}</div>
+          <div class="viva-review-critique">
+            <span class="viva-score-badge ${q.score>=8?'good':q.score>=5?'mid':'low'}">${q.score}/10</span>
+            <span>${_esc(q.critique)}</span>
+          </div>
+        ` : `<div class="viva-review-answer" style="color:var(--text3)">Not answered</div>`}
+      </div>
+    `).join('');
+  }
+}
+
+function vivaRetry() { _vivaReset(); }
+
+// Optional: voice input for viva answer
+function vivaToggleMic() {
+  const btn = document.getElementById('vivaMicBtn');
+  if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
+    _showStudyToast('Voice input not supported in this browser.');
+    return;
+  }
+  // Reuse existing recognition if available, else create
+  if (window._vivaRecognition && window._vivaRecognition._active) {
+    window._vivaRecognition.stop();
+    window._vivaRecognition._active = false;
+    if (btn) btn.classList.remove('active');
+    return;
+  }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const rec = new SR();
+  rec.continuous = false;
+  rec.interimResults = false;
+  rec.lang = 'en-US';
+  rec._active = true;
+  rec.onresult = (e) => {
+    const transcript = e.results[0][0].transcript;
+    const ta = document.getElementById('vivaAnswerInput');
+    if (ta) ta.value = (ta.value ? ta.value + ' ' : '') + transcript;
+    rec._active = false;
+    if (btn) btn.classList.remove('active');
+  };
+  rec.onerror = () => { rec._active = false; if (btn) btn.classList.remove('active'); };
+  rec.onend   = () => { rec._active = false; if (btn) btn.classList.remove('active'); };
+  window._vivaRecognition = rec;
+  rec.start();
+  if (btn) btn.classList.add('active');
+  _showStudyToast('🎤 Listening… speak your answer.');
+}
+
+
+// ══════════════════════════════════════════════════════════════════════
+//  4. 📄 PDF EXPORT
+//  Pure browser — no external libs needed (uses window.print with
+//  a hidden iframe + custom print CSS injected inline)
+// ══════════════════════════════════════════════════════════════════════
+
+function exportSRStoPDF() {
+  let cards = [];
+  try { cards = JSON.parse(localStorage.getItem('nexora_srs_cards') || '[]'); } catch(e) {}
+  if (!cards.length) { _showStudyToast('No saved cards to export.'); return; }
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Nexora Flashcards</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #111; padding: 32px; }
+  h1 { font-size: 22px; margin-bottom: 4px; color: #7c5cff; }
+  .meta { font-size: 12px; color: #888; margin-bottom: 24px; }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .card { border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 14px; break-inside: avoid; }
+  .card-num { font-size: 10px; color: #aaa; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .5px; }
+  .card-q { font-size: 13px; font-weight: 600; color: #1a1a2e; margin-bottom: 8px; line-height: 1.4; }
+  .card-a { font-size: 12px; color: #444; border-top: 1px solid #f0f0f0; padding-top: 8px; line-height: 1.5; }
+  .card-meta { font-size: 10px; color: #bbb; margin-top: 6px; }
+  .tag { display:inline-block; background:#f3f0ff; color:#7c5cff; border-radius:4px; padding:1px 6px; font-size:10px; }
+  @media print {
+    body { padding: 16px; }
+    .cards { grid-template-columns: 1fr 1fr; }
+  }
+</style></head><body>
+<h1>📚 Nexora Flashcards</h1>
+<div class="meta">Exported ${new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'})} · ${cards.length} cards</div>
+<div class="cards">
+  ${cards.map((c, i) => `
+    <div class="card">
+      <div class="card-num">Card ${i + 1} ${c.tag ? `<span class="tag">${_esc(c.tag)}</span>` : ''}</div>
+      <div class="card-q">${_esc(c.front)}</div>
+      <div class="card-a">${_esc(c.back)}</div>
+      <div class="card-meta">Interval: ${c.interval}d · Ease: ${(c.ease||2.5).toFixed(1)} · Reps: ${c.reps||0}</div>
+    </div>
+  `).join('')}
+</div>
+</body></html>`;
+
+  _printHTML(html, 'Nexora_Flashcards');
+}
+
+function exportQuizToPDF() {
+  let hist = [];
+  try { hist = JSON.parse(localStorage.getItem('nexora_quiz_hist') || '[]'); } catch(e) {}
+  if (!hist.length) { _showStudyToast('No quiz history to export.'); return; }
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Nexora Quiz History</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #111; padding: 32px; }
+  h1 { font-size: 22px; margin-bottom: 4px; color: #7c5cff; }
+  .meta { font-size: 12px; color: #888; margin-bottom: 24px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: #7c5cff; color: #fff; padding: 10px 12px; text-align: left; font-size: 12px; }
+  td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; }
+  tr:nth-child(even) td { background: #fafafa; }
+  .score-good { color: #16a34a; font-weight: 700; }
+  .score-mid  { color: #ca8a04; font-weight: 700; }
+  .score-low  { color: #dc2626; font-weight: 700; }
+  .diff { display:inline-block; font-size:10px; padding:2px 8px; border-radius:4px; background:#f3f0ff; color:#7c5cff; }
+  .summary { margin-top: 24px; padding: 16px; background: #f8f7ff; border-radius: 10px; border: 1px solid #e9e4ff; }
+  .summary h3 { font-size: 14px; color: #7c5cff; margin-bottom: 10px; }
+  .sum-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
+  .sum-stat { text-align: center; }
+  .sum-val { font-size: 24px; font-weight: 700; color: #7c5cff; }
+  .sum-lab { font-size: 11px; color: #888; }
+  @media print { body { padding: 16px; } }
+</style></head><body>
+<h1>📝 Nexora Quiz History</h1>
+<div class="meta">Exported ${new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'})} · ${hist.length} sessions</div>
+
+<div class="summary">
+  <h3>📊 Overall Stats</h3>
+  <div class="sum-grid">
+    <div class="sum-stat"><div class="sum-val">${hist.length}</div><div class="sum-lab">Total Quizzes</div></div>
+    <div class="sum-stat"><div class="sum-val">${Math.round(hist.reduce((a,b)=>a+(b.pct||0),0)/hist.length)}%</div><div class="sum-lab">Average Score</div></div>
+    <div class="sum-stat"><div class="sum-val">${Math.max(...hist.map(s=>s.pct||0))}%</div><div class="sum-lab">Best Score</div></div>
+  </div>
+</div>
+
+<table style="margin-top:20px">
+  <thead><tr><th>#</th><th>Topic</th><th>Score</th><th>Questions</th><th>Difficulty</th><th>Date</th></tr></thead>
+  <tbody>
+    ${hist.map((s,i) => `<tr>
+      <td>${i+1}</td>
+      <td>${_esc(s.topic||'—')}</td>
+      <td class="${s.pct>=80?'score-good':s.pct>=50?'score-mid':'score-low'}">${s.pct}%</td>
+      <td>${s.total||'—'}</td>
+      <td><span class="diff">${_esc(s.diff||'medium')}</span></td>
+      <td>${new Date(s.ts).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</td>
+    </tr>`).join('')}
+  </tbody>
+</table>
+</body></html>`;
+
+  _printHTML(html, 'Nexora_Quiz_History');
+}
+
+function _printHTML(html, title) {
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:0;height:0;border:none;';
+  document.body.appendChild(iframe);
+  iframe.contentDocument.open();
+  iframe.contentDocument.write(html);
+  iframe.contentDocument.close();
+  setTimeout(() => {
+    try {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    } catch(e) {}
+    setTimeout(() => document.body.removeChild(iframe), 2000);
+  }, 600);
+  _showStudyToast('📄 Opening print dialog…');
+}
+
+
+// ══════════════════════════════════════════════════════════════════════
+//  PATCH: Add new tabs to switchStudyTab
+// ══════════════════════════════════════════════════════════════════════
+(function patchSwitchStudyTab() {
+  const orig = window.switchStudyTab;
+  window.switchStudyTab = function(tab) {
+    if (tab === 'summarizer') {
+      document.querySelectorAll('.study-tab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.study-panel').forEach(p => p.classList.remove('active'));
+      const tabBtn = document.getElementById('stab-summarizer');
+      const panel  = document.getElementById('spanel-summarizer');
+      if (tabBtn) tabBtn.classList.add('active');
+      if (panel)  panel.classList.add('active');
+      studyCurrentTab = 'summarizer';
+      return;
+    }
+    if (tab === 'viva') {
+      document.querySelectorAll('.study-tab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.study-panel').forEach(p => p.classList.remove('active'));
+      const tabBtn = document.getElementById('stab-viva');
+      const panel  = document.getElementById('spanel-viva');
+      if (tabBtn) tabBtn.classList.add('active');
+      if (panel)  panel.classList.add('active');
+      studyCurrentTab = 'viva';
+      _vivaReset();
+      return;
+    }
+    if (orig) orig(tab);
+  };
+})();
+
+// ══════════════════════════════════════════════════════════════════════
+//  PDF EXPORT — Viva Session Results
+// ══════════════════════════════════════════════════════════════════════
+function exportVivaToPDF() {
+  if (!vivaQuestions.length) { _showStudyToast('No viva session to export.'); return; }
+  const answered = vivaQuestions.filter(q => q.userAnswer);
+  const avgScore = answered.length
+    ? Math.round(answered.reduce((a, b) => a + b.score, 0) / answered.length * 10) : 0;
+  const grade = avgScore >= 80 ? 'Distinction' : avgScore >= 65 ? 'Merit' : avgScore >= 50 ? 'Pass' : 'Needs Work';
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Nexora Viva Results</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #111; padding: 32px; }
+  h1 { font-size: 22px; color: #7c5cff; margin-bottom: 4px; }
+  .meta { font-size: 12px; color: #888; margin-bottom: 20px; }
+  .summary { display: flex; gap: 20px; background: #f8f7ff; border-radius: 12px; padding: 16px 20px; margin-bottom: 24px; border: 1px solid #e9e4ff; }
+  .sum-stat { text-align: center; }
+  .sum-val { font-size: 28px; font-weight: 800; color: #7c5cff; }
+  .sum-lab { font-size: 11px; color: #888; margin-top: 2px; }
+  .q-item { margin-bottom: 18px; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; break-inside: avoid; }
+  .q-head { background: #7c5cff; color: #fff; padding: 10px 14px; font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+  .q-body { padding: 12px 14px; }
+  .q-text { font-size: 13px; font-weight: 600; color: #1a1a2e; margin-bottom: 10px; line-height: 1.4; }
+  .answer-label { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: #aaa; margin-bottom: 4px; }
+  .answer-text { font-size: 12px; color: #444; line-height: 1.5; border-left: 3px solid #e9e4ff; padding-left: 10px; margin-bottom: 10px; }
+  .critique-text { font-size: 12px; color: #555; line-height: 1.5; border-left: 3px solid #7c5cff; padding-left: 10px; }
+  .score-badge { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 8px; }
+  .good { color: #16a34a; background: #f0fdf4; }
+  .mid  { color: #ca8a04; background: #fefce8; }
+  .low  { color: #dc2626; background: #fef2f2; }
+  @media print { body { padding: 16px; } }
+</style></head><body>
+<h1>🎤 Viva Exam Results</h1>
+<div class="meta">Topic: ${_esc(vivaTopic)} · ${new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div>
+<div class="summary">
+  <div class="sum-stat"><div class="sum-val">${avgScore}%</div><div class="sum-lab">Overall Score</div></div>
+  <div class="sum-stat"><div class="sum-val">${grade}</div><div class="sum-lab">Grade</div></div>
+  <div class="sum-stat"><div class="sum-val">${answered.length}/${vivaQuestions.length}</div><div class="sum-lab">Answered</div></div>
+</div>
+${vivaQuestions.map((q, i) => {
+  const sc = q.score; const cls = sc>=8?'good':sc>=5?'mid':'low';
+  return `<div class="q-item">
+    <div class="q-head"><span>Question ${i+1}</span>${q.userAnswer?`<span class="score-badge ${cls}">${sc}/10</span>`:''}</div>
+    <div class="q-body">
+      <div class="q-text">${_esc(q.q)}</div>
+      ${q.userAnswer ? `
+        <div class="answer-label">Your Answer</div>
+        <div class="answer-text">${_esc(q.userAnswer)}</div>
+        <div class="answer-label">Examiner Feedback</div>
+        <div class="critique-text">${_esc(q.critique)}</div>
+      ` : '<div class="answer-text" style="color:#ccc">Not answered</div>'}
+    </div>
+  </div>`;
+}).join('')}
+</body></html>`;
+  _printHTML(html, 'Nexora_Viva_Results');
+}
+// ══════════════════════════════════════════════════════════════════════
+//  NEXORA — 🎧 PODCAST / LISTEN MODE  v1.0
+//  Paste at the END of app.js  (after nexora-features.js block)
+//
+//  Architecture:
+//    1. Script generation → CF Worker /podcast OR callStudyAI() fallback
+//    2. TTS → CF Worker /tts (WAV) → falls back to Web Speech API
+//    3. Playback → custom HTML5 audio player OR Web Speech synth
+//    4. Library → localStorage (nexora_podcasts)
+// ══════════════════════════════════════════════════════════════════════
+
+const PODCAST_LS = 'nexora_podcasts'; // localStorage key
+const PODCAST_DB_NAME = 'nexora_podcast_cache';
+const PODCAST_DB_STORE = 'audio_blobs';
+
+let _podcastDbPromise = null;
+
+// ── State ────────────────────────────────────────────────────────────
+let _podcastGenerating  = false;
+let _podcastCurrentData = null;  // { title, lines[], script, audioBlobs[] }
+let _podcastSynthActive = false; // Web Speech synth playing
+let _podcastLineIndex   = 0;     // which line synth is on
+let _podcastAudioEl     = null;  // <audio> element for WAV playback
+
+function _openPodcastDB() {
+  if (_podcastDbPromise) return _podcastDbPromise;
+  _podcastDbPromise = new Promise((resolve, reject) => {
+    if (!('indexedDB' in window)) {
+      reject(new Error('IndexedDB not supported'));
+      return;
+    }
+    const req = indexedDB.open(PODCAST_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(PODCAST_DB_STORE)) {
+        db.createObjectStore(PODCAST_DB_STORE, { keyPath: 'id' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error || new Error('IndexedDB open failed'));
+  });
+  return _podcastDbPromise;
+}
+
+async function _savePodcastAudioCache(id, blobs) {
+  if (!id || !Array.isArray(blobs) || !blobs.length) return;
+  try {
+    const db = await _openPodcastDB();
+    const tx = db.transaction(PODCAST_DB_STORE, 'readwrite');
+    tx.objectStore(PODCAST_DB_STORE).put({ id, blobs, updatedAt: Date.now() });
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error || new Error('Failed to store audio cache'));
+      tx.onabort = () => reject(tx.error || new Error('Audio cache save aborted'));
+    });
+  } catch(e) {
+    console.warn('[Nexora] Failed to cache podcast audio', e);
+  }
+}
+
+async function _loadPodcastAudioCache(id) {
+  if (!id) return [];
+  try {
+    const db = await _openPodcastDB();
+    const tx = db.transaction(PODCAST_DB_STORE, 'readonly');
+    const req = tx.objectStore(PODCAST_DB_STORE).get(id);
+    const record = await new Promise((resolve, reject) => {
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error || new Error('Failed to read audio cache'));
+    });
+    return Array.isArray(record?.blobs) ? record.blobs.filter(Boolean) : [];
+  } catch(e) {
+    return [];
+  }
+}
+
+// ── Open / Close ─────────────────────────────────────────────────────
+function openPodcast() {
+  if (typeof closeProgressDashboard === 'function') closeProgressDashboard();
+  if (typeof menuOpen !== 'undefined' && menuOpen) {
+    menuOpen = false;
+    const mt = document.getElementById('modeToggle');
+    if (mt) mt.classList.remove('open');
+  }
+  // Switch to podcast tab inside Study Mode
+  if (typeof openStudyMode === 'function') openStudyMode();
+  setTimeout(() => switchStudyTab('podcast'), 80);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  STEP 1 — GENERATE PODCAST
+// ══════════════════════════════════════════════════════════════════════
+async function generatePodcast(sourceOverride = null) {
+  if (_podcastGenerating) return;
+
+  const topicEl    = document.getElementById('podcastTopicInput');
+  const fileEl     = document.getElementById('podcastFileInput');
+  const lengthEl   = document.getElementById('podcastLength');
+  const styleEl    = document.getElementById('podcastStyle');
+
+  const topic  = (sourceOverride?.topic || topicEl?.value || '').trim();
+  const length = lengthEl?.value || 'medium';
+  const style  = styleEl?.value  || 'dialogue';
+  const overrideText = String(sourceOverride?.text || '').trim();
+  const titleHint = String(sourceOverride?.title || '').trim();
+
+  // Read uploaded file if present
+  let uploadedText = overrideText;
+  if (!uploadedText && fileEl?.files?.length) {
+    try {
+      uploadedText = await _readFileAsText(fileEl.files[0]);
+    } catch(e) {
+      _showStudyToast('Could not read file — ' + e.message);
+      return;
+    }
+  }
+
+  if (!topic && !uploadedText) {
+    _showStudyToast('Enter a topic or upload a document first.');
+    return;
+  }
+
+  _podcastGenerating  = true;
+  _podcastCurrentData = null;
+  _podcastAudioEl     = null;
+  _podcastSynthActive = false;
+
+  _podcastShowGenerating();
+
+  try {
+    // ── Try CF Worker /podcast first ──────────────────────────────
+    let lines = null, scriptText = '', titleStr = '', summaryStr = '';
+
+    if (_hasCFWorker()) {
+      try {
+        _podcastSetStatus('🧠 Writing script with AI…', 15);
+        const res = await fetchWithTimeout(_getCFWorkerUrl() + '/podcast', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic: topic || undefined, text: uploadedText || undefined, style, length }),
+        }, 45000);
+
+        if (res.ok) {
+          const d = await res.json();
+          if (d.ok && d.lines?.length) {
+            lines      = d.lines;
+            scriptText = d.script;
+            titleStr   = d.title;
+            summaryStr = d.summary;
+          }
+        }
+      } catch(e) { /* fallback below */ }
+    }
+
+    // ── Fallback: generate script via callStudyAI ─────────────────
+    if (!lines) {
+      _podcastSetStatus('🧠 Writing script with AI…', 20);
+      const inputSection = uploadedText
+        ? `Convert these notes into a podcast:\n\n${uploadedText.slice(0, 3000)}`
+        : `Topic: "${topic}"`;
+
+      const sys = `You are an educational podcast scriptwriter. Write a friendly, clear dialogue.`;
+      const usr = `${inputSection}
+
+Write a ${length === 'short' ? '3-4' : length === 'long' ? '10-12' : '6-8'} minute educational ${style === 'dialogue' ? 'dialogue between HOST (teacher) and STUDENT (learner)' : 'monologue by HOST'}.
+
+Format EVERY line as:
+HOST: <text>
+STUDENT: <text>
+
+Structure: hook intro → explain concepts → real examples → recap → outro.
+Conversational tone. Simple English. No markdown. No stage directions.`;
+
+      const raw = await callStudyAI(sys, usr);
+      lines = _parsePodcastScript(raw);
+      scriptText = raw;
+      titleStr   = titleHint || (topic ? `📻 ${topic}` : '📻 Study Podcast');
+      summaryStr = lines[0]?.text?.slice(0, 120) || '';
+    }
+
+    if (!lines || lines.length === 0) throw new Error('Script is empty');
+
+    if (!titleStr) titleStr = titleHint || (topic ? `📻 ${topic}` : '📻 Study Podcast');
+    if (!summaryStr) summaryStr = lines[0]?.text?.slice(0, 120) || '';
+
+    _podcastCurrentData = { title: titleStr, summary: summaryStr, lines, script: scriptText, topic, audioBlobs: [], audioBlobData: [] };
+
+    // ── STEP 2: TTS ───────────────────────────────────────────────
+    _podcastSetStatus('🎙️ Converting to voices…', 40);
+
+    const hasCFTTS = _hasCFWorker();
+    const hasSpeechSynth = 'speechSynthesis' in window;
+
+    if (hasCFTTS) {
+      // Try to get audio blobs for each line from CF TTS
+      await _generateAudioBlobs(lines);
+    }
+
+    // If we got audio blobs, build a merged audio player
+    const hasAudio = _podcastCurrentData.audioBlobs.filter(Boolean).length > 0;
+
+    _podcastSetStatus('🎵 Preparing player…', 85);
+    await new Promise(r => setTimeout(r, 400)); // brief pause feels natural
+
+    // ── STEP 3: Save to library ───────────────────────────────────
+    await _savePodcastToLibrary({
+      id:        `pod_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      title:     titleStr,
+      topic:     topic || '(from document)',
+      summary:   summaryStr,
+      lines,
+      script:    scriptText,
+      createdAt: Date.now(),
+    });
+
+    // ── STEP 4: Show player ───────────────────────────────────────
+    _podcastSetStatus('✅ Ready!', 100);
+    await new Promise(r => setTimeout(r, 300));
+    _podcastShowPlayer(hasAudio, hasSpeechSynth);
+
+  } catch(e) {
+    _podcastShowError(e.message || 'Generation failed');
+  } finally {
+    _podcastGenerating = false;
+  }
+}
+
+// ── Generate audio blobs via CF TTS (one per line, up to 40 lines) ──
+async function _generateAudioBlobs(lines) {
+  const MAX_LINES = Math.min(lines.length, 40);
+  let successCount = 0;
+  const pct_start = 40, pct_end = 82;
+
+  for (let i = 0; i < MAX_LINES; i++) {
+    const line = lines[i];
+    const voice = line.speaker === 'STUDENT' ? 'en-us-female' : 'en-us-male';
+    try {
+      const res = await fetchWithTimeout(_getCFWorkerUrl() + '/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: line.text.slice(0, 450), voice }),
+      }, 12000);
+
+      if (res.ok) {
+        const buf  = await res.arrayBuffer();
+        const blob = new Blob([buf], { type: 'audio/wav' });
+        if (!_podcastCurrentData.audioBlobData) _podcastCurrentData.audioBlobData = [];
+        _podcastCurrentData.audioBlobData[i] = blob;
+        _podcastCurrentData.audioBlobs[i] = URL.createObjectURL(blob);
+        successCount++;
+      } else {
+        _podcastCurrentData.audioBlobs[i] = null;
+        if (_podcastCurrentData.audioBlobData) _podcastCurrentData.audioBlobData[i] = null;
+      }
+    } catch(e) {
+      _podcastCurrentData.audioBlobs[i] = null;
+      if (_podcastCurrentData.audioBlobData) _podcastCurrentData.audioBlobData[i] = null;
+    }
+
+    // Update progress bar
+    const pct = Math.round(pct_start + ((i + 1) / MAX_LINES) * (pct_end - pct_start));
+    _podcastSetStatus(`🎙️ Generating voices… (${i + 1}/${MAX_LINES})`, pct);
+  }
+
+  return successCount;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  PLAYBACK — WAV blobs (CF TTS) OR Web Speech API fallback
+// ══════════════════════════════════════════════════════════════════════
+
+// Play using pre-generated WAV blobs (sequential)
+let _podcastPlaying   = false;
+let _podcastBlobIndex = 0;
+
+function podcastPlay() {
+  const data = _podcastCurrentData;
+  if (!data) return;
+
+  const hasBlobs = data.audioBlobs.filter(Boolean).length > 0;
+
+  if (hasBlobs) {
+    _podcastBlobIndex = 0;
+    _podcastPlaying   = true;
+    _podcastPlayNextBlob();
+  } else {
+    // Web Speech fallback
+    _podcastSpeakLines(data.lines, 0);
+  }
+  _updatePodcastPlayerUI(true);
+}
+
+function podcastPause() {
+  _podcastPlaying = false;
+  if (_podcastAudioEl) { _podcastAudioEl.pause(); }
+  if (_podcastSynthActive && window.speechSynthesis) { window.speechSynthesis.pause(); }
+  _updatePodcastPlayerUI(false);
+}
+
+function podcastStop() {
+  _podcastPlaying     = false;
+  _podcastSynthActive = false;
+  _podcastBlobIndex   = 0;
+  if (_podcastAudioEl) { _podcastAudioEl.pause(); _podcastAudioEl.src = ''; }
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
+  _updatePodcastPlayerUI(false);
+  _updatePodcastProgress(0, '0:00', '0:00');
+}
+
+function _podcastPlayNextBlob() {
+  if (!_podcastPlaying) return;
+  const data   = _podcastCurrentData;
+  const blobs  = data.audioBlobs;
+  const lines  = data.lines;
+
+  // Find next valid blob
+  while (_podcastBlobIndex < blobs.length && !blobs[_podcastBlobIndex]) {
+    _podcastBlobIndex++;
+  }
+
+  if (_podcastBlobIndex >= blobs.length) {
+    // Done
+    _podcastPlaying = false;
+    _updatePodcastPlayerUI(false);
+    _podcastBlobIndex = 0;
+    _updatePodcastProgress(100, _podcastFormatTime(blobs.length * 3), _podcastFormatTime(blobs.length * 3));
+    return;
+  }
+
+  const url    = blobs[_podcastBlobIndex];
+  const line   = lines[_podcastBlobIndex] || {};
+  const audio  = new Audio(url);
+  _podcastAudioEl = audio;
+
+  // Set speed
+  const speedEl = document.getElementById('podcastSpeed');
+  audio.playbackRate = parseFloat(speedEl?.value || '1');
+
+  // Highlight current line in transcript
+  _highlightTranscriptLine(_podcastBlobIndex);
+
+  // Update progress
+  const progress = Math.round((_podcastBlobIndex / blobs.filter(Boolean).length) * 100);
+  const timeStr  = _podcastFormatTime(_podcastBlobIndex * 3.5);
+  const totalStr = _podcastFormatTime(blobs.filter(Boolean).length * 3.5);
+  _updatePodcastProgress(progress, timeStr, totalStr);
+
+  audio.onended = () => {
+    _podcastBlobIndex++;
+    _podcastPlayNextBlob();
+  };
+  audio.onerror = () => {
+    _podcastBlobIndex++;
+    _podcastPlayNextBlob();
+  };
+
+  audio.play().catch(() => {
+    _podcastBlobIndex++;
+    _podcastPlayNextBlob();
+  });
+}
+
+// Web Speech API fallback — speaks all lines with two voices
+function _podcastSpeakLines(lines, startIdx) {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+
+  _podcastSynthActive = true;
+  _podcastLineIndex   = startIdx;
+
+  const voices = window.speechSynthesis.getVoices();
+  // Try to find two distinct English voices
+  const enVoices  = voices.filter(v => v.lang.startsWith('en'));
+  const hostVoice    = enVoices.find(v => v.name.match(/male|David|Mark|Google UK English Male/i)) || enVoices[0] || null;
+  const studentVoice = enVoices.find(v => v.name.match(/female|Samantha|Zira|Google US English/i)) || enVoices[1] || hostVoice;
+
+  function speakNext() {
+    if (!_podcastSynthActive || _podcastLineIndex >= lines.length) {
+      _podcastSynthActive = false;
+      _updatePodcastPlayerUI(false);
+      return;
+    }
+
+    const line  = lines[_podcastLineIndex];
+    const utt   = new SpeechSynthesisUtterance(line.text);
+    const speedEl = document.getElementById('podcastSpeed');
+    utt.rate  = parseFloat(speedEl?.value || '1');
+    utt.pitch = line.speaker === 'STUDENT' ? 1.15 : 0.9;
+
+    if (line.speaker === 'STUDENT' && studentVoice) utt.voice = studentVoice;
+    else if (hostVoice) utt.voice = hostVoice;
+
+    _highlightTranscriptLine(_podcastLineIndex);
+
+    const progress = Math.round((_podcastLineIndex / lines.length) * 100);
+    const timeStr  = _podcastFormatTime(_podcastLineIndex * 4);
+    const totalStr = _podcastFormatTime(lines.length * 4);
+    _updatePodcastProgress(progress, timeStr, totalStr);
+
+    utt.onend = () => {
+      _podcastLineIndex++;
+      speakNext();
+    };
+    utt.onerror = () => {
+      _podcastLineIndex++;
+      speakNext();
+    };
+
+    window.speechSynthesis.speak(utt);
+  }
+
+  speakNext();
+}
+
+function podcastRestart() {
+  podcastStop();
+  setTimeout(podcastPlay, 150);
+}
+
+function podcastSetSpeed(val) {
+  const speedLabel = document.getElementById('podcastSpeedLabel');
+  if (speedLabel) speedLabel.textContent = val + 'x';
+  if (_podcastAudioEl) _podcastAudioEl.playbackRate = parseFloat(val);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  UI RENDERERS
+// ══════════════════════════════════════════════════════════════════════
+
+function _podcastShowGenerating() {
+  const panel = document.getElementById('podcastGeneratingState');
+  const setup = document.getElementById('podcastSetup');
+  const player = document.getElementById('podcastPlayer');
+  if (setup)  setup.style.display  = 'none';
+  if (player) player.style.display = 'none';
+  if (panel)  { panel.style.display = 'block'; }
+  _podcastSetStatus('🧠 Initialising…', 5);
+}
+
+function _podcastSetStatus(msg, pct) {
+  const txt  = document.getElementById('podcastStatusText');
+  const bar  = document.getElementById('podcastProgressBar');
+  const fill = document.getElementById('podcastProgressFill');
+  if (txt)  txt.textContent = msg;
+  if (fill) fill.style.width = (pct || 0) + '%';
+}
+
+function _podcastShowError(msg) {
+  const panel = document.getElementById('podcastGeneratingState');
+  const setup = document.getElementById('podcastSetup');
+  if (panel) panel.style.display = 'none';
+  if (setup) setup.style.display = 'block';
+  _showStudyToast('❌ ' + msg);
+}
+
+function _podcastShowPlayer(hasBlobs, hasSynth) {
+  const genEl  = document.getElementById('podcastGeneratingState');
+  const setup  = document.getElementById('podcastSetup');
+  const player = document.getElementById('podcastPlayer');
+  if (genEl)  genEl.style.display  = 'none';
+  if (setup)  setup.style.display  = 'none';
+  if (player) player.style.display = 'block';
+
+  const data = _podcastCurrentData;
+  if (!data) return;
+
+  // Title
+  const titleEl = document.getElementById('podcastPlayerTitle');
+  if (titleEl) titleEl.textContent = data.title;
+
+  // Sub info
+  const infoEl  = document.getElementById('podcastPlayerInfo');
+  if (infoEl)   infoEl.textContent = `${data.lines.length} lines · ${hasBlobs ? 'CF Voice' : 'Web Speech'}`;
+
+  // TTS mode badge
+  const badgeEl = document.getElementById('podcastTTSBadge');
+  if (badgeEl) {
+    badgeEl.textContent = hasBlobs ? '🎙️ CF TTS' : '🔊 Web Speech';
+    badgeEl.className   = 'podcast-tts-badge ' + (hasBlobs ? 'cf' : 'web');
+  }
+
+  // Total time estimate
+  const totalLines = data.lines.length;
+  const avgSecs    = 4;
+  const totalSecs  = totalLines * avgSecs;
+  const totalEl    = document.getElementById('podcastTotalTime');
+  if (totalEl) totalEl.textContent = _podcastFormatTime(totalSecs);
+
+  // Render transcript
+  _renderPodcastTranscript(data.lines);
+
+  // Render library
+  _renderPodcastLibrary();
+}
+
+function _renderPodcastTranscript(lines) {
+  const el = document.getElementById('podcastTranscript');
+  if (!el) return;
+  el.innerHTML = lines.map((line, i) => `
+    <div class="podcast-line ${line.speaker === 'STUDENT' ? 'student' : 'host'}" data-line="${i}" id="podcast-line-${i}">
+      <span class="podcast-speaker">${line.speaker === 'HOST' ? '🎙️' : '🎓'}</span>
+      <span class="podcast-line-text">${_esc(line.text)}</span>
+    </div>
+  `).join('');
+}
+
+function _highlightTranscriptLine(idx) {
+  document.querySelectorAll('.podcast-line.active').forEach(el => el.classList.remove('active'));
+  const el = document.getElementById('podcast-line-' + idx);
+  if (el) {
+    el.classList.add('active');
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+function _updatePodcastPlayerUI(playing) {
+  const playBtn  = document.getElementById('podcastPlayBtn');
+  const pauseBtn = document.getElementById('podcastPauseBtn');
+  if (playBtn)  playBtn.style.display  = playing ? 'none' : 'flex';
+  if (pauseBtn) pauseBtn.style.display = playing ? 'flex' : 'none';
+}
+
+function _updatePodcastProgress(pct, current, total) {
+  const fill = document.getElementById('podcastSeekFill');
+  const cur  = document.getElementById('podcastCurrentTime');
+  const tot  = document.getElementById('podcastTotalTime');
+  if (fill) fill.style.width = pct + '%';
+  if (cur)  cur.textContent  = current;
+  if (tot)  tot.textContent  = total;
+}
+
+function podcastBackToSetup() {
+  podcastStop();
+  const setup  = document.getElementById('podcastSetup');
+  const player = document.getElementById('podcastPlayer');
+  const gen    = document.getElementById('podcastGeneratingState');
+  if (gen)    gen.style.display    = 'none';
+  if (player) player.style.display = 'none';
+  if (setup)  setup.style.display  = 'block';
+}
+
+function podcastDownload() {
+  const data = _podcastCurrentData;
+  if (!data?.script) { _showStudyToast('No script to download.'); return; }
+  const blob = new Blob([data.script], { type: 'text/plain' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = (data.topic || 'podcast').replace(/[^a-z0-9]/gi, '_') + '_script.txt';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  LIBRARY
+// ══════════════════════════════════════════════════════════════════════
+
+async function _savePodcastToLibrary(entry) {
+  try {
+    const lib = JSON.parse(localStorage.getItem(PODCAST_LS) || '[]');
+    const safeEntry = { ...entry, audioBlobs: undefined, audioBlobData: undefined };
+    lib.unshift(safeEntry);
+    // Keep 20 max
+    while (lib.length > 20) lib.pop();
+    localStorage.setItem(PODCAST_LS, JSON.stringify(lib));
+
+    const audioData = _podcastCurrentData?.audioBlobData?.filter(Boolean) || [];
+    if (entry.id && audioData.length) {
+      await _savePodcastAudioCache(entry.id, audioData);
+    }
+  } catch(e) {}
+}
+
+function _renderPodcastLibrary() {
+  const el = document.getElementById('podcastLibraryList');
+  if (!el) return;
+  let lib = [];
+  try { lib = JSON.parse(localStorage.getItem(PODCAST_LS) || '[]'); } catch(e) {}
+
+  if (!lib.length) {
+    el.innerHTML = '<div class="podcast-lib-empty">Your generated podcasts will appear here</div>';
+    return;
+  }
+  el.innerHTML = lib.map((e, i) => `
+    <div class="podcast-lib-item" onclick="_loadPodcastFromLibrary(${i})">
+      <div class="podcast-lib-icon">🎧</div>
+      <div class="podcast-lib-meta">
+        <div class="podcast-lib-title">${_esc(e.title || e.topic)}</div>
+        <div class="podcast-lib-date">${_timeAgo(e.createdAt)} · ${(e.lines || []).length} lines</div>
+      </div>
+      <button class="podcast-lib-del" onclick="event.stopPropagation();_deletePodcastFromLibrary(${i})">✕</button>
+    </div>
+  `).join('');
+}
+
+async function _loadPodcastFromLibrary(idx) {
+  let lib = [];
+  try { lib = JSON.parse(localStorage.getItem(PODCAST_LS) || '[]'); } catch(e) {}
+  const entry = lib[idx];
+  if (!entry) return;
+
+  const cacheId = entry.id || (entry.createdAt ? `pod_${entry.createdAt}` : '');
+  const cachedBlobs = await _loadPodcastAudioCache(cacheId);
+  const cachedUrls  = cachedBlobs.map(blob => URL.createObjectURL(blob));
+
+  _podcastCurrentData = {
+    ...entry,
+    audioBlobs: cachedUrls,
+    audioBlobData: cachedBlobs,
+  };
+  _podcastShowPlayer(cachedUrls.length > 0, 'speechSynthesis' in window);
+}
+
+function _deletePodcastFromLibrary(idx) {
+  let lib = [];
+  try { lib = JSON.parse(localStorage.getItem(PODCAST_LS) || '[]'); } catch(e) {}
+  const entry = lib[idx];
+  lib.splice(idx, 1);
+  localStorage.setItem(PODCAST_LS, JSON.stringify(lib));
+  const cacheId = entry?.id || (entry?.createdAt ? `pod_${entry.createdAt}` : '');
+  if (cacheId) {
+    _openPodcastDB().then(db => {
+      try {
+        const tx = db.transaction(PODCAST_DB_STORE, 'readwrite');
+        tx.objectStore(PODCAST_DB_STORE).delete(cacheId);
+      } catch(e) {}
+    }).catch(() => {});
+  }
+  _renderPodcastLibrary();
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  FILE READER
+// ══════════════════════════════════════════════════════════════════════
+function _readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!['txt', 'md', 'markdown'].includes(ext) && file.type !== 'text/plain') {
+      // For PDF/DOCX — just read as text (limited but works for plain-text PDFs)
+      // Full PDF parsing needs pdf.js — for now we read what we can
+    }
+    const reader = new FileReader();
+    reader.onload  = e => resolve(e.target.result || '');
+    reader.onerror = () => reject(new Error('File read failed'));
+    reader.readAsText(file);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════════════════════════════════
+function _parsePodcastScript(raw) {
+  const lines = [];
+  const rawLines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  for (const line of rawLines) {
+    if (line.startsWith('HOST:')) {
+      const text = line.replace(/^HOST:\s*/, '').trim();
+      if (text) lines.push({ speaker: 'HOST', text });
+    } else if (line.startsWith('STUDENT:')) {
+      const text = line.replace(/^STUDENT:\s*/, '').trim();
+      if (text) lines.push({ speaker: 'STUDENT', text });
+    } else if (lines.length > 0) {
+      lines[lines.length - 1].text += ' ' + line;
+    }
+  }
+  if (!lines.length) {
+    rawLines.forEach(l => { if (l.length > 8) lines.push({ speaker: 'HOST', text: l }); });
+  }
+  return lines;
+}
+
+function _podcastFormatTime(secs) {
+  const s = Math.round(secs);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+// ── Patch switchStudyTab to handle 'podcast' tab ──────────────────
+(function patchSwitchStudyTabForPodcast() {
+  const orig = window.switchStudyTab;
+  window.switchStudyTab = function(tab) {
+    if (tab === 'podcast') {
+      document.querySelectorAll('.study-tab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.study-panel').forEach(p => p.classList.remove('active'));
+      const tabBtn = document.getElementById('stab-podcast');
+      const panel  = document.getElementById('spanel-podcast');
+      if (tabBtn) tabBtn.classList.add('active');
+      if (panel)  panel.classList.add('active');
+      if (typeof studyCurrentTab !== 'undefined') studyCurrentTab = 'podcast';
+      _renderPodcastLibrary();
+      return;
+    }
+    if (orig) orig(tab);
+  };
+})();

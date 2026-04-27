@@ -1,156 +1,155 @@
-<div align="center">
+# Nexora — Your AI Companion 🤍
 
-# ✨ Nexora — Your AI Companion
+> A personal AI companion built as a Progressive Web App (PWA). Chat, study, and explore — with full offline support and zero mandatory accounts.
 
-**A beautiful, offline-capable AI companion PWA built with pure HTML, CSS & JavaScript.**
-
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-7c5cff?style=for-the-badge&logo=github)](https://yourusername.github.io/nexora)
-[![License](https://img.shields.io/badge/License-MIT-00e0ff?style=for-the-badge)](LICENSE)
-[![PWA](https://img.shields.io/badge/PWA-Ready-ff4ecd?style=for-the-badge&logo=pwa)](https://web.dev/progressive-web-apps/)
-[![OpenRouter](https://img.shields.io/badge/AI-OpenRouter-7c5cff?style=for-the-badge)](https://openrouter.ai)
-
-> Designed & Developed by **Bikash Talukder**
-
-</div>
+![PWA](https://img.shields.io/badge/PWA-Ready-7c5cff?style=flat-square)
+![Offline](https://img.shields.io/badge/Offline-Supported-00e0ff?style=flat-square)
+![License](https://img.shields.io/badge/License-MIT-ff4ecd?style=flat-square)
 
 ---
 
-## 📸 Preview
+## ✨ Features
 
-> A futuristic dark-glass AI chat interface with animated orbs, voice mode, light/dark themes, and a full rule-based response engine — all in a single HTML file.
+### 💬 Chat Modes
+- **Support Mode** — empathetic emotional support with a full emotion detection engine
+- **Gossip Mode** — casual, fun conversation with neon vibes
+- **Hype Mode** — motivational energy when you need a push
+- **Voice Mode** — full speech-to-text and text-to-speech
 
----
+### 🤖 AI Engine
+- **Multi-key fallback** — OpenRouter → Gemini Direct → Cloudflare AI Workers → Pollinations.ai (no key needed)
+- **AI Compare Mode** — run the same question through multiple models side by side
+- **Online/Offline toggle** — works fully offline using a built-in knowledge base and rule engine
 
-## 🚀 Features
+### 📚 Study Mode
+- **Flashcards** — AI-generated cards from any topic or uploaded image/PDF, with flip animations and hints
+- **Quiz** — multiple-choice quizzes with difficulty levels and AI re-explanation
+- **Spaced Repetition (SRS)** — SM-2 algorithm with daily streaks and due badges
+- **Summarizer** — paste any text and get bullet points, paragraph, ELI5, key terms, or TL;DR. Compare two models side by side
+- **Viva Mode** — AI oral exam simulator: question by question, scored critique, grade report
+- **📊 Progress Dashboard** — bar chart of study time, quiz accuracy sparkline, SRS progress, streak
 
-| Feature | Description |
-|---|---|
-| 💬 **AI Chat** | Real AI responses via free OpenRouter models (Llama, Gemini, Mistral & more) |
-| 🔌 **Works Offline** | Full rule-based engine + knowledge base when no API key is present |
-| 🎙️ **Voice Mode** | Speech-to-text input + text-to-speech responses |
-| 📷 **Image Input** | Upload or capture images and ask questions about them |
-| 🌗 **Light / Dark Mode** | Toggle between a sleek dark UI and a soft light theme |
-| 🧠 **Memory** | Remembers your name, emotions, and conversation history across sessions |
-| 🗺️ **Learning Roadmaps** | Built-in roadmaps for Python, JS, DSA, ML, Android, Cybersecurity & more |
-| 😊 **Mood Chips** | Quick-tap emotional prompts to start a conversation instantly |
-| 💾 **Export Chat** | Download your full conversation as a `.txt` file |
-| 📲 **Installable PWA** | Add to home screen on Android & iOS — works like a native app |
+### 📄 PDF Export
+- Export SRS flashcard decks to print-ready PDF
+- Export quiz history as a stats table
+- Export Viva exam results with per-question feedback
 
----
-
-## 🤖 AI Models (Free via OpenRouter)
-
-Nexora cycles through these **completely free** models automatically:
-
-- `meta-llama/llama-3.3-70b-instruct:free`
-- `google/gemini-2.0-flash-exp:free`
-- `google/gemini-flash-1.5:free`
-- `deepseek/deepseek-r1:free`
-- `mistralai/mistral-7b-instruct:free`
-- `qwen/qwen3-8b:free`
-- `meta-llama/llama-3.1-8b-instruct:free`
-- `meta-llama/llama-3.2-3b-instruct:free`
-
-No paid credits needed — just a free [OpenRouter](https://openrouter.ai) account.
+### 🌐 PWA
+- Installable on Android, iOS, and desktop
+- Full offline support via service worker (cache-first for assets, network-first for app shell)
+- Cloudflare AI Worker proxy for free AI inference with no CORS issues
 
 ---
 
-## 📁 File Structure
+## 🗂️ File Structure
 
 ```
 nexora/
-├── index.html          # Entire app — UI, logic, styles
+├── index.html          # App shell — all screens and panels
+├── app.js              # All logic — AI, emotion engine, study, SRS, quiz, new features
+├── styles.css          # Full design system — dark/light mode, animations
 ├── manifest.json       # PWA manifest
-├── sw.js               # Service Worker (offline caching)
-├── icon-192.png        # PWA icon (192×192)
-├── icon-512.png        # PWA icon (512×512)
-├── apple-touch-icon.png# iOS home screen icon (180×180)
-└── README.md           # This file
+├── sw.js               # Service worker — smart cache routing
+├── nexora-worker.js    # Cloudflare AI Worker (deploy separately to Cloudflare)
+├── icon-192.png        # PWA icon
+├── icon-512.png        # PWA icon
+├── icon.svg            # SVG icon (monochrome)
+└── apple-touch-icon.png
 ```
 
 ---
 
-## ⚡ Getting Started
+## 🚀 Getting Started
 
-### Option 1 — Just open the file
+### Option 1 — Open directly in browser
+Just open `index.html` in any modern browser. No build step, no dependencies.
+
+### Option 2 — Local server (recommended for PWA features)
 ```bash
-git clone https://github.com/yourusername/nexora.git
-cd nexora
-# Open index.html in any modern browser
-```
-
-### Option 2 — Serve locally (recommended for PWA features)
-```bash
-# Using Python
-python -m http.server 8080
-
-# Using Node.js
 npx serve .
+# or
+python3 -m http.server 8080
 ```
-Then visit `http://localhost:8080`
+Then open `http://localhost:8080`.
 
-### Option 3 — Deploy to GitHub Pages (free hosting)
-1. Push this repo to GitHub
-2. Go to **Settings → Pages**
-3. Set source: **Deploy from branch → main → / (root)**
-4. Visit `https://yourusername.github.io/nexora`
-
----
-
-## 🔑 Adding Your API Key
-
-Nexora works without a key (offline rule-based mode). To unlock full AI:
-
-1. Go to [openrouter.ai/keys](https://openrouter.ai/keys) → sign up free
-2. Create a new API key (starts with `sk-or-...`)
-3. In the app: tap **Menu (☰) → 🔑 API Key Setup**
-4. Paste your key and tap **Save & Activate**
-
-> **Privacy:** Your key is stored only in your own browser's `localStorage`. It is never sent anywhere except directly to OpenRouter's API.
+### Option 3 — Deploy to GitHub Pages
+1. Fork or push this repo
+2. Go to **Settings → Pages → Source → main branch / root**
+3. Your app will be live at `https://yourusername.github.io/nexora`
 
 ---
 
-## 🧩 Modes
+## 🔑 AI Setup (Optional — works without any key)
 
-| Mode | Description |
-|---|---|
-| 🤍 **Support Mode** | Empathetic, calm responses for emotional conversations |
-| ✨ **Gossip Mode** | Fun, playful energy for casual chats |
-| 🔥 **Hype Mode** | Motivational, high-energy responses |
-| 🎙️ **Voice Mode** | Hands-free mic input + TTS output |
+Nexora works out of the box via Pollinations.ai (no key needed). For better quality:
+
+| Key | Where to get | What it unlocks |
+|-----|-------------|-----------------|
+| OpenRouter | [openrouter.ai](https://openrouter.ai) | Llama 70B, DeepSeek, Gemini Flash (all free tier) |
+| Google Gemini | [aistudio.google.com](https://aistudio.google.com) | Gemini 2.0 Flash direct API |
+| Cloudflare AI | Deploy `nexora-worker.js` to CF Workers | Free hosted inference, no rate limits |
+
+Add keys inside the app via **Menu → 🔑 API Key Setup**.
+
+---
+
+## ☁️ Cloudflare Worker Setup
+
+The `nexora-worker.js` is a Cloudflare Worker that proxies AI requests to Cloudflare's free AI models, avoiding CORS and keeping keys off the client.
+
+1. Go to [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages → Create**
+2. Paste the contents of `nexora-worker.js`
+3. Add a **Workers AI binding**: variable name `AI`
+4. Deploy — copy the worker URL
+5. In Nexora: **Menu → 🔑 API Key Setup → Cloudflare Worker tab** → paste URL
 
 ---
 
 ## 🛠️ Tech Stack
 
-- **Vanilla HTML / CSS / JavaScript** — zero dependencies, zero build tools
-- **OpenRouter API** — unified gateway to free AI models
-- **Web Speech API** — voice input & output
-- **Service Worker** — offline caching & PWA install
-- **localStorage** — persistent user memory
-- **Google Fonts** — Sora + DM Sans
+- **Vanilla JS** — no framework, no build step
+- **marked.js** — Markdown rendering for AI replies
+- **highlight.js** — syntax highlighting in code blocks
+- **Web Speech API** — voice input/output
+- **Service Worker** — PWA offline support
+- **SM-2 Algorithm** — spaced repetition scheduling
+- **Cloudflare Workers AI** — free AI inference proxy
 
 ---
 
-## 🔒 Privacy
+## 📱 PWA Installation
 
-- No backend, no database, no server
-- All data (name, chat history, API key) stays in **your browser only**
-- API calls go directly from your browser → OpenRouter
-- No analytics, no tracking, no ads
+| Platform | How to install |
+|----------|---------------|
+| Android Chrome | Tap the install banner or **⋮ → Add to Home Screen** |
+| iOS Safari | **Share → Add to Home Screen** |
+| Desktop Chrome | Click the install icon in the address bar |
+
+---
+
+## 🙏 Credits
+
+Built by **Bikash Talukder**  
+AI powered by OpenRouter, Google Gemini, Cloudflare AI, and Pollinations.ai
 
 ---
 
 ## 📄 License
 
-MIT License — free to use, modify, and distribute.
+MIT — free to use, modify, and distribute.
 
 ---
 
-<div align="center">
+### 🎧 Listen Mode (Podcast)
+- Type any topic or upload a file (TXT, MD) → AI writes a full podcast script
+- **Dialogue mode**: HOST (teacher) + STUDENT (learner) — two voices, natural conversation
+- **Monologue mode**: single narrator style
+- TTS: Cloudflare AI TTS model (free) → falls back to Web Speech API automatically
+- Custom audio player with seek bar, speed control (0.8x–2x), line-by-line transcript with live highlighting
+- Podcast library saved in localStorage — reload previous podcasts anytime
+- Download script as `.txt`
 
-Made with 💜 by **Bikash Talukder**
-
-*If you find Nexora useful, consider starring the repo ⭐*
-
-</div>
+### ☁️ Updated CF Worker (v2.0)
+Added two new endpoints alongside the existing `/ai`:
+- `POST /podcast` — generates structured dialogue script (topic or raw text input)
+- `POST /tts` — converts text to audio using `@cf/myshell-ai/melotts` (free CF model)

@@ -6,7 +6,7 @@
 <title>Nexora — Your AI Companion</title>
 
 <!-- ═══ PWA — Manifest & Icons ═══ -->
-<link rel="manifest" href="manifest.json?v=20260426-1"/>
+<link rel="manifest" href="manifest.json?v=20260427-2"/>
 <meta name="theme-color" content="#7c5cff"/>
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
@@ -26,7 +26,7 @@
 <!-- Syntax Highlighting Theme -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" id="hljs-theme"/>
 
-  <link rel="stylesheet" href="./styles.css?v=20260426-2"/>
+  <link rel="stylesheet" href="./styles.css?v=20260427-2"/>
 </head>
 <body>
 
@@ -71,6 +71,8 @@
     <div class="mode-item" onclick="openApiPanel()"><span>🔑</span> API Key Setup</div>
     <div class="mode-item" onclick="openComparePanel()"><span>⚖️</span> AI Compare Mode</div>
     <div class="mode-item" onclick="openStudyMode()"><span>📚</span> Study Mode</div>
+    <div class="mode-item" onclick="openProgressDashboard()"><span>📊</span> Progress Dashboard</div>
+    <div class="mode-item" onclick="openPodcast()"><span>🎧</span> Listen Mode</div>
   </div>
 
   <!-- Search overlay -->
@@ -282,6 +284,46 @@
       <div class="study-ai-picker-grid" id="studyAIPickerGrid"></div>
     </div>
 
+    <div class="study-source-shell">
+      <div class="study-source-card">
+        <div class="study-source-top">
+          <div>
+            <div class="study-source-title">Study Source</div>
+            <div class="study-source-sub" id="studySourceSub">Upload an image or PDF, then tell Nexora what to make from it.</div>
+          </div>
+          <button class="study-upload-btn" onclick="document.getElementById('studyFileInput').click()">
+            <span>📎</span> Add File
+          </button>
+        </div>
+        <input type="file" id="studyFileInput" accept="image/*,.pdf,application/pdf" hidden onchange="handleStudyFileUpload(event)"/>
+
+        <div class="study-upload-preview" id="studyUploadPreview" style="display:none">
+          <img id="studyUploadThumb" class="study-upload-thumb" alt="study upload preview" style="display:none"/>
+          <div class="study-upload-info">
+            <div class="study-upload-name" id="studyUploadName"></div>
+            <div class="study-upload-meta" id="studyUploadMeta"></div>
+          </div>
+          <button class="study-upload-remove" onclick="clearStudyUpload()">✕</button>
+        </div>
+
+        <div class="study-source-actions">
+          <button class="study-source-action" onclick="generateStudyNotes()">📝 Notes</button>
+          <button class="study-source-action" onclick="generateStudyPodcast()">🎙️ Podcast</button>
+        </div>
+      </div>
+
+      <div class="study-output-panel" id="studyOutputPanel" style="display:none">
+        <div class="study-output-header">
+          <span id="studyOutputTitle">Study Output</span>
+          <div class="study-output-actions">
+            <button class="study-output-btn" onclick="copyStudyOutput(this)">Copy</button>
+            <button class="study-output-btn" onclick="closeStudyOutput()">Close</button>
+          </div>
+        </div>
+        <div class="study-output-body" id="studyOutputBody"></div>
+      </div>
+    </div>
+
     <!-- Tab bar -->
     <div class="study-tab-bar">
       <button class="study-tab active" id="stab-flashcard" onclick="switchStudyTab('flashcard')">
@@ -293,6 +335,15 @@
       <button class="study-tab" id="stab-srs" onclick="switchStudyTab('srs')">
         <span>🔁</span> Review
         <span class="srs-due-badge" id="srsDueBadge" style="display:none">0</span>
+      </button>
+      <button class="study-tab" id="stab-summarizer" onclick="switchStudyTab('summarizer')">
+        <span>📄</span> Summarize
+      </button>
+      <button class="study-tab" id="stab-viva" onclick="switchStudyTab('viva')">
+        <span>🎤</span> Viva
+      </button>
+      <button class="study-tab" id="stab-podcast" onclick="switchStudyTab('podcast')">
+        <span>🎧</span> Listen
       </button>
     </div>
 
@@ -497,6 +548,235 @@
       </div>
     </div>
 
+    <!-- ═══ SUMMARIZER TAB ═══ -->
+    <div class="study-panel" id="spanel-summarizer">
+      <div class="study-input-section">
+        <div class="study-input-label">Paste text, lecture notes, or article to summarize</div>
+        <textarea id="summarizerInput" class="study-textarea"
+          placeholder="Paste any text here — lecture notes, articles, textbook excerpts…"
+          rows="5" maxlength="6000"></textarea>
+        <div class="study-input-row" style="flex-wrap:wrap;gap:8px;margin-top:10px">
+          <select id="summarizerMode" class="study-select">
+            <option value="bullet">Bullet Points</option>
+            <option value="paragraph">Paragraph</option>
+            <option value="eli5">Explain Simply</option>
+            <option value="key">Key Terms</option>
+            <option value="tldr">TL;DR</option>
+          </select>
+          <label class="sum-compare-label">
+            <input type="checkbox" id="summarizerCompare"> Compare 2 models
+          </label>
+          <button class="study-gen-btn" id="summarizerRunBtn" onclick="runSummarizer()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            Summarize
+          </button>
+        </div>
+      </div>
+      <div id="summarizerOutput" style="display:none;margin-top:4px;padding:0 4px 80px"></div>
+    </div>
+
+    <!-- ═══ VIVA TAB ═══ -->
+    <div class="study-panel" id="spanel-viva">
+      <div id="vivaSetup">
+        <div class="study-input-section">
+          <div class="study-input-label">Mock Oral Exam — Viva Mode 🎤</div>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:10px">AI will ask you questions one by one, then critique each answer with a score. Great for exam prep!</div>
+          <textarea id="vivaTopicInput" class="study-textarea"
+            placeholder="e.g. Data Structures, The French Revolution, Organic Chemistry…"
+            rows="2" maxlength="200"></textarea>
+          <div class="study-input-row" style="margin-top:10px">
+            <select id="vivaQCount" class="study-select">
+              <option value="3">3 questions</option>
+              <option value="5" selected>5 questions</option>
+              <option value="8">8 questions</option>
+            </select>
+            <select id="vivaLevel" class="study-select">
+              <option value="high school">High School</option>
+              <option value="undergraduate" selected>Undergraduate</option>
+              <option value="postgraduate">Postgraduate</option>
+            </select>
+            <button class="study-gen-btn" id="vivaStartBtn" onclick="startViva()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+              Start Exam
+            </button>
+          </div>
+        </div>
+      </div>
+      <div id="vivaSession" style="display:none;padding:12px 4px">
+        <div class="viva-progress-row">
+          <span class="viva-progress-label" id="vivaProgress">Q1 of 5</span>
+          <div class="viva-progress-track"><div class="viva-progress-fill" id="vivaProgressFill" style="width:0%"></div></div>
+        </div>
+        <div class="viva-question-card">
+          <div class="viva-q-label">EXAMINER</div>
+          <div class="viva-question-text" id="vivaQuestion"></div>
+        </div>
+        <div class="viva-answer-section">
+          <div class="viva-answer-label">Your Answer</div>
+          <textarea id="vivaAnswerInput" class="study-textarea viva-answer-input"
+            placeholder="Type your answer here, or tap the mic to speak…"
+            rows="4" maxlength="2000"></textarea>
+          <div id="vivaSubmitRow" style="display:flex;gap:8px;margin-top:8px;align-items:center">
+            <button class="viva-mic-btn" id="vivaMicBtn" onclick="vivaToggleMic()" title="Voice input">🎤</button>
+            <button class="study-gen-btn" id="vivaSubmitBtn" onclick="submitVivaAnswer()" style="flex:1">✅ Submit Answer</button>
+          </div>
+        </div>
+        <div class="viva-critique-card" id="vivaCritique" style="display:none">
+          <div class="viva-critique-header">
+            <span class="viva-critique-label">Examiner's Feedback</span>
+            <span class="viva-score-badge" id="vivaCritiqueScore">0/10</span>
+          </div>
+          <div class="viva-critique-text" id="vivaCritiqueText"></div>
+        </div>
+        <div id="vivaNextRow" style="display:none;margin-top:12px">
+          <button class="study-gen-btn" onclick="vivaNext()" style="width:100%">Next Question →</button>
+        </div>
+      </div>
+      <div id="vivaResults" style="display:none;padding:12px 4px">
+        <div class="viva-result-header">
+          <div class="viva-result-grade" id="vivaGrade">Merit 🌟</div>
+          <div class="viva-result-score" id="vivaFinalScore">72%</div>
+          <div class="viva-result-topic" id="vivaFinalTopic"></div>
+        </div>
+        <div class="viva-review-list" id="vivaReviewList"></div>
+        <div style="display:flex;gap:8px;margin-top:16px;padding-bottom:80px">
+          <button class="quiz-retake-btn" onclick="vivaRetry()" style="flex:1">🔁 New Viva</button>
+          <button class="quiz-new-btn" onclick="exportVivaToPDF()" style="flex:1">📄 Export PDF</button>
+        </div>
+      </div>
+    </div><!-- /spanel-viva -->
+
+    <!-- ═══ PODCAST / LISTEN MODE TAB ═══ -->
+    <div class="study-panel" id="spanel-podcast">
+
+      <!-- ─── SETUP STATE ─── -->
+      <div id="podcastSetup">
+        <div class="study-input-section podcast-hero">
+          <div class="podcast-hero-icon">🎧</div>
+          <div class="podcast-hero-title">Listen Mode</div>
+          <div class="podcast-hero-sub">Turn any topic or document into a podcast</div>
+        </div>
+        <div class="study-input-section" style="margin-top:12px">
+          <div class="study-input-label">Topic <span style="color:var(--text3)">or upload a document below</span></div>
+          <textarea id="podcastTopicInput" class="study-textarea"
+            placeholder="e.g. Operating Systems, Photosynthesis, French Revolution…"
+            rows="2" maxlength="300"></textarea>
+          <div class="podcast-or-divider"><span>or</span></div>
+          <label class="podcast-upload-label" for="podcastFileInput">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span id="podcastUploadLabel">Upload file (TXT, MD, PDF…)</span>
+            <input type="file" id="podcastFileInput" accept=".txt,.md,.markdown,.pdf,.docx" style="display:none"
+              onchange="document.getElementById('podcastUploadLabel').textContent = this.files[0]?.name || 'Upload file'">
+          </label>
+          <div class="study-input-row" style="margin-top:12px;flex-wrap:wrap;gap:8px">
+            <select id="podcastStyle" class="study-select">
+              <option value="dialogue">🎙️ Dialogue (2 voices)</option>
+              <option value="monologue">📢 Monologue (1 voice)</option>
+            </select>
+            <select id="podcastLength" class="study-select">
+              <option value="short">Short (~3 min)</option>
+              <option value="medium" selected>Medium (~6 min)</option>
+              <option value="long">Long (~10 min)</option>
+            </select>
+            <button class="study-gen-btn podcast-gen-btn" onclick="generatePodcast()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              Generate Podcast
+            </button>
+          </div>
+        </div>
+        <div class="podcast-library">
+          <div class="podcast-library-title">🎧 My Podcasts</div>
+          <div id="podcastLibraryList"><div class="podcast-lib-empty">Your generated podcasts will appear here</div></div>
+        </div>
+      </div>
+
+      <!-- ─── GENERATING STATE ─── -->
+      <div id="podcastGeneratingState" style="display:none">
+        <div class="podcast-generating-wrap">
+          <div class="podcast-gen-orb">
+            <div class="podcast-gen-ring r1"></div>
+            <div class="podcast-gen-ring r2"></div>
+            <div class="podcast-gen-ring r3"></div>
+            <div class="podcast-gen-icon">🎧</div>
+          </div>
+          <div class="podcast-status-text" id="podcastStatusText">🧠 Writing script…</div>
+          <div class="podcast-gen-progress-track">
+            <div class="podcast-gen-progress-fill" id="podcastProgressFill" style="width:0%"></div>
+          </div>
+          <div class="podcast-gen-steps">
+            <div class="podcast-gen-step">🧠 Script</div>
+            <div class="podcast-gen-step-arrow">→</div>
+            <div class="podcast-gen-step">🎙️ Voices</div>
+            <div class="podcast-gen-step-arrow">→</div>
+            <div class="podcast-gen-step">🎵 Player</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── PLAYER STATE ─── -->
+      <div id="podcastPlayer" style="display:none">
+        <div class="podcast-player-card">
+          <div class="podcast-player-visual">
+            <div class="podcast-wave">
+              <span></span><span></span><span></span><span></span><span></span>
+              <span></span><span></span><span></span><span></span><span></span>
+            </div>
+          </div>
+          <div class="podcast-player-meta">
+            <div class="podcast-player-title" id="podcastPlayerTitle">📻 Study Podcast</div>
+            <div class="podcast-player-info-row">
+              <span class="podcast-player-info" id="podcastPlayerInfo">Loading…</span>
+              <span class="podcast-tts-badge" id="podcastTTSBadge">🔊 Web Speech</span>
+            </div>
+          </div>
+          <div class="podcast-speed-row">
+            <span class="podcast-speed-label">Speed</span>
+            <select id="podcastSpeed" class="podcast-speed-select" onchange="podcastSetSpeed(this.value)">
+              <option value="0.8">0.8x</option>
+              <option value="1" selected>1x</option>
+              <option value="1.25">1.25x</option>
+              <option value="1.5">1.5x</option>
+              <option value="2">2x</option>
+            </select>
+          </div>
+          <div class="podcast-seek-row">
+            <span class="podcast-time" id="podcastCurrentTime">0:00</span>
+            <div class="podcast-seek-track"><div class="podcast-seek-fill" id="podcastSeekFill" style="width:0%"></div></div>
+            <span class="podcast-time" id="podcastTotalTime">0:00</span>
+          </div>
+          <div class="podcast-controls">
+            <button class="podcast-ctrl-btn secondary" onclick="podcastStop()">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+            </button>
+            <button class="podcast-ctrl-btn primary" id="podcastPlayBtn" onclick="podcastPlay()">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            </button>
+            <button class="podcast-ctrl-btn primary" id="podcastPauseBtn" onclick="podcastPause()" style="display:none">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+            </button>
+            <button class="podcast-ctrl-btn secondary" onclick="podcastRestart()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.28"/></svg>
+            </button>
+          </div>
+          <div class="podcast-action-row">
+            <button class="podcast-action-btn" onclick="podcastDownload()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Script
+            </button>
+            <button class="podcast-action-btn" onclick="podcastBackToSetup()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+              New
+            </button>
+          </div>
+        </div>
+        <div class="podcast-transcript-wrap">
+          <div class="podcast-transcript-title">📝 Transcript</div>
+          <div class="podcast-transcript" id="podcastTranscript"></div>
+        </div>
+      </div>
+
+    </div><!-- /spanel-podcast -->
+
     <!-- Loading spinner overlay (shared across tabs) -->
     <div class="study-loading" id="studyLoading" style="display:none">
       <div class="study-spinner"></div>
@@ -529,6 +809,7 @@
     <div class="ai-sheet" id="aiSheet">
       <div class="ai-sheet-handle"></div>
       <div class="ai-sheet-top">
+        <button class="ai-sheet-back" onclick="closeAISheet()" aria-label="Back to compare">← Back</button>
         <div class="ai-sheet-title">✦ Select AIs</div>
         <button class="ai-sheet-done" onclick="closeAISheet()">Done ✓</button>
       </div>
@@ -646,6 +927,17 @@
     </div>
   </div><!-- /comparePanel -->
 
+  <!-- 📊 Progress Dashboard overlay -->
+  <div id="progressDashboard" class="dash-overlay">
+    <div class="dash-panel">
+      <div class="dash-header">
+        <div class="dash-header-title"><span>📊</span> Progress Dashboard</div>
+        <button class="dash-close-btn" onclick="closeProgressDashboard()">✕ Close</button>
+      </div>
+      <div class="dash-body" id="dashboardBody"></div>
+    </div>
+  </div>
+
 </div><!-- /phone -->
 
 <!-- ═══════════════════════════════════════════════
@@ -666,6 +958,8 @@
 <!-- Markdown + Syntax Highlighting -->
 <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-<script src="./app.js?v=20260426-2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="./app.js?v=20260427-2"></script>
 </body>
 </html>
