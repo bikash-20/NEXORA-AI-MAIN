@@ -7,7 +7,9 @@
   "orientation": "portrait",
   "background_color": "#020617",
   "theme_color": "#7c5cff",
-  "categories": ["productivity", "utilities"],
+  "categories": ["productivity", "utilities", "education"],
+  "lang": "en",
+  "dir": "ltr",
   "icons": [
     {
       "src": "icon-192.png",
@@ -40,5 +42,7 @@
       "type": "image/png",
       "form_factor": "narrow"
     }
-  ]
+  ],
+  "prefer_related_applications": false,
+  "handle_links": "preferred"
 }

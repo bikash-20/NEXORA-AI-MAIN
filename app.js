@@ -4972,7 +4972,7 @@ async function callOpenRouter(userMessage) {
 
     for (const model of OPENROUTER_MODELS) {
       try {
-        const res = await fetch(OPENROUTER_ENDPOINT, {
+        const res = await fetchWithTimeout(OPENROUTER_ENDPOINT, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${key}`,
@@ -4981,7 +4981,7 @@ async function callOpenRouter(userMessage) {
             'X-Title': 'Nexora AI Companion'
           },
           body: JSON.stringify({ model, max_tokens: 1200, temperature: 0.7, messages })
-        });
+        }, 25000);
 
         if (res.status === 401) {
           if (label.startsWith('pool-')) rotatePoolKey();
@@ -5030,10 +5030,14 @@ async function callOpenRouter(userMessage) {
       } catch(e) { continue; }
     }
   }
-  // GET fallback
+  // GET fallback — truncate to avoid URL length limits (~2000 chars safe)
   try {
-    const prompt = encodeURIComponent(messages.map(m => m.content).join('\n\n'));
-    const res = await fetch(`https://text.pollinations.ai/${prompt}?model=openai&seed=${Date.now() % 999}`);
+    const promptText = messages.map(m => m.content).join('\n\n').slice(0, 800);
+    const prompt = encodeURIComponent(promptText);
+    const res = await fetchWithTimeout(
+      `https://text.pollinations.ai/${prompt}?model=openai&seed=${Date.now() % 999}`,
+      {}, 15000
+    );
     if (res.ok) {
       const reply = (await res.text()).trim();
       if (reply && reply.length > 10) {
@@ -5716,10 +5720,11 @@ async function callGeminiDirect(userMessage) {
   const memory = aiConversationSummary ? `\n\nConversation memory: ${aiConversationSummary}` : '';
   const sysMsg = { role: 'user', parts: [{ text: NEXORA_SYSTEM_PROMPT + memory + '\n\nIMPORTANT: Always use markdown code fences (```language) for ALL code. Never write code as plain text.\n\nUser: ' + userMessage }] };
   try {
-    const res = await fetch(
+    const res = await fetchWithTimeout(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gk}`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [sysMsg] }) }
+        body: JSON.stringify({ contents: [sysMsg] }) },
+      22000
     );
     if (!res.ok) return null;
     const data = await res.json();
@@ -5745,7 +5750,7 @@ async function testOpenRouterKey(key) {
 
   for (const model of testModels) {
     try {
-      const res = await fetch(OPENROUTER_ENDPOINT, {
+      const res = await fetchWithTimeout(OPENROUTER_ENDPOINT, {
         method: 'POST',
         headers: {
           'Authorization': 'Bearer ' + key,
@@ -5758,7 +5763,7 @@ async function testOpenRouterKey(key) {
           max_tokens: 40,
           messages: [{ role: 'user', content: 'Reply only: online!' }]
         })
-      });
+      }, 8000);
 
       // 401 = truly invalid key
       if (res.status === 401) {
@@ -9197,11 +9202,15 @@ function _getSrsStreak() {
       : JSON.parse(localStorage.getItem('nexora_srs_streak') || '{}');
     const today = new Date().toDateString();
     const yesterday = new Date(Date.now() - 86400000).toDateString();
+    // If already reviewed today, return saved streak
     if (d.last === today) return d.streak || 0;
+    // If last review was yesterday, the streak is still alive (will increment on record)
     if (d.last === yesterday) return d.streak || 0;
+    // Streak broken
     return 0;
   } catch(e) { return 0; }
 }
+
 function _recordSrsStreak() {
   try {
     const d = window.NexoraData?.getJSON
@@ -9210,10 +9219,17 @@ function _recordSrsStreak() {
     const today = new Date().toDateString();
     const yesterday = new Date(Date.now() - 86400000).toDateString();
     let streak = d.streak || 0;
-    if (d.last === yesterday) streak++;
-    else if (d.last !== today) streak = 1;
-    if (window.NexoraData?.setJSON) NexoraData.setJSON('nexora_srs_streak', { last: today, streak });
-    else localStorage.setItem('nexora_srs_streak', JSON.stringify({ last: today, streak }));
+    if (d.last === today) {
+      // Already recorded for today — don't increment again
+      return;
+    } else if (d.last === yesterday) {
+      streak++;
+    } else {
+      streak = 1;
+    }
+    const updated = { last: today, streak };
+    if (window.NexoraData?.setJSON) NexoraData.setJSON('nexora_srs_streak', updated);
+    else localStorage.setItem('nexora_srs_streak', JSON.stringify(updated));
   } catch(e) {}
 }
 

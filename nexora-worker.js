@@ -51,11 +51,11 @@ const MODELS = {
 };
 
 const MAX_TOKENS = {
-  '@cf/meta/llama-3.3-70b-instruct-fp8-fast':      512,
-  '@cf/meta/llama-3.1-8b-instruct':                512,
-  '@cf/mistral/mistral-7b-instruct-v0.2':          512,
-  '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b': 1024,
-  '@cf/google/gemma-3-12b-it':                     512,
+  '@cf/meta/llama-3.3-70b-instruct-fp8-fast':      768,
+  '@cf/meta/llama-3.1-8b-instruct':                768,
+  '@cf/mistral/mistral-7b-instruct-v0.2':          768,
+  '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b': 1536,
+  '@cf/google/gemma-3-12b-it':                     768,
 };
 
 // Script generation uses the best available model with higher token limit
@@ -122,10 +122,10 @@ async function handleAI(request, env) {
     try {
       const result = await env.AI.run(cfModel, {
         messages: all,
-        max_tokens: max_tokens || MAX_TOKENS[cfModel] || 512,
+        max_tokens: max_tokens || MAX_TOKENS[cfModel] || 768,
         temperature: temperature ?? 0.7,
       });
-      const text = result?.response || result?.result?.response || '';
+      const text = (result?.response || result?.result?.response || '').trim();
       if (text && text.length > 2) {
         return cors(JSON.stringify({
           id: 'cf-' + Date.now(),
@@ -136,14 +136,20 @@ async function handleAI(request, env) {
           _nexora: { alias, cfModel, label: meta.label },
         }));
       }
-      lastErr = `${cfModel} returned empty`;
+      lastErr = `${cfModel} returned empty response`;
     } catch(e) {
       lastErr = e?.message || String(e);
-      if (lastErr.includes('limit') || lastErr.includes('quota'))
+      const errLow = lastErr.toLowerCase();
+      if (errLow.includes('limit') || errLow.includes('quota') || errLow.includes('rate')) {
         return cors(JSON.stringify({ error: 'Daily free limit reached. Resets at midnight UTC.' }), 429);
+      }
+      if (errLow.includes('unavailable') || errLow.includes('overloaded')) {
+        // Try next model instead of bailing
+        continue;
+      }
     }
   }
-  return cors(JSON.stringify({ error:'All models failed', tried:toTry, last_error:lastErr }), 502);
+  return cors(JSON.stringify({ error: 'All models failed', tried: toTry, last_error: lastErr }), 502);
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -287,33 +293,50 @@ async function handleTTS(request, env) {
   try { body = await request.json(); }
   catch { return cors(JSON.stringify({ error: 'Invalid JSON' }), 400); }
 
-  const { text, voice = 'en-us-male' } = body;
+  const { text } = body;
   if (!text || text.trim().length === 0)
     return cors(JSON.stringify({ error: 'text is required' }), 400);
 
-  // Truncate to safe length
-  const safeText = text.slice(0, 500);
+  // Truncate to safe length for TTS model
+  const safeText = text.trim().slice(0, 500);
 
   try {
-    // MeloTTS supports prompt + lang, and returns MP3 audio.
     const result = await env.AI.run(TTS_MODEL, {
       prompt: safeText,
       lang: 'en',
     });
 
-    const audioB64 = typeof result === 'string'
-      ? result
-      : result?.audio || '';
-    if (!audioB64) {
-      return cors(JSON.stringify({ error: 'TTS returned empty audio' }), 502);
+    // CF TTS can return: base64 string, ArrayBuffer, or { audio: base64 }
+    let audioBytes;
+    if (result instanceof ArrayBuffer) {
+      audioBytes = new Uint8Array(result);
+    } else if (result instanceof Uint8Array) {
+      audioBytes = result;
+    } else {
+      const audioB64 = typeof result === 'string'
+        ? result
+        : (result?.audio || result?.result?.audio || '');
+      if (!audioB64) {
+        return cors(JSON.stringify({
+          error: 'TTS returned empty audio. The CF TTS model may not be available in your Worker region.',
+          hint: 'The frontend will automatically fall back to the Web Speech API.',
+        }), 502);
+      }
+      audioBytes = Uint8Array.from(atob(audioB64), c => c.charCodeAt(0));
     }
 
-    const audioBytes = Uint8Array.from(atob(audioB64), c => c.charCodeAt(0));
+    if (!audioBytes || audioBytes.length < 100) {
+      return cors(JSON.stringify({
+        error: 'TTS audio too short — likely a model error.',
+        hint: 'Frontend will fall back to Web Speech API.',
+      }), 502);
+    }
 
     return new Response(audioBytes, {
       status: 200,
       headers: {
         'Content-Type': 'audio/mpeg',
+        'Content-Length': String(audioBytes.length),
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization',
@@ -321,7 +344,6 @@ async function handleTTS(request, env) {
       },
     });
   } catch(e) {
-    // TTS model may not be available in all CF regions — return a clear error
     return cors(JSON.stringify({
       error: 'TTS failed: ' + (e?.message || String(e)),
       hint: 'The CF TTS model may not be available in your Worker region. The frontend will fall back to Web Speech API.',

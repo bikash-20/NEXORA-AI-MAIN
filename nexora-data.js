@@ -435,47 +435,70 @@
 
   async function loadWorker() {
     if (workerPromise) return workerPromise;
-    workerPromise = new Promise((resolve, reject) => {
-      try {
-        const workerUrl = new URL('./nexora-study-worker.js', window.location.href);
-        const worker = new Worker(workerUrl, { type: 'classic' });
-        const pending = new Map();
-        const fail = (err) => {
-          try { worker.terminate(); } catch (e) {}
-          workerPromise = null;
-          pending.forEach(({ reject }) => reject(err?.error || err?.message || new Error('Worker failed')));
+
+    // Use a deferred pattern so resolve() and the fail() handler never race.
+    // The controller object is resolved immediately; fail() only drains pending tasks.
+    let _resolve, _reject;
+    workerPromise = new Promise((res, rej) => { _resolve = res; _reject = rej; });
+
+    try {
+      const workerUrl = new URL('./nexora-study-worker.js', window.location.href);
+      const worker = new Worker(workerUrl, { type: 'classic' });
+      const pending = new Map();
+      let settled = false;
+
+      const fail = (err) => {
+        if (settled) {
+          // Worker already handed back — just drain pending tasks
+          const e = new Error(err?.message || err?.error || 'Worker error');
+          pending.forEach(({ reject: rej }) => rej(e));
           pending.clear();
-          reject(err?.error || err?.message || new Error('Worker failed'));
-        };
-        worker.onmessage = event => {
-          const data = event.data || {};
-          const pendingItem = pending.get(data.id);
-          if (!pendingItem) return;
-          pending.delete(data.id);
-          if (data.ok) pendingItem.resolve(data.result);
-          else pendingItem.reject(new Error(data.error || 'Worker task failed'));
-        };
-        worker.onerror = fail;
-        worker.onmessageerror = fail;
-        let seq = 0;
-        resolve({
-          run(type, payload) {
-            return new Promise((res, rej) => {
-              const id = `${Date.now()}-${++seq}`;
-              pending.set(id, { resolve: res, reject: rej });
-              worker.postMessage({ id, type, payload });
-            });
-          },
-          terminate() {
-            worker.terminate();
-            workerPromise = null;
-          }
-        });
-      } catch (e) {
+          try { worker.terminate(); } catch (_) {}
+          workerPromise = null;
+          return;
+        }
+        settled = true;
+        try { worker.terminate(); } catch (_) {}
         workerPromise = null;
-        reject(e);
-      }
-    });
+        const e = new Error(err?.message || err?.error || 'Worker failed to start');
+        pending.forEach(({ reject: rej }) => rej(e));
+        pending.clear();
+        _reject(e);
+      };
+
+      worker.onmessage = event => {
+        const data = event.data || {};
+        const item = pending.get(data.id);
+        if (!item) return;
+        pending.delete(data.id);
+        if (data.ok) item.resolve(data.result);
+        else item.reject(new Error(data.error || 'Worker task failed'));
+      };
+      worker.onerror = fail;
+      worker.onmessageerror = fail;
+
+      let seq = 0;
+      const controller = {
+        run(type, payload) {
+          return new Promise((res, rej) => {
+            const id = `${Date.now()}-${++seq}`;
+            pending.set(id, { resolve: res, reject: rej });
+            worker.postMessage({ id, type, payload });
+          });
+        },
+        terminate() {
+          try { worker.terminate(); } catch (_) {}
+          workerPromise = null;
+        },
+      };
+
+      settled = true;
+      _resolve(controller);
+    } catch (e) {
+      workerPromise = null;
+      _reject(e);
+    }
+
     try {
       return await workerPromise;
     } catch (e) {

@@ -107,22 +107,74 @@ function buildLocalQuiz(topic, count, difficulty) {
     .map(s => String(s || '').replace(/\s+/g, ' ').trim())
     .filter(Boolean);
 
+  // Varied question stems indexed by difficulty
+  const easyStems = [
+    `Which of the following best describes ${topicLabel}?`,
+    `What is a key feature of ${topicLabel}?`,
+    `Which statement is true about ${topicLabel}?`,
+    `What does ${topicLabel} mainly involve?`,
+    `Which option correctly relates to ${topicLabel}?`,
+    `What is the most accurate description of ${topicLabel}?`,
+  ];
+  const mediumStems = [
+    `Which statement most accurately explains ${topicLabel}?`,
+    `What is the primary purpose of ${topicLabel}?`,
+    `Which of the following is the best match for ${topicLabel}?`,
+    `How is ${topicLabel} best characterised?`,
+    `Which option reflects the core concept of ${topicLabel}?`,
+    `What does ${topicLabel} specifically address?`,
+  ];
+  const hardStems = [
+    `Which statement most precisely captures the essence of ${topicLabel}?`,
+    `In the context of ${topicLabel}, which option is most technically correct?`,
+    `Which of the following most rigorously describes ${topicLabel}?`,
+    `Which option best distinguishes ${topicLabel} from related concepts?`,
+    `What is the most nuanced understanding of ${topicLabel}?`,
+    `Which statement would an expert on ${topicLabel} consider most accurate?`,
+  ];
+  const stemPool = difficulty === 'hard' ? hardStems
+    : difficulty === 'easy' ? easyStems
+    : mediumStems;
+
+  // Build distractor pool: include shuffled wrong points PLUS paraphrases of generic answers
+  const genericDistractors = [
+    `It is unrelated to the core principles of ${topicLabel}.`,
+    `It describes the opposite behaviour of ${topicLabel}.`,
+    `It applies only to advanced cases beyond ${topicLabel}.`,
+    `It conflates ${topicLabel} with a different concept.`,
+    `It oversimplifies the true complexity of ${topicLabel}.`,
+    `It is an outdated understanding of ${topicLabel}.`,
+  ];
+
   const questions = [];
   for (let i = 0; i < count; i++) {
     const correctText = answerPool[i % answerPool.length];
-    const distractors = answerPool.filter(s => s !== correctText).slice(0, 3);
-    while (distractors.length < 3) {
-      distractors.push(genericAnswers[(i + distractors.length + 1) % genericAnswers.length]);
-    }
-    const optionsRaw = [correctText, ...distractors.slice(0, 3)];
+
+    // Pick distractors: prefer other real points, pad with generic distractors
+    const wrongPool = [
+      ...answerPool.filter(s => s !== correctText),
+      ...genericDistractors,
+    ];
+    // Deterministically shuffle wrong pool based on i
+    const shuffled = wrongPool
+      .map((v, idx) => ({ v, sort: (idx * 2654435761 + i * 1234567) >>> 0 }))
+      .sort((a, b) => a.sort - b.sort)
+      .map(x => x.v);
+    const distractors = shuffled.slice(0, 3);
+
+    const optionsRaw = [correctText, ...distractors];
+    // Rotate options so correct answer isn't always first
     const rotated = optionsRaw.map((_, idx) => optionsRaw[(idx + i) % optionsRaw.length]);
     const letters = ['A', 'B', 'C', 'D'];
     const correctIndex = rotated.indexOf(correctText);
+
+    const stem = stemPool[i % stemPool.length];
+
     questions.push({
-      q: `Which statement best matches ${topicLabel}${difficulty === 'hard' ? ' most precisely' : ''}?`,
+      q: stem,
       options: rotated.map((opt, idx) => `${letters[idx]}) ${opt}`),
       correct: letters[correctIndex],
-      explanation: `The best answer is the one that directly matches the study material for ${topicLabel}.`,
+      explanation: `The correct answer directly matches the study material for "${topicLabel}". The other options are either inaccurate, incomplete, or describe a different concept.`,
     });
   }
   return questions;

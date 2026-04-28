@@ -2,9 +2,14 @@
 //  Nexora Service Worker — PWA Offline Support
 //  Cache-first strategy for static assets
 //  Network-first for API calls
+//
+//  CACHE_VERSION: bump this string on every deploy to force
+//  all clients to fetch fresh assets immediately.
 // ============================================================
 
-const CACHE_NAME = 'nexora-v5';
+// ── Change this on every deploy (ISO date + deploy counter) ──────
+const CACHE_VERSION = '20260429-1';
+const CACHE_NAME = `nexora-v${CACHE_VERSION}`;
 
 // Core files to cache on install
 const CORE_ASSETS = [
@@ -52,20 +57,23 @@ const NETWORK_ONLY_HOSTS = [
 
 // ── Install: cache all static assets ──
 self.addEventListener('install', event => {
+  console.log(`[SW] Installing cache: ${CACHE_NAME}`);
   event.waitUntil(
     caches.open(CACHE_NAME).then(async cache => {
       const toCache = [...CORE_ASSETS, ...OPTIONAL_ASSETS];
-      const results = await Promise.allSettled(
+      await Promise.allSettled(
         toCache.map(async asset => {
           try {
             await cache.add(asset);
           } catch (err) {
-            console.warn('[SW] Failed to cache asset:', asset, err);
+            console.warn('[SW] Failed to cache asset:', asset, err?.message || err);
           }
         })
       );
-      return results;
-    }).then(() => self.skipWaiting())
+    }).then(() => {
+      console.log(`[SW] Cache ${CACHE_NAME} ready. Skipping waiting.`);
+      return self.skipWaiting();
+    })
   );
 });
 
