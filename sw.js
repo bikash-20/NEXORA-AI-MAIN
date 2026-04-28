@@ -4,13 +4,15 @@
 //  Network-first for API calls
 // ============================================================
 
-const CACHE_NAME = 'nexora-v4';
+const CACHE_NAME = 'nexora-v5';
 
 // Core files to cache on install
 const CORE_ASSETS = [
   './',
   './index.html',
   './styles.css',
+  './nexora-data.js',
+  './nexora-study-worker.js',
   './app.js',
   './manifest.json',
   './apple-touch-icon.png',
@@ -27,6 +29,8 @@ const OPTIONAL_ASSETS = [
 const APP_SHELL_PATHS = new Set([
   '/',
   '/index.html',
+  '/nexora-data.js',
+  '/nexora-study-worker.js',
   '/app.js',
   '/styles.css',
   '/manifest.json',
