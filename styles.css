@@ -5121,3 +5121,433 @@ body.light-mode .podcast-lib-empty {
 body.light-mode .podcast-upload-label { background: #f0eeff; border-color: rgba(124,92,255,0.2); }
 body.light-mode .podcast-gen-progress-track,
 body.light-mode .podcast-seek-track { background: rgba(0,0,0,0.08); }
+
+/* ══════════════════════════════════════════════════════════════
+   FLASHCARD REFRESH — visual-only override layer
+   Keeps all existing IDs and JS untouched.
+════════════════════════════════════════════════════════════════════════ */
+
+#spanel-flashcard.active {
+  gap: 16px;
+  align-content: start;
+}
+
+#spanel-flashcard .study-input-section,
+#spanel-flashcard #fcDeckArea,
+#spanel-flashcard #fcExplainPanel,
+#spanel-flashcard #fcSavedSection {
+  background: linear-gradient(180deg, rgba(16,20,34,0.92), rgba(11,15,26,0.96));
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 18px 50px rgba(0,0,0,0.28);
+  backdrop-filter: blur(18px);
+}
+
+#spanel-flashcard .study-input-section {
+  border-radius: 22px;
+  padding: 16px;
+}
+
+#spanel-flashcard .study-input-label {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: #8b93b2;
+}
+
+#spanel-flashcard .study-textarea {
+  min-height: 92px;
+  padding: 14px 14px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.08);
+}
+
+#spanel-flashcard .study-input-row {
+  gap: 10px;
+}
+
+#spanel-flashcard .study-select {
+  border-radius: 14px;
+  background: rgba(255,255,255,0.045);
+  border-color: rgba(255,255,255,0.08);
+}
+
+#fcDeckArea {
+  padding: 16px;
+  border-radius: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+#fcDeckArea::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at top left, rgba(124,92,255,0.14), transparent 34%),
+    radial-gradient(circle at bottom right, rgba(0,224,255,0.10), transparent 30%);
+  pointer-events: none;
+  opacity: 0.9;
+}
+
+#fcDeckArea > * {
+  position: relative;
+  z-index: 1;
+}
+
+.fc-deck-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.fc-deck-topic-tag {
+  background: rgba(124,92,255,0.14);
+  border: 1px solid rgba(124,92,255,0.28);
+  color: #d8cfff;
+  padding: 6px 11px;
+  border-radius: 999px;
+  max-width: 180px;
+}
+
+.fc-progress-text {
+  margin-left: 0;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--text2);
+}
+
+.fc-save-all-btn {
+  margin-left: auto;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: rgba(16,185,129,0.12);
+  border-color: rgba(16,185,129,0.24);
+  color: #7ee0bd;
+}
+
+.fc-card-wrap {
+  perspective: 1600px;
+}
+
+.fc-card {
+  height: 280px;
+  border-radius: 26px;
+}
+
+.fc-card-inner {
+  border-radius: 26px;
+  transition: transform 0.55s cubic-bezier(.2,.85,.2,1);
+}
+
+.fc-card-face {
+  border-radius: 26px;
+  padding: 24px 22px 18px;
+  overflow: hidden;
+  position: absolute;
+}
+
+.fc-card-face::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(255,255,255,0.10), transparent 24%),
+    radial-gradient(circle at 82% 16%, rgba(124,92,255,0.16), transparent 20%),
+    linear-gradient(145deg, rgba(255,255,255,0.02), transparent 55%);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.fc-card-face > * {
+  position: relative;
+  z-index: 1;
+}
+
+.fc-card-face.front {
+  background:
+    linear-gradient(145deg, rgba(124,92,255,0.18), rgba(0,224,255,0.07)),
+    linear-gradient(180deg, rgba(20,25,44,0.96), rgba(12,16,27,0.98));
+  border-color: rgba(124,92,255,0.26);
+}
+
+.fc-card-face.back {
+  background:
+    linear-gradient(145deg, rgba(16,185,129,0.12), rgba(124,92,255,0.06)),
+    linear-gradient(180deg, rgba(16,20,34,0.96), rgba(11,15,26,0.98));
+  border-color: rgba(16,185,129,0.24);
+}
+
+.fc-card-label {
+  display: inline-flex;
+  width: fit-content;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #9ca3c7;
+  letter-spacing: 1px;
+}
+
+.fc-card-text {
+  font-size: 18px;
+  line-height: 1.55;
+  font-weight: 600;
+  color: #f4f7ff;
+  text-wrap: pretty;
+}
+
+.fc-tap-hint {
+  color: #8d95b6;
+  letter-spacing: 0.2px;
+}
+
+.fc-hint-row {
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.fc-hint-btn,
+.fc-explain-btn {
+  border-radius: 999px;
+  padding: 7px 11px;
+}
+
+.fc-explain-btn {
+  align-self: center;
+  margin-top: auto;
+}
+
+.fc-nav {
+  padding: 2px 2px 0;
+  gap: 12px;
+}
+
+.fc-nav-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.04);
+}
+
+.fc-dots {
+  flex: 1;
+  justify-content: center;
+  min-height: 16px;
+}
+
+.fc-card-actions {
+  gap: 10px;
+}
+
+.fc-action-btn {
+  padding: 11px 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--text2);
+}
+
+.fc-action-btn:hover {
+  border-color: rgba(124,92,255,0.35);
+  color: #eff6ff;
+  background: rgba(124,92,255,0.14);
+}
+
+.fc-action-btn.save {
+  background: rgba(16,185,129,0.12);
+  border-color: rgba(16,185,129,0.24);
+  color: #7ee0bd;
+}
+
+.fc-action-btn.save:hover {
+  background: rgba(16,185,129,0.18);
+  color: #c7f3df;
+}
+
+.fc-action-btn.flip-all {
+  background: rgba(251,191,36,0.10);
+  border-color: rgba(251,191,36,0.22);
+  color: #f5c453;
+}
+
+.fc-action-btn.flip-all:hover {
+  background: rgba(251,191,36,0.16);
+  color: #ffe19a;
+}
+
+#fcExplainPanel {
+  padding: 16px;
+  border-radius: 22px;
+}
+
+.fc-explain-header {
+  color: #d9dff7;
+  margin-bottom: 12px;
+}
+
+.fc-explain-body {
+  max-height: 180px;
+  color: var(--text2);
+}
+
+#fcSavedSection {
+  padding: 16px;
+  border-radius: 22px;
+  position: sticky;
+  top: 6px;
+}
+
+.study-saved-title {
+  color: #9aa4c9;
+  letter-spacing: 1px;
+}
+
+.fc-saved-list {
+  gap: 10px;
+}
+
+.fc-saved-deck {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.04);
+}
+
+.fc-saved-deck:hover {
+  background: rgba(124,92,255,0.12);
+  border-color: rgba(124,92,255,0.25);
+  transform: translateY(-1px);
+}
+
+.fc-saved-deck-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(124,92,255,0.12);
+}
+
+body.light-mode #spanel-flashcard .study-input-section,
+body.light-mode #spanel-flashcard #fcDeckArea,
+body.light-mode #spanel-flashcard #fcExplainPanel,
+body.light-mode #spanel-flashcard #fcSavedSection {
+  background: #fff;
+  border-color: #e5e7eb;
+  box-shadow: 0 12px 30px rgba(15,23,42,0.08);
+}
+
+body.light-mode .fc-deck-topic-tag {
+  background: rgba(124,92,255,0.08);
+  color: #5b21b6;
+}
+
+body.light-mode .fc-progress-text {
+  background: #f8fafc;
+  color: #6b7280;
+  border-color: #e5e7eb;
+}
+
+body.light-mode .fc-card-face.front {
+  background:
+    linear-gradient(145deg, rgba(124,92,255,0.08), rgba(0,224,255,0.04)),
+    linear-gradient(180deg, #fff7ff, #eef6ff);
+  border-color: rgba(124,92,255,0.18);
+}
+
+body.light-mode .fc-card-face.back {
+  background:
+    linear-gradient(145deg, rgba(16,185,129,0.07), rgba(124,92,255,0.04)),
+    linear-gradient(180deg, #f7fff9, #effaf5);
+  border-color: rgba(16,185,129,0.18);
+}
+
+body.light-mode .fc-card-text {
+  color: #111827;
+}
+
+body.light-mode .fc-card-label,
+body.light-mode .fc-tap-hint,
+body.light-mode .fc-explain-body,
+body.light-mode .fc-saved-deck-meta {
+  color: #6b7280;
+}
+
+@media (min-width: 901px) {
+  #spanel-flashcard.active {
+    grid-template-columns: minmax(0, 1.32fr) minmax(300px, 0.68fr);
+    column-gap: 20px;
+  }
+  #spanel-flashcard .study-input-section {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  #fcDeckArea {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  #fcExplainPanel {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  #fcSavedSection {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+  }
+  .fc-card {
+    height: 300px;
+  }
+  .fc-card-text {
+    font-size: 19px;
+  }
+}
+
+@media (max-width: 900px) {
+  #spanel-flashcard.active {
+    display: flex;
+  }
+  .fc-card {
+    height: 250px;
+  }
+  .fc-card-text {
+    font-size: 16px;
+  }
+  .fc-nav {
+    gap: 8px;
+  }
+  .fc-nav-btn {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+@media (max-width: 700px) {
+  #spanel-flashcard .study-input-section,
+  #fcDeckArea,
+  #fcExplainPanel,
+  #fcSavedSection {
+    padding: 14px;
+    border-radius: 18px;
+  }
+  .fc-deck-meta {
+    align-items: flex-start;
+  }
+  .fc-save-all-btn {
+    margin-left: 0;
+  }
+  .fc-card {
+    height: 220px;
+  }
+  .fc-card-face {
+    padding: 18px 16px 16px;
+  }
+  .fc-card-text {
+    font-size: 15px;
+  }
+  .fc-card-actions {
+    flex-direction: column;
+  }
+}
