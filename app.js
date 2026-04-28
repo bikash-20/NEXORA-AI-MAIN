@@ -9292,10 +9292,11 @@ function _renderDashboard() {
 
     <!-- Row 1: key stats -->
     <div class="dash-grid-3">
-      <div class="dash-stat-card hero" data-note="${_esc(dashboardInsight)}">
+      <div class="dash-stat-card hero">
         <div class="dash-stat-icon">🔁</div>
         <div class="dash-stat-val">${srsStreak}</div>
         <div class="dash-stat-label">Day Streak</div>
+        <div class="dash-stat-note">${_esc(dashboardInsight)}</div>
       </div>
       <div class="dash-stat-card secondary">
         <div class="dash-stat-icon">🃏</div>
