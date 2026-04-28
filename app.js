@@ -34,6 +34,8 @@ let sessionLog = [];          // { role:'user'|'bot', text } — last 20 turns
 let lastBotEmotion = 'default';   // last detected emotion in bot reply context
 let contextChipCooldown = false;  // prevent chip spam
 let saveChatHistoryTimer = null;  // debounce storage writes
+const CHAT_SUMMARY_LS = 'nexora_chat_summary_v1';
+let aiConversationSummary = '';
 
 // ╔══════════════════════════════════════════════════════════════╗
 // ║           NEXORA API KEY SYSTEM — Multi-Key Fallback        ║
@@ -216,6 +218,71 @@ function _mdEscape(str) {
     .replace(/"/g, '&quot;');
 }
 
+function _saveConversationSummary() {
+  try {
+    if (window.NexoraData?.setText) NexoraData.setText(CHAT_SUMMARY_LS, aiConversationSummary || '');
+    else if (aiConversationSummary) localStorage.setItem(CHAT_SUMMARY_LS, aiConversationSummary);
+    else localStorage.removeItem(CHAT_SUMMARY_LS);
+  } catch (e) {}
+}
+
+function _summariseConversation(messages) {
+  const topics = [];
+  const seen = new Set();
+  const userSnips = [];
+  const assistantSnips = [];
+
+  const pushTopic = (txt) => {
+    String(txt || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, ' ')
+      .split(/\s+/)
+      .map(w => w.trim())
+      .filter(w => w.length > 3 && !/^(this|that|with|from|have|been|your|what|when|where|how|why|more|less|like|just|about|into|over|under|please|tell|give|make|show|help|need|want)$/i.test(w))
+      .forEach(w => {
+        if (!seen.has(w)) {
+          seen.add(w);
+          topics.push(w);
+        }
+      });
+  };
+
+  messages.forEach(m => {
+    const txt = String(m?.content || '').replace(/\s+/g, ' ').trim();
+    if (!txt) return;
+    pushTopic(txt);
+    if (m.role === 'user' && userSnips.length < 3) userSnips.push(txt.slice(0, 80));
+    if (m.role === 'assistant' && assistantSnips.length < 2) assistantSnips.push(txt.slice(0, 80));
+  });
+
+  const topicText = topics.slice(0, 6).join(', ');
+  const userText = userSnips.join(' | ');
+  const assistText = assistantSnips.join(' | ');
+  const parts = [];
+  if (topicText) parts.push(`topics: ${topicText}`);
+  if (userText) parts.push(`recent user asks: ${userText}`);
+  if (assistText) parts.push(`recent assistant replies: ${assistText}`);
+  parts.push('keep continuity, remember preferences, and stay concise');
+  return parts.join('. ');
+}
+
+function _compactConversationMemory() {
+  if (aiConversation.length <= 16) return;
+  const older = aiConversation.splice(0, Math.max(0, aiConversation.length - 10));
+  if (!older.length) return;
+  const summary = _summariseConversation(older);
+  if (summary) {
+    aiConversationSummary = summary;
+    _saveConversationSummary();
+  }
+}
+
+function _rememberConversationTurn(userMessage, reply) {
+  aiConversation.push({ role: 'user', content: userMessage });
+  aiConversation.push({ role: 'assistant', content: reply });
+  _compactConversationMemory();
+}
+
 // Detect real HTML (KB cards, resource cards) — NOT C++ angle brackets like <iostream>
 function _isRealHTML(text) {
   return /<\/?(?:div|span|pre|code|table|thead|tbody|tr|td|th|ul|ol|li|p|strong|em|h[1-6]|blockquote|a|br|img|b|i)\b[^>]*>/i.test(text);
@@ -233,18 +300,25 @@ function scheduleChatHistorySave() {
   saveChatHistoryTimer = setTimeout(() => {
     saveChatHistoryTimer = null;
     saveChatHistory();
-  }, 120);
+  }, 500);
 }
 
 // ==============================
 //  INIT
 // ==============================
-window.addEventListener('load', () => {
+window.addEventListener('load', async () => {
   resetTransientPanels(localStorage.getItem('nexora_name') ? 'chatScreen' : 'nameScreen');
   initResponseMode(); // set online/offline mode based on saved key
   initMarked();       // configure marked.js + highlight.js renderer
   updateClock();
   setInterval(updateClock, 30000);
+
+  if (window.NexoraData?.hydrateLargeStores) {
+    try { await NexoraData.hydrateLargeStores(); } catch (e) {}
+  }
+  aiConversationSummary = window.NexoraData?.getText
+    ? NexoraData.getText(CHAT_SUMMARY_LS, '') || ''
+    : (localStorage.getItem(CHAT_SUMMARY_LS) || '');
 
   // Load theme preference
   const savedTheme = localStorage.getItem('nexora_theme');
@@ -258,14 +332,14 @@ window.addEventListener('load', () => {
   if (savedName) {
     userName = savedName;
     userInitials = savedName.slice(0, 2).toUpperCase();
-    emotionHistory = JSON.parse(localStorage.getItem('nexora_emotions') || '[]');
-    topicMemory   = JSON.parse(localStorage.getItem('nexora_topics')   || '[]');
-    userProfile   = JSON.parse(localStorage.getItem('nexora_profile')  || '{"emotional":0,"logical":0}');
-    nexoraMood    = parseInt(localStorage.getItem('nexora_mood')       || '60', 10);
+    emotionHistory = window.NexoraData?.getJSON ? (NexoraData.getJSON('nexora_emotions', []) || []) : JSON.parse(localStorage.getItem('nexora_emotions') || '[]');
+    topicMemory   = window.NexoraData?.getJSON ? (NexoraData.getJSON('nexora_topics', []) || []) : JSON.parse(localStorage.getItem('nexora_topics') || '[]');
+    userProfile   = window.NexoraData?.getJSON ? (NexoraData.getJSON('nexora_profile', { emotional: 0, logical: 0 }) || { emotional: 0, logical: 0 }) : JSON.parse(localStorage.getItem('nexora_profile')  || '{"emotional":0,"logical":0}');
+    nexoraMood    = parseInt(window.NexoraData?.getText ? (NexoraData.getText('nexora_mood', '60') || '60') : (localStorage.getItem('nexora_mood') || '60'), 10);
     showScreen('chatScreen');
 
     // Load persistent chat history
-    const historyLoaded = loadChatHistory();
+    loadChatHistory();
 
     setTimeout(() => {
       checkRemembranceDay();
@@ -418,7 +492,11 @@ function startApp() {
   userInitials = n.slice(0, 2).toUpperCase();
   localStorage.setItem('nexora_name', n);
   // Clear old chat history on new name entry
-  localStorage.removeItem('nexora_chat_v2');
+  if (window.NexoraData?.clearJSON) NexoraData.clearJSON('nexora_chat_v2');
+  if (window.NexoraData?.clearText) NexoraData.clearText(CHAT_SUMMARY_LS);
+  else try { localStorage.removeItem(CHAT_SUMMARY_LS); } catch (e) {}
+  aiConversationSummary = '';
+  _saveConversationSummary();
   sessionLog = [];
   showScreen('chatScreen');
   resetIdleTimer();
@@ -599,7 +677,8 @@ function getEmotionTrend() {
 function saveEmotion(emotion) {
   emotionHistory.push(emotion);
   if (emotionHistory.length > 20) emotionHistory.shift();
-  localStorage.setItem('nexora_emotions', JSON.stringify(emotionHistory));
+  if (window.NexoraData?.setJSON) NexoraData.setJSON('nexora_emotions', emotionHistory);
+  else localStorage.setItem('nexora_emotions', JSON.stringify(emotionHistory));
 }
 
 function saveTopic(msg) {
@@ -607,7 +686,8 @@ function saveTopic(msg) {
     if (w.length > 4 && !/[^a-zA-Z]/.test(w)) topicMemory.push(w.toLowerCase());
   });
   topicMemory = topicMemory.slice(-12);
-  localStorage.setItem('nexora_topics', JSON.stringify(topicMemory));
+  if (window.NexoraData?.setJSON) NexoraData.setJSON('nexora_topics', topicMemory);
+  else localStorage.setItem('nexora_topics', JSON.stringify(topicMemory));
 }
 
 function updateProfile(msg) {
@@ -615,7 +695,8 @@ function updateProfile(msg) {
   else userProfile.logical++;
   if (userProfile.emotional > 50) userProfile.emotional = 50;
   if (userProfile.logical > 50) userProfile.logical = 50;
-  localStorage.setItem('nexora_profile', JSON.stringify(userProfile));
+  if (window.NexoraData?.setJSON) NexoraData.setJSON('nexora_profile', userProfile);
+  else localStorage.setItem('nexora_profile', JSON.stringify(userProfile));
 }
 
 function memoryResponse() {
@@ -1111,7 +1192,8 @@ function getTimeAwareGreeting(name) {
 // ==============================
 function updateMood(delta) {
   nexoraMood = Math.max(0, Math.min(100, nexoraMood + delta));
-  localStorage.setItem('nexora_mood', nexoraMood.toString());
+  if (window.NexoraData?.setText) NexoraData.setText('nexora_mood', nexoraMood.toString());
+  else localStorage.setItem('nexora_mood', nexoraMood.toString());
   // Shift CSS accent colour subtly based on mood
   let accent;
   if (nexoraMood >= 75)      accent = '#EC4899'; // hot pink — very hype
@@ -1378,7 +1460,9 @@ const NexoraGriefSupport = {
 };
 
 function checkRemembranceDay() {
-  const stored = localStorage.getItem('nexora_remembrance_day');
+  const stored = window.NexoraData?.getText
+    ? NexoraData.getText('nexora_remembrance_day', '')
+    : localStorage.getItem('nexora_remembrance_day');
   if (!stored) return;
   const today = new Date().toLocaleDateString('en-US', { month:'long', day:'numeric' });
   if (today === stored) {
@@ -1488,7 +1572,8 @@ function generateResponse(msg) {
     // Store remembrance date if mentioned
     if (anniversaryW.test(lower)) {
       const today = new Date().toLocaleDateString('en-US', { month:'long', day:'numeric' });
-      localStorage.setItem('nexora_remembrance_day', today);
+      if (window.NexoraData?.setText) NexoraData.setText('nexora_remembrance_day', today);
+      else localStorage.setItem('nexora_remembrance_day', today);
     }
     return rand(NexoraGriefSupport.parentLoss);
   }
@@ -2241,7 +2326,11 @@ function clearChat() {
   const chips = document.querySelector('.context-chips');
   if (chips) chips.remove();
   // Clear storage
-  localStorage.removeItem('nexora_chat_v2');
+  if (window.NexoraData?.clearJSON) NexoraData.clearJSON('nexora_chat_v2');
+  if (window.NexoraData?.clearText) NexoraData.clearText(CHAT_SUMMARY_LS);
+  else try { localStorage.removeItem(CHAT_SUMMARY_LS); } catch (e) {}
+  aiConversationSummary = '';
+  _saveConversationSummary();
   sessionLog = [];
   _disposeLastChatPdfUrl();
   document.getElementById('exportBtn').classList.remove('visible');
@@ -2305,7 +2394,8 @@ function saveChatHistory() {
       });
     });
     if (data.length > 200) data.splice(0, data.length - 200); // keep last 200
-    localStorage.setItem('nexora_chat_v2', JSON.stringify(data));
+    if (window.NexoraData?.setJSON) NexoraData.setJSON('nexora_chat_v2', data);
+    else localStorage.setItem('nexora_chat_v2', JSON.stringify(data));
     // Show export button once there are messages
     const eb = document.getElementById('exportBtn');
     if (eb && data.length > 2) eb.classList.add('visible');
@@ -2314,9 +2404,7 @@ function saveChatHistory() {
 
 function loadChatHistory() {
   try {
-    const raw = localStorage.getItem('nexora_chat_v2');
-    if (!raw) return false;
-    const data = JSON.parse(raw);
+    const data = window.NexoraData?.getJSON ? NexoraData.getJSON('nexora_chat_v2', []) : JSON.parse(localStorage.getItem('nexora_chat_v2') || '[]');
     if (!data || !data.length) return false;
     const messages = document.getElementById('messages');
     data.forEach(entry => {
@@ -4854,6 +4942,9 @@ async function callOpenRouter(userMessage) {
 
   // Build message array with system prompt + rolling history + current message
   const messages = [{ role: 'system', content: NEXORA_SYSTEM_PROMPT }];
+  if (aiConversationSummary) {
+    messages.push({ role: 'system', content: `Conversation memory: ${aiConversationSummary}` });
+  }
   const recent = aiConversation.slice(-10);
   messages.push(...recent);
   messages.push({ role: 'user', content: userMessage });
@@ -4906,9 +4997,7 @@ async function callOpenRouter(userMessage) {
           const data = await res.json();
           const reply = data?.choices?.[0]?.message?.content?.trim();
           if (reply) {
-            aiConversation.push({ role: 'user', content: userMessage });
-            aiConversation.push({ role: 'assistant', content: reply });
-            if (aiConversation.length > 20) aiConversation.splice(0, 2);
+            _rememberConversationTurn(userMessage, reply);
             keyWorked = true;
             return reply;
           }
@@ -4935,9 +5024,7 @@ async function callOpenRouter(userMessage) {
         if (!res.ok) continue;
         const reply = (await res.text()).trim();
         if (reply && reply.length > 10) {
-          aiConversation.push({ role: 'user', content: userMessage });
-          aiConversation.push({ role: 'assistant', content: reply });
-          if (aiConversation.length > 20) aiConversation.splice(0, 2);
+          _rememberConversationTurn(userMessage, reply);
           return reply;
         }
       } catch(e) { continue; }
@@ -4950,9 +5037,7 @@ async function callOpenRouter(userMessage) {
     if (res.ok) {
       const reply = (await res.text()).trim();
       if (reply && reply.length > 10) {
-        aiConversation.push({ role: 'user', content: userMessage });
-        aiConversation.push({ role: 'assistant', content: reply });
-        if (aiConversation.length > 20) aiConversation.splice(0, 2);
+        _rememberConversationTurn(userMessage, reply);
         return reply;
       }
     }
@@ -5628,7 +5713,8 @@ async function callGeminiDirect(userMessage) {
   if (!gk || (!gk.startsWith('AIza') && !gk.startsWith('AQ.'))) return null;
   const msgs = [{ role: 'user', parts: [{ text: userMessage }] }];
   // Prepend system instruction via first user turn
-  const sysMsg = { role: 'user', parts: [{ text: NEXORA_SYSTEM_PROMPT + '\n\nIMPORTANT: Always use markdown code fences (```language) for ALL code. Never write code as plain text.\n\nUser: ' + userMessage }] };
+  const memory = aiConversationSummary ? `\n\nConversation memory: ${aiConversationSummary}` : '';
+  const sysMsg = { role: 'user', parts: [{ text: NEXORA_SYSTEM_PROMPT + memory + '\n\nIMPORTANT: Always use markdown code fences (```language) for ALL code. Never write code as plain text.\n\nUser: ' + userMessage }] };
   try {
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gk}`,
@@ -5639,9 +5725,7 @@ async function callGeminiDirect(userMessage) {
     const data = await res.json();
     const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
     if (reply) {
-      aiConversation.push({ role: 'user', content: userMessage });
-      aiConversation.push({ role: 'assistant', content: reply });
-      if (aiConversation.length > 20) aiConversation.splice(0, 2);
+      _rememberConversationTurn(userMessage, reply);
     }
     return reply || null;
   } catch(e) { return null; }
@@ -8040,6 +8124,20 @@ async function callStudyAI(systemPrompt, userPrompt) {
   const geminiKey = localStorage.getItem('nexora_gemini_key') || '';
   const canUseGeminiDirect = studyAIKey === 'gemini' && geminiKey &&
     (geminiKey.startsWith('AIza') || geminiKey.startsWith('AQ.'));
+  const cacheKey = window.NexoraData?.hashText
+    ? NexoraData.hashText('study', studyAIKey, systemPrompt, userPrompt)
+    : '';
+  const cacheReply = async reply => {
+    if (cacheKey && reply && window.NexoraData?.setAiCache) {
+      await NexoraData.setAiCache(cacheKey, reply);
+    }
+    return reply;
+  };
+
+  if (cacheKey && window.NexoraData?.getAiCache) {
+    const cached = await NexoraData.getAiCache(cacheKey);
+    if (cached) return cached;
+  }
 
   if (chosenMeta?.isCF && _hasCFWorker()) {
     try {
@@ -8059,7 +8157,7 @@ async function callStudyAI(systemPrompt, userPrompt) {
       if (res.ok) {
         const d = await res.json();
         const txt = d?.choices?.[0]?.message?.content?.trim();
-        if (txt) return txt;
+        if (txt) return cacheReply(txt);
       }
     } catch(e) {}
   }
@@ -8081,7 +8179,7 @@ async function callStudyAI(systemPrompt, userPrompt) {
       if (res.ok) {
         const d = await res.json();
         const txt = d?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-        if (txt) return txt;
+        if (txt) return cacheReply(txt);
       }
     } catch(e) {}
   }
@@ -8113,7 +8211,7 @@ async function callStudyAI(systemPrompt, userPrompt) {
       if (res.ok) {
         const d = await res.json();
         const txt = d?.choices?.[0]?.message?.content?.trim();
-        if (txt) return txt;
+        if (txt) return cacheReply(txt);
       }
     } catch(e) {}
   }
@@ -8157,7 +8255,7 @@ async function callStudyAI(systemPrompt, userPrompt) {
     }, 20000);
     if (res.ok) {
       const txt = (await res.text()).trim();
-      if (txt) return txt;
+      if (txt) return cacheReply(txt);
     }
   } catch(e) {}
 
@@ -8537,7 +8635,12 @@ Rules:
       if (!Array.isArray(fcCards) || fcCards.length === 0) throw new Error('Empty array');
     } catch(err) {
       console.warn('Study Mode flashcard AI failed, using local fallback:', err);
-      fcCards = _buildLocalFlashcards(topic, count, lang);
+      const workerCards = window.NexoraData?.runWorkerTask
+        ? await NexoraData.runWorkerTask('flashcards', { topic, count, lang })
+        : null;
+      fcCards = Array.isArray(workerCards) && workerCards.length
+        ? workerCards
+        : _buildLocalFlashcards(topic, count, lang);
       _showStudyToast(isTimeoutError(err)
         ? '⚠️ AI took too long — used smart local cards'
         : '⚠️ AI unavailable — used smart local cards');
@@ -8675,10 +8778,11 @@ function saveAllFlashcards() {
   if (!fcCards.length) return;
   const deckKey = 'deck_' + Date.now();
   try {
-    const decks = JSON.parse(localStorage.getItem('nexora_fc_decks') || '[]');
+    const decks = (window.NexoraData?.getJSON ? NexoraData.getJSON('nexora_fc_decks', []) : JSON.parse(localStorage.getItem('nexora_fc_decks') || '[]')) || [];
     decks.unshift({ key: deckKey, topic: fcCurrentTopic, cards: fcCards, savedAt: Date.now() });
     if (decks.length > 20) decks.length = 20;
-    localStorage.setItem('nexora_fc_decks', JSON.stringify(decks));
+    if (window.NexoraData?.setJSON) NexoraData.setJSON('nexora_fc_decks', decks);
+    else localStorage.setItem('nexora_fc_decks', JSON.stringify(decks));
   } catch(e) {}
   // Also add all to SRS
   fcCards.forEach(c => _addSrsCard(c.front, c.back, c.tag || fcCurrentTopic));
@@ -8691,7 +8795,7 @@ function _renderSavedDecks() {
   const list = document.getElementById('fcSavedList');
   if (!list) return;
   let decks = [];
-  try { decks = JSON.parse(localStorage.getItem('nexora_fc_decks') || '[]'); } catch(e) {}
+  try { decks = window.NexoraData?.getJSON ? NexoraData.getJSON('nexora_fc_decks', []) : JSON.parse(localStorage.getItem('nexora_fc_decks') || '[]'); } catch(e) {}
   if (!decks.length) {
     list.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:12px 0;">No saved decks yet</div>';
     return;
@@ -8710,7 +8814,7 @@ function _renderSavedDecks() {
 
 function loadSavedDeck(idx) {
   let decks = [];
-  try { decks = JSON.parse(localStorage.getItem('nexora_fc_decks') || '[]'); } catch(e) {}
+  try { decks = window.NexoraData?.getJSON ? NexoraData.getJSON('nexora_fc_decks', []) : JSON.parse(localStorage.getItem('nexora_fc_decks') || '[]'); } catch(e) {}
   if (!decks[idx]) return;
   const d = decks[idx];
   fcCards = d.cards; fcIndex = 0; fcFlipped = false;
@@ -8721,9 +8825,10 @@ function loadSavedDeck(idx) {
 
 function deleteSavedDeck(idx) {
   try {
-    const decks = JSON.parse(localStorage.getItem('nexora_fc_decks') || '[]');
+    const decks = window.NexoraData?.getJSON ? NexoraData.getJSON('nexora_fc_decks', []) : JSON.parse(localStorage.getItem('nexora_fc_decks') || '[]');
     decks.splice(idx, 1);
-    localStorage.setItem('nexora_fc_decks', JSON.stringify(decks));
+    if (window.NexoraData?.setJSON) NexoraData.setJSON('nexora_fc_decks', decks);
+    else localStorage.setItem('nexora_fc_decks', JSON.stringify(decks));
     _renderSavedDecks();
   } catch(e) {}
 }
@@ -8759,7 +8864,12 @@ Rules:
       if (!Array.isArray(quizQuestions) || !quizQuestions.length) throw new Error('Empty');
     } catch(err) {
       console.warn('Study Mode quiz AI failed, using local fallback:', err);
-      quizQuestions = _buildLocalQuiz(topic, count, quizDifficulty);
+      const workerQuiz = window.NexoraData?.runWorkerTask
+        ? await NexoraData.runWorkerTask('quiz', { topic, count, difficulty: quizDifficulty })
+        : null;
+      quizQuestions = Array.isArray(workerQuiz) && workerQuiz.length
+        ? workerQuiz
+        : _buildLocalQuiz(topic, count, quizDifficulty);
       _showStudyToast(isTimeoutError(err)
         ? '⚠️ AI took too long — used smart local quiz'
         : '⚠️ AI unavailable — used smart local quiz');
@@ -8874,10 +8984,11 @@ function _renderQuizResults() {
 
   // Save quiz result to localStorage
   try {
-    const hist = JSON.parse(localStorage.getItem('nexora_quiz_hist') || '[]');
+    const hist = window.NexoraData?.getJSON ? NexoraData.getJSON('nexora_quiz_hist', []) : JSON.parse(localStorage.getItem('nexora_quiz_hist') || '[]');
     hist.unshift({ topic: quizCurrentTopic, score: quizScore, total, pct, ts: Date.now(), diff: quizDifficulty });
     if (hist.length > 50) hist.length = 50;
-    localStorage.setItem('nexora_quiz_hist', JSON.stringify(hist));
+    if (window.NexoraData?.setJSON) NexoraData.setJSON('nexora_quiz_hist', hist);
+    else localStorage.setItem('nexora_quiz_hist', JSON.stringify(hist));
   } catch(e) {}
 }
 
@@ -8917,12 +9028,17 @@ function newQuiz() {
 // ══════════════════════════════════════════════════════════════════════
 
 function srsLoadCards() {
-  try { srsCards = JSON.parse(localStorage.getItem(SRS_LS_KEY) || '[]'); } catch(e) { srsCards = []; }
+  try {
+    srsCards = window.NexoraData?.getJSON ? NexoraData.getJSON(SRS_LS_KEY, []) : JSON.parse(localStorage.getItem(SRS_LS_KEY) || '[]');
+  } catch(e) { srsCards = []; }
   _refreshSrsBadge();
 }
 
 function srsSaveCards() {
-  try { localStorage.setItem(SRS_LS_KEY, JSON.stringify(srsCards)); } catch(e) {}
+  try {
+    if (window.NexoraData?.setJSON) NexoraData.setJSON(SRS_LS_KEY, srsCards);
+    else localStorage.setItem(SRS_LS_KEY, JSON.stringify(srsCards));
+  } catch(e) {}
 }
 
 // Add a new card (from flashcard save)
@@ -8999,39 +9115,52 @@ function flipSrsCard() {
   document.getElementById('srsRatingRow').style.display = 'flex';
 }
 
-function rateSrsCard(rating) {
+async function rateSrsCard(rating) {
+  if (rateSrsCard._busy) return;
+  rateSrsCard._busy = true;
   // rating: 0=hard, 1=okay, 2=easy
   const card = srsDue[srsSessionIdx];
-  if (!card) return;
+  if (!card) { rateSrsCard._busy = false; return; }
 
-  // SM-2 lite
-  const ease = Math.max(1.3, card.ease + [-0.3, 0, 0.1][rating]);
-  let interval;
-  if (rating === 0) {
-    interval = 1; // reset to 1 day
-    card.reps = 0;
-  } else {
-    card.reps++;
-    interval = card.reps === 1 ? 1 :
-               card.reps === 2 ? 3 :
-               Math.round(card.interval * ease);
-  }
-  card.ease        = ease;
-  card.interval    = interval;
-  card.next_review = Date.now() + interval * 24 * 60 * 60 * 1000;
+  try {
+    let updated = null;
+    if (window.NexoraData?.runWorkerTask) {
+      updated = await NexoraData.runWorkerTask('srs-review', { card, rating, now: Date.now() });
+    }
+    if (!updated) {
+      const ease = Math.max(1.3, card.ease + [-0.3, 0, 0.1][rating]);
+      let interval;
+      if (rating === 0) {
+        interval = 1; // reset to 1 day
+        card.reps = 0;
+      } else {
+        card.reps++;
+        interval = card.reps === 1 ? 1 :
+                   card.reps === 2 ? 3 :
+                   Math.round(card.interval * ease);
+      }
+      card.ease        = ease;
+      card.interval    = interval;
+      card.next_review = Date.now() + interval * 24 * 60 * 60 * 1000;
+      updated = card;
+    }
 
-  // Persist
-  const idx = srsCards.findIndex(c => c.id === card.id);
-  if (idx !== -1) srsCards[idx] = card;
-  srsSaveCards();
+    // Persist
+    const idx = srsCards.findIndex(c => c.id === updated.id);
+    if (idx !== -1) srsCards[idx] = updated;
+    if (srsDue[srsSessionIdx]) srsDue[srsSessionIdx] = updated;
+    srsSaveCards();
 
-  srsSessionIdx++;
-  _refreshSrsBadge();
+    srsSessionIdx++;
+    _refreshSrsBadge();
 
-  if (srsSessionIdx >= srsDue.length) {
-    _srsSessionDone();
-  } else {
-    _showSrsCard();
+    if (srsSessionIdx >= srsDue.length) {
+      _srsSessionDone();
+    } else {
+      _showSrsCard();
+    }
+  } finally {
+    rateSrsCard._busy = false;
   }
 }
 
@@ -9063,7 +9192,9 @@ function closeSrsBrowse() {
 // Daily streak tracking
 function _getSrsStreak() {
   try {
-    const d = JSON.parse(localStorage.getItem('nexora_srs_streak') || '{}');
+    const d = window.NexoraData?.getJSON
+      ? (NexoraData.getJSON('nexora_srs_streak', {}) || {})
+      : JSON.parse(localStorage.getItem('nexora_srs_streak') || '{}');
     const today = new Date().toDateString();
     const yesterday = new Date(Date.now() - 86400000).toDateString();
     if (d.last === today) return d.streak || 0;
@@ -9073,13 +9204,16 @@ function _getSrsStreak() {
 }
 function _recordSrsStreak() {
   try {
-    const d = JSON.parse(localStorage.getItem('nexora_srs_streak') || '{}');
+    const d = window.NexoraData?.getJSON
+      ? (NexoraData.getJSON('nexora_srs_streak', {}) || {})
+      : JSON.parse(localStorage.getItem('nexora_srs_streak') || '{}');
     const today = new Date().toDateString();
     const yesterday = new Date(Date.now() - 86400000).toDateString();
     let streak = d.streak || 0;
     if (d.last === yesterday) streak++;
     else if (d.last !== today) streak = 1;
-    localStorage.setItem('nexora_srs_streak', JSON.stringify({ last: today, streak }));
+    if (window.NexoraData?.setJSON) NexoraData.setJSON('nexora_srs_streak', { last: today, streak });
+    else localStorage.setItem('nexora_srs_streak', JSON.stringify({ last: today, streak }));
   } catch(e) {}
 }
 
@@ -9128,14 +9262,15 @@ function _studyTimeEnd() {
   _studySessionStart = null;
   if (mins < 1) return; // skip tiny sessions
   try {
-    const log  = JSON.parse(localStorage.getItem(STUDY_TIME_LS) || '[]');
+    const log  = window.NexoraData?.getJSON ? NexoraData.getJSON(STUDY_TIME_LS, []) : JSON.parse(localStorage.getItem(STUDY_TIME_LS) || '[]');
     const today = new Date().toDateString();
     const existing = log.find(e => e.date === today);
     if (existing) existing.mins += mins;
     else log.push({ date: today, mins });
     // keep 30 days
     while (log.length > 30) log.shift();
-    localStorage.setItem(STUDY_TIME_LS, JSON.stringify(log));
+    if (window.NexoraData?.setJSON) NexoraData.setJSON(STUDY_TIME_LS, log);
+    else localStorage.setItem(STUDY_TIME_LS, JSON.stringify(log));
   } catch(e) {}
 }
 
@@ -9181,7 +9316,7 @@ function _renderDashboard() {
   // SRS cards
   let srsTotal = 0, srsMastered = 0, srsWeekReviewed = 0;
   try {
-    const cards = JSON.parse(localStorage.getItem('nexora_srs_cards') || '[]');
+    const cards = window.NexoraData?.getJSON ? NexoraData.getJSON('nexora_srs_cards', []) : JSON.parse(localStorage.getItem('nexora_srs_cards') || '[]');
     srsTotal     = cards.length;
     srsMastered  = cards.filter(c => c.interval >= 7).length;
     const weekAgo = Date.now() - 7 * 86400000;
@@ -9193,7 +9328,9 @@ function _renderDashboard() {
   // SRS streak
   let srsStreak = 0;
   try {
-    const d = JSON.parse(localStorage.getItem('nexora_srs_streak') || '{}');
+    const d = window.NexoraData?.getJSON
+      ? (NexoraData.getJSON('nexora_srs_streak', {}) || {})
+      : JSON.parse(localStorage.getItem('nexora_srs_streak') || '{}');
     const today = new Date().toDateString();
     const yesterday = new Date(Date.now() - 86400000).toDateString();
     if (d.last === today || d.last === yesterday) srsStreak = d.streak || 0;
@@ -9202,7 +9339,7 @@ function _renderDashboard() {
   // Quiz history
   let quizSessions = [], quizAvgPct = 0, quizBestPct = 0, quizTopTopics = [];
   try {
-    quizSessions = JSON.parse(localStorage.getItem('nexora_quiz_hist') || '[]');
+    quizSessions = window.NexoraData?.getJSON ? NexoraData.getJSON('nexora_quiz_hist', []) : JSON.parse(localStorage.getItem('nexora_quiz_hist') || '[]');
     if (quizSessions.length) {
       const last5 = quizSessions.slice(0, 5);
       quizAvgPct  = Math.round(last5.reduce((a, b) => a + (b.pct || 0), 0) / last5.length);
@@ -9218,7 +9355,7 @@ function _renderDashboard() {
   let totalStudyMins = 0, studyDaysThisWeek = 0;
   const weeklyMinsByDay = {}; // { 'Mon': 25, … }
   try {
-    const log = JSON.parse(localStorage.getItem(STUDY_TIME_LS) || '[]');
+    const log = window.NexoraData?.getJSON ? NexoraData.getJSON(STUDY_TIME_LS, []) : JSON.parse(localStorage.getItem(STUDY_TIME_LS) || '[]');
     const weekAgo = Date.now() - 7 * 86400000;
     log.forEach(entry => {
       const d = new Date(entry.date);
@@ -9719,7 +9856,7 @@ function vivaToggleMic() {
 
 function exportSRStoPDF() {
   let cards = [];
-  try { cards = JSON.parse(localStorage.getItem('nexora_srs_cards') || '[]'); } catch(e) {}
+  try { cards = window.NexoraData?.getJSON ? NexoraData.getJSON('nexora_srs_cards', []) : JSON.parse(localStorage.getItem('nexora_srs_cards') || '[]'); } catch(e) {}
   if (!cards.length) { _showStudyToast('No saved cards to export.'); return; }
 
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
@@ -9760,7 +9897,7 @@ function exportSRStoPDF() {
 
 function exportQuizToPDF() {
   let hist = [];
-  try { hist = JSON.parse(localStorage.getItem('nexora_quiz_hist') || '[]'); } catch(e) {}
+  try { hist = window.NexoraData?.getJSON ? NexoraData.getJSON('nexora_quiz_hist', []) : JSON.parse(localStorage.getItem('nexora_quiz_hist') || '[]'); } catch(e) {}
   if (!hist.length) { _showStudyToast('No quiz history to export.'); return; }
 
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
@@ -9932,10 +10069,10 @@ ${vivaQuestions.map((q, i) => {
 //    1. Script generation → CF Worker /podcast OR callStudyAI() fallback
 //    2. TTS → CF Worker /tts (WAV) → falls back to Web Speech API
 //    3. Playback → custom HTML5 audio player OR Web Speech synth
-//    4. Library → localStorage (nexora_podcasts)
+//    4. Library → NexoraData JSON store (nexora_podcasts)
 // ══════════════════════════════════════════════════════════════════════
 
-const PODCAST_LS = 'nexora_podcasts'; // localStorage key
+const PODCAST_LS = 'nexora_podcasts'; // persisted podcast library key
 const PODCAST_DB_NAME = 'nexora_podcast_cache';
 const PODCAST_DB_STORE = 'audio_blobs';
 
@@ -10497,12 +10634,15 @@ function podcastDownload() {
 
 async function _savePodcastToLibrary(entry) {
   try {
-    const lib = JSON.parse(localStorage.getItem(PODCAST_LS) || '[]');
+    const lib = window.NexoraData?.getJSON
+      ? (NexoraData.getJSON(PODCAST_LS, []) || [])
+      : JSON.parse(localStorage.getItem(PODCAST_LS) || '[]');
     const safeEntry = { ...entry, audioBlobs: undefined, audioBlobData: undefined };
     lib.unshift(safeEntry);
     // Keep 20 max
     while (lib.length > 20) lib.pop();
-    localStorage.setItem(PODCAST_LS, JSON.stringify(lib));
+    if (window.NexoraData?.setJSON) NexoraData.setJSON(PODCAST_LS, lib);
+    else localStorage.setItem(PODCAST_LS, JSON.stringify(lib));
 
     const audioData = _podcastCurrentData?.audioBlobData?.filter(Boolean) || [];
     if (entry.id && audioData.length) {
@@ -10515,7 +10655,11 @@ function _renderPodcastLibrary() {
   const el = document.getElementById('podcastLibraryList');
   if (!el) return;
   let lib = [];
-  try { lib = JSON.parse(localStorage.getItem(PODCAST_LS) || '[]'); } catch(e) {}
+  try {
+    lib = window.NexoraData?.getJSON
+      ? (NexoraData.getJSON(PODCAST_LS, []) || [])
+      : JSON.parse(localStorage.getItem(PODCAST_LS) || '[]');
+  } catch(e) {}
 
   if (!lib.length) {
     el.innerHTML = '<div class="podcast-lib-empty">Your generated podcasts will appear here</div>';
@@ -10535,7 +10679,11 @@ function _renderPodcastLibrary() {
 
 async function _loadPodcastFromLibrary(idx) {
   let lib = [];
-  try { lib = JSON.parse(localStorage.getItem(PODCAST_LS) || '[]'); } catch(e) {}
+  try {
+    lib = window.NexoraData?.getJSON
+      ? (NexoraData.getJSON(PODCAST_LS, []) || [])
+      : JSON.parse(localStorage.getItem(PODCAST_LS) || '[]');
+  } catch(e) {}
   const entry = lib[idx];
   if (!entry) return;
 
@@ -10553,10 +10701,15 @@ async function _loadPodcastFromLibrary(idx) {
 
 function _deletePodcastFromLibrary(idx) {
   let lib = [];
-  try { lib = JSON.parse(localStorage.getItem(PODCAST_LS) || '[]'); } catch(e) {}
+  try {
+    lib = window.NexoraData?.getJSON
+      ? (NexoraData.getJSON(PODCAST_LS, []) || [])
+      : JSON.parse(localStorage.getItem(PODCAST_LS) || '[]');
+  } catch(e) {}
   const entry = lib[idx];
   lib.splice(idx, 1);
-  localStorage.setItem(PODCAST_LS, JSON.stringify(lib));
+  if (window.NexoraData?.setJSON) NexoraData.setJSON(PODCAST_LS, lib);
+  else localStorage.setItem(PODCAST_LS, JSON.stringify(lib));
   const cacheId = entry?.id || (entry?.createdAt ? `pod_${entry.createdAt}` : '');
   if (cacheId) {
     _openPodcastDB().then(db => {
