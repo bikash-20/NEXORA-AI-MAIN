@@ -9272,20 +9272,37 @@ function _renderDashboard() {
   const body = document.getElementById('dashboardBody');
   if (!body) return;
 
+  const dashboardInsight = srsStreak >= 3
+    ? '🔥 Your streak is building momentum. Keep the rhythm going.'
+    : quizAvgPct >= 80
+      ? '🎯 Your quiz scores are strong this week. Keep sharpening them.'
+      : totalStudyMins >= 90
+        ? '📈 You already put in real time this week. One more session will move the trend.'
+        : '🌱 Small daily sessions compound fast. One focused block changes the shape of progress.';
+
   body.innerHTML = `
+    <div class="dash-hero-banner">
+      <div class="dash-hero-copy">
+        <div class="dash-hero-kicker">📊 Your Learning Insights</div>
+        <div class="dash-hero-title">Track your growth over time</div>
+        <div class="dash-hero-sub">${_esc(dashboardInsight)}</div>
+      </div>
+      <div class="dash-hero-ring" aria-hidden="true"></div>
+    </div>
+
     <!-- Row 1: key stats -->
     <div class="dash-grid-3">
-      <div class="dash-stat-card">
+      <div class="dash-stat-card hero" data-note="${_esc(dashboardInsight)}">
         <div class="dash-stat-icon">🔁</div>
         <div class="dash-stat-val">${srsStreak}</div>
         <div class="dash-stat-label">Day Streak</div>
       </div>
-      <div class="dash-stat-card">
+      <div class="dash-stat-card secondary">
         <div class="dash-stat-icon">🃏</div>
         <div class="dash-stat-val">${srsTotal}</div>
         <div class="dash-stat-label">Cards Saved</div>
       </div>
-      <div class="dash-stat-card">
+      <div class="dash-stat-card tertiary">
         <div class="dash-stat-icon">⏱️</div>
         <div class="dash-stat-val">${totalStudyMins}</div>
         <div class="dash-stat-label">Mins This Week</div>
