@@ -3448,6 +3448,7 @@ body.light-mode #hljs-theme {
   display: none; flex: 1; overflow-y: auto;
   flex-direction: column; padding: 14px;
   gap: 14px;
+  min-height: 0; /* CRITICAL: allows flex child to shrink below content size */
 }
 .study-panel.active { display: flex; }
 
@@ -6469,36 +6470,38 @@ body.light-mode #userInput::placeholder {
   align-items: center;
   justify-content: center;
   gap: 0;
-  padding: 8px 16px;
+  padding: 5px 16px;
   background: rgba(124,92,255,0.07);
   border-bottom: 1px solid rgba(124,92,255,0.12);
-  border-radius: 0;
+  flex-shrink: 0; /* CRITICAL: never grow, never shrink, stays fixed height */
+  min-height: 0;
+  overflow: hidden;
 }
 .spb-stat {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
-  padding: 0 14px;
+  gap: 0px;
+  padding: 0 12px;
   cursor: default;
 }
 .spb-stat.due { cursor: pointer; }
 .spb-stat.due .spb-val { color: #f59e0b; }
 .spb-val {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--accent, #7c5cff);
-  line-height: 1;
+  line-height: 1.2;
 }
 .spb-lab {
-  font-size: 9.5px;
+  font-size: 9px;
   color: var(--text3, #64748b);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 .spb-divider {
   width: 1px;
-  height: 24px;
+  height: 20px;
   background: rgba(124,92,255,0.15);
   flex-shrink: 0;
 }

@@ -11203,8 +11203,9 @@ function _renderStudyProgressBanner() {
     ${due > 0 ? `<div class="spb-divider"></div><div class="spb-stat due" onclick="switchStudyTab('srs')"><span class="spb-val">${due}</span><span class="spb-lab">due now</span></div>` : ''}
   `;
 
+  // Place banner between the tab-bar and the active panel, so it never pushes tabs off screen
   const tabBar = document.querySelector('.study-tab-bar');
-  if (tabBar) tabBar.before(banner);
+  if (tabBar) tabBar.after(banner);
 }
 
 // Patch openStudyMode and switchStudyTab to show banner
