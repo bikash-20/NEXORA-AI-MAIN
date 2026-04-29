@@ -11513,7 +11513,7 @@ function importSharedDeck() {
 
   // ── YOUR VERCEL BACKEND URL ──────────────────────────────────────
   // After deploying, replace this with your actual Vercel URL
-  const BACKEND_URL = 'https://nexora-backend-w795-28dcdsr5y-bikash-20s-projects.vercel.app';
+const BACKEND_URL = 'https://nexora-backend-sigma.vercel.app';
   // ─────────────────────────────────────────────────────────────────
 
   const CHAT_ENDPOINT   = `${BACKEND_URL}/api/chat`;
