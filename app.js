@@ -11501,3 +11501,289 @@ function importSharedDeck() {
   if (document.readyState === 'complete') _run();
   else window.addEventListener('load', _run);
 })();
+
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  NEXORA — Vercel Backend Integration Patch                      ║
+// ║  Drop this at the very bottom of app.js                        ║
+// ║  It overrides callOpenRouter to use your Vercel backend         ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+(function patchNexoraBackend() {
+  'use strict';
+
+  // ── YOUR VERCEL BACKEND URL ──────────────────────────────────────
+  // After deploying, replace this with your actual Vercel URL
+  const BACKEND_URL = 'https://nexora-backend-w795-28dcdsr5y-bikash-20s-projects.vercel.app';
+  // ─────────────────────────────────────────────────────────────────
+
+  const CHAT_ENDPOINT   = `${BACKEND_URL}/api/chat`;
+  const STATUS_ENDPOINT = `${BACKEND_URL}/api/status`;
+
+  // ── Rate limit state (shown in UI) ───────────────────────────────
+  let _guestRemaining = null;
+  let _guestLimit     = 40;
+  let _resetAt        = null;
+  let _isOwnKey       = false;
+
+  // ── Show usage badge in header ────────────────────────────────────
+  function _updateUsageBadge(remaining, limit, isOwn) {
+    let badge = document.getElementById('nexora-usage-badge');
+    if (!badge) {
+      badge = document.createElement('div');
+      badge.id = 'nexora-usage-badge';
+      badge.className = 'nexora-usage-badge';
+      const hs = document.getElementById('headerStatus');
+      if (hs) hs.after(badge);
+    }
+
+    if (isOwn) {
+      badge.textContent = '∞ unlimited';
+      badge.className = 'nexora-usage-badge unlimited';
+      return;
+    }
+
+    if (remaining === null) return;
+    const pct = remaining / limit;
+    badge.textContent = `${remaining}/${limit} msgs left`;
+    badge.className = 'nexora-usage-badge ' + (pct > 0.5 ? 'good' : pct > 0.2 ? 'warn' : 'low');
+  }
+
+  // ── Show rate-limit toast ─────────────────────────────────────────
+  function _showRateLimitToast(resetInMin) {
+    const existing = document.getElementById('nexora-rate-toast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.id = 'nexora-rate-toast';
+    toast.className = 'nexora-rate-toast';
+    toast.innerHTML = `
+      <div class="nrt-icon">⏳</div>
+      <div class="nrt-body">
+        <div class="nrt-title">Free limit reached</div>
+        <div class="nrt-msg">Resets in <strong>${resetInMin} min</strong>. Add your own API key in <span class="nrt-link" onclick="document.getElementById('apiPanel')?.classList.add('open')">Settings</span> for unlimited access.</div>
+      </div>
+      <button class="nrt-close" onclick="this.parentElement.remove()">✕</button>`;
+
+    const phone = document.getElementById('phone') || document.body;
+    phone.appendChild(toast);
+    setTimeout(() => toast?.remove(), 10000);
+  }
+
+  // ── Get user's own key from storage ──────────────────────────────
+  function _getUserKey() {
+    const orKey = localStorage.getItem('nexora_user_key');
+    if (orKey && orKey.startsWith('sk-or-')) return { key: orKey, type: 'openrouter' };
+
+    const gemKey = localStorage.getItem('nexora_gemini_key');
+    if (gemKey && (gemKey.startsWith('AIza') || gemKey.startsWith('AQ.'))) return { key: gemKey, type: 'gemini' };
+
+    return null;
+  }
+
+  // ── Build system prompt (same as existing Nexora logic) ──────────
+  function _buildSystemPrompt() {
+    const name    = typeof userName !== 'undefined' ? userName : '';
+    const mode    = typeof currentMode !== 'undefined' ? currentMode : 'support';
+    const history = typeof emotionHistory !== 'undefined' ? emotionHistory : [];
+
+    const modeDesc = {
+      support: 'You are Nexora, a warm, empathetic AI companion. Be caring, personal and supportive.',
+      gossip : 'You are Nexora in gossip mode — fun, chatty, pop-culture savvy and entertaining.',
+      hype   : 'You are Nexora in hype mode — motivational, energetic and uplifting.',
+    }[mode] || 'You are Nexora, a helpful AI companion.';
+
+    const recentEmotions = history.slice(-3).map(e => e.emotion).join(', ');
+
+    return [
+      modeDesc,
+      name ? `The user's name is ${name}.` : '',
+      recentEmotions ? `Recent emotional context: ${recentEmotions}.` : '',
+      'Keep responses concise, warm and conversational. Use markdown for code/lists when helpful.',
+    ].filter(Boolean).join('\n');
+  }
+
+  // ── Build messages array from session log ─────────────────────────
+  function _buildMessages(userInput) {
+    const log = typeof sessionLog !== 'undefined' ? sessionLog : [];
+    const history = log.slice(-8).map(m => ({
+      role   : m.role === 'bot' ? 'assistant' : 'user',
+      content: String(m.text || '').slice(0, 300),
+    }));
+    return [...history, { role: 'user', content: userInput }];
+  }
+
+  // ── Main API call to Vercel backend ──────────────────────────────
+  async function callVercelBackend(userInput) {
+    const ownKey = _getUserKey();
+    _isOwnKey    = Boolean(ownKey);
+
+    const headers = { 'Content-Type': 'application/json' };
+    if (ownKey) {
+      headers['X-User-Key']      = ownKey.key;
+      headers['X-User-Key-Type'] = ownKey.type;
+    }
+
+    let res;
+    try {
+      res = await fetchWithTimeout(CHAT_ENDPOINT, {
+        method : 'POST',
+        headers,
+        body   : JSON.stringify({
+          messages: _buildMessages(userInput),
+          system  : _buildSystemPrompt(),
+        }),
+      }, 28000);
+    } catch (e) {
+      console.warn('[Nexora Backend] Network error:', e?.message);
+      return null; // will fall through to existing callOpenRouter
+    }
+
+    // Handle rate limit
+    if (res.status === 429) {
+      let data = {};
+      try { data = await res.json(); } catch {}
+      _showRateLimitToast(data.resetInMin || 60);
+      _guestRemaining = 0;
+      _updateUsageBadge(0, _guestLimit, false);
+      return `⏳ You've reached the free limit (${_guestLimit} messages/hour). Add your own API key in Settings → API Keys for unlimited access, or wait ${data.resetInMin || 60} minutes.`;
+    }
+
+    if (!res.ok) {
+      console.warn('[Nexora Backend] Error:', res.status);
+      return null;
+    }
+
+    let data;
+    try { data = await res.json(); } catch { return null; }
+
+    const reply = data?.choices?.[0]?.message?.content?.trim();
+    if (!reply) return null;
+
+    // Update usage display
+    if (data.usage) {
+      _guestRemaining = data.usage.remaining;
+      _guestLimit     = data.usage.limit || 40;
+      _isOwnKey       = data.usage.isOwnKey || false;
+      _updateUsageBadge(_guestRemaining, _guestLimit, _isOwnKey);
+    }
+
+    return reply;
+  }
+
+  // ── Check status on load ─────────────────────────────────────────
+  async function checkBackendStatus() {
+    try {
+      const ownKey  = _getUserKey();
+      const headers = {};
+      if (ownKey) headers['X-User-Key'] = ownKey.key;
+
+      const res  = await fetchWithTimeout(STATUS_ENDPOINT, { headers }, 5000);
+      if (!res.ok) return;
+      const data = await res.json();
+
+      if (data.guest) {
+        _guestRemaining = data.guest.remaining;
+        _guestLimit     = data.guest.limit;
+        _resetAt        = data.guest.resetAt;
+        _isOwnKey       = data.isOwnKey;
+        _updateUsageBadge(_guestRemaining, _guestLimit, _isOwnKey);
+      }
+    } catch { /* backend offline, gracefully ignore */ }
+  }
+
+  // ── Patch callOpenRouter to try Vercel backend FIRST ─────────────
+  const _origCallOpenRouter = window.callOpenRouter;
+  window.callOpenRouter = async function(userMessage) {
+    // 1. Try Vercel backend first
+    const backendReply = await callVercelBackend(userMessage);
+    if (backendReply) return backendReply;
+
+    // 2. Fall back to original OpenRouter logic (user's own key direct)
+    if (typeof _origCallOpenRouter === 'function') {
+      return _origCallOpenRouter(userMessage);
+    }
+    return null;
+  };
+
+  // ── CSS for usage badge and rate toast ───────────────────────────
+  const style = document.createElement('style');
+  style.textContent = `
+    .nexora-usage-badge {
+      display: inline-flex;
+      align-items: center;
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: 20px;
+      margin-left: 6px;
+      letter-spacing: 0.02em;
+      transition: background 0.3s, color 0.3s;
+    }
+    .nexora-usage-badge.good      { background: rgba(34,197,94,0.15);  color: #4ade80; }
+    .nexora-usage-badge.warn      { background: rgba(251,191,36,0.15); color: #fbbf24; }
+    .nexora-usage-badge.low       { background: rgba(239,68,68,0.15);  color: #f87171; }
+    .nexora-usage-badge.unlimited { background: rgba(124,92,255,0.15); color: #a78bfa; }
+    .light-mode .nexora-usage-badge.good      { background: rgba(34,197,94,0.12);  }
+    .light-mode .nexora-usage-badge.warn      { background: rgba(251,191,36,0.12); }
+    .light-mode .nexora-usage-badge.low       { background: rgba(239,68,68,0.12);  }
+    .light-mode .nexora-usage-badge.unlimited { background: rgba(124,92,255,0.1);  }
+
+    .nexora-rate-toast {
+      position: absolute;
+      bottom: 88px;
+      left: 12px; right: 12px;
+      background: var(--card, #0f172a);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 16px;
+      padding: 14px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      z-index: 9999;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      animation: toastSlideUp 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    .light-mode .nexora-rate-toast {
+      background: #fff;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    }
+    @keyframes toastSlideUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0);    }
+    }
+    .nrt-icon { font-size: 22px; flex-shrink: 0; }
+    .nrt-body { flex: 1; min-width: 0; }
+    .nrt-title {
+      font-size: 13px; font-weight: 700;
+      color: #f87171; margin-bottom: 3px;
+    }
+    .nrt-msg {
+      font-size: 12px; color: var(--text2, #94a3b8);
+      line-height: 1.5;
+    }
+    .nrt-link {
+      color: var(--accent, #7c5cff);
+      cursor: pointer; text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .nrt-close {
+      background: none; border: none;
+      color: var(--text3, #64748b);
+      font-size: 15px; cursor: pointer;
+      padding: 2px 4px; border-radius: 6px;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+    .nrt-close:hover { background: rgba(255,255,255,0.07); }
+  `;
+  document.head.appendChild(style);
+
+  // ── Init ─────────────────────────────────────────────────────────
+  if (document.readyState === 'complete') checkBackendStatus();
+  else window.addEventListener('load', checkBackendStatus);
+
+  // Expose for debugging
+  window._nexoraBackend = { checkStatus: checkBackendStatus, BACKEND_URL };
+
+  console.log('[Nexora] Backend integration loaded ✅', BACKEND_URL);
+})();
