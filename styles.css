@@ -6206,3 +6206,497 @@ body.light-mode #userInput::placeholder {
     height: 44px;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   ✨ NEXORA — 15 FEATURE UPGRADE STYLES
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── FIX 3: Thinking bubble ──────────────────────────────────────── */
+.thinking-bubble {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 14px 18px !important;
+  min-width: 60px;
+}
+.thinking-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent, #7c5cff);
+  opacity: 0.7;
+  animation: thinkPulse 1.2s ease-in-out infinite;
+}
+.thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+.thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes thinkPulse {
+  0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
+  40%            { transform: scale(1);   opacity: 1;   }
+}
+
+/* ── FEATURE 4: Smart Suggestions Bar ───────────────────────────── */
+.smart-suggest-bar {
+  display: flex;
+  gap: 7px;
+  padding: 6px 14px 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.smart-suggest-bar::-webkit-scrollbar { display: none; }
+.smart-chip {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  background: rgba(124, 92, 255, 0.1);
+  border: 1px solid rgba(124, 92, 255, 0.25);
+  border-radius: 20px;
+  font-size: 11.5px;
+  color: var(--accent, #7c5cff);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.18s, transform 0.12s;
+  font-weight: 500;
+}
+.smart-chip:hover, .smart-chip:active {
+  background: rgba(124, 92, 255, 0.22);
+  transform: scale(0.97);
+}
+.light-mode .smart-chip {
+  background: rgba(124, 92, 255, 0.08);
+  border-color: rgba(124, 92, 255, 0.2);
+}
+
+/* ── FEATURE 5: Memory Panel ─────────────────────────────────────── */
+.memory-brain-btn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 8px;
+  transition: background 0.15s, transform 0.12s;
+  line-height: 1;
+}
+.memory-brain-btn:hover { background: rgba(255,255,255,0.1); transform: scale(1.1); }
+.light-mode .memory-brain-btn:hover { background: rgba(0,0,0,0.06); }
+
+.memory-panel-popup {
+  position: absolute;
+  top: 56px;
+  right: 12px;
+  width: 280px;
+  background: var(--card, #0f172a);
+  border: 1px solid rgba(124,92,255,0.3);
+  border-radius: 18px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.45);
+  z-index: 9999;
+  overflow: hidden;
+  animation: memPanelIn 0.22s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes memPanelIn {
+  from { opacity: 0; transform: scale(0.92) translateY(-8px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0);    }
+}
+.light-mode .memory-panel-popup {
+  background: #fff;
+  border-color: rgba(124,92,255,0.2);
+  box-shadow: 0 8px 40px rgba(0,0,0,0.12);
+}
+.memory-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent, #7c5cff);
+}
+.light-mode .memory-panel-header { border-bottom-color: rgba(0,0,0,0.06); }
+.memory-panel-header button {
+  background: none; border: none; color: var(--text3, #64748b);
+  font-size: 15px; cursor: pointer; padding: 2px 6px; border-radius: 6px;
+  transition: background 0.15s;
+}
+.memory-panel-header button:hover { background: rgba(255,255,255,0.08); }
+.memory-panel-body { padding: 8px 16px 4px; }
+.mem-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  font-size: 12px;
+}
+.light-mode .mem-row { border-bottom-color: rgba(0,0,0,0.05); }
+.mem-row:last-child { border-bottom: none; }
+.mem-label {
+  color: var(--text3, #64748b);
+  min-width: 90px;
+  flex-shrink: 0;
+  font-size: 11px;
+  padding-top: 1px;
+}
+.mem-val {
+  color: var(--text1, #f1f5f9);
+  font-weight: 500;
+  flex: 1;
+  word-break: break-word;
+  line-height: 1.4;
+}
+.light-mode .mem-val { color: #1e293b; }
+.mem-topics { display: flex; flex-wrap: wrap; gap: 4px; }
+.mem-topics span {
+  background: rgba(124,92,255,0.12);
+  color: var(--accent, #7c5cff);
+  padding: 2px 7px;
+  border-radius: 8px;
+  font-size: 10.5px;
+}
+.mem-profile-bar {
+  display: flex;
+  height: 6px;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 5px;
+}
+.mem-profile-fill.emotional { background: linear-gradient(90deg,#f472b6,#ec4899); }
+.mem-profile-fill.logical   { background: linear-gradient(90deg,#60a5fa,#3b82f6); }
+.mem-profile-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text3, #64748b);
+}
+.memory-panel-footer {
+  padding: 10px 16px 14px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.light-mode .memory-panel-footer { border-top-color: rgba(0,0,0,0.06); }
+.memory-panel-footer button {
+  width: 100%;
+  padding: 8px;
+  background: rgba(239,68,68,0.1);
+  border: 1px solid rgba(239,68,68,0.2);
+  border-radius: 10px;
+  color: #f87171;
+  font-size: 12px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.15s;
+}
+.memory-panel-footer button:hover { background: rgba(239,68,68,0.2); }
+
+/* ── FEATURE 6: Message Reactions ────────────────────────────────── */
+.msg-reaction-bar {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  display: flex;
+  gap: 4px;
+  background: var(--card, #0f172a);
+  border: 1px solid rgba(124,92,255,0.25);
+  border-radius: 24px;
+  padding: 5px 8px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.35);
+  z-index: 200;
+  animation: reactionBarIn 0.18s cubic-bezier(0.34,1.56,0.64,1);
+}
+.light-mode .msg-reaction-bar {
+  background: #fff;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.12);
+}
+@keyframes reactionBarIn {
+  from { opacity: 0; transform: scale(0.85) translateY(4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.reaction-btn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 8px;
+  transition: transform 0.12s, background 0.12s;
+  line-height: 1;
+}
+.reaction-btn:hover { transform: scale(1.3); background: rgba(124,92,255,0.1); }
+.reaction-badge {
+  position: absolute;
+  bottom: -10px;
+  right: -6px;
+  font-size: 14px;
+  pointer-events: none;
+  line-height: 1;
+}
+
+/* ── FEATURE 7: Study-from-Chat button ───────────────────────────── */
+.study-chat-btn {
+  background: none;
+  border: none;
+  padding: 6px;
+  cursor: pointer;
+  color: var(--accent, #7c5cff);
+  opacity: 0.75;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s, background 0.15s;
+}
+.study-chat-btn:hover { opacity: 1; background: rgba(124,92,255,0.1); }
+.study-chat-btn svg { width: 18px; height: 18px; }
+
+/* ── FEATURE 8: Offline Banner ───────────────────────────────────── */
+.offline-banner {
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+  color: #1a1a1a;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  padding: 6px 14px;
+  letter-spacing: 0.01em;
+  animation: slideDown 0.3s ease;
+}
+@keyframes slideDown {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* ── FEATURE 10: Study Progress Banner ───────────────────────────── */
+.study-progress-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 8px 16px;
+  background: rgba(124,92,255,0.07);
+  border-bottom: 1px solid rgba(124,92,255,0.12);
+  border-radius: 0;
+}
+.spb-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 0 14px;
+  cursor: default;
+}
+.spb-stat.due { cursor: pointer; }
+.spb-stat.due .spb-val { color: #f59e0b; }
+.spb-val {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent, #7c5cff);
+  line-height: 1;
+}
+.spb-lab {
+  font-size: 9.5px;
+  color: var(--text3, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.spb-divider {
+  width: 1px;
+  height: 24px;
+  background: rgba(124,92,255,0.15);
+  flex-shrink: 0;
+}
+
+/* ── FEATURE 11: Podcast transcript clickable lines ──────────────── */
+.podcast-line {
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+.podcast-line:hover { background: rgba(124,92,255,0.1); }
+.podcast-line.active { background: rgba(124,92,255,0.18); }
+
+/* ── FEATURE 12: SVG theme toggle ────────────────────────────────── */
+.theme-svg {
+  transition: transform 0.3s ease, opacity 0.2s;
+  display: block;
+}
+.sun-svg { color: #f59e0b; animation: sunSpin 0.4s ease; }
+.moon-svg { color: #818cf8; animation: moonFade 0.3s ease; }
+@keyframes sunSpin {
+  from { transform: rotate(-45deg) scale(0.7); opacity: 0; }
+  to   { transform: rotate(0)      scale(1);   opacity: 1; }
+}
+@keyframes moonFade {
+  from { transform: scale(0.7); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+#themeToggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+#themeToggle:hover { background: rgba(255,255,255,0.1); }
+.light-mode #themeToggle:hover { background: rgba(0,0,0,0.06); }
+
+/* ── FEATURE 13: Daily Challenge Panel ───────────────────────────── */
+.daily-challenge-panel {
+  position: absolute;
+  bottom: 90px;
+  left: 12px;
+  right: 12px;
+  background: var(--card, #0f172a);
+  border: 1px solid rgba(124,92,255,0.35);
+  border-radius: 18px;
+  padding: 16px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+  z-index: 9990;
+  animation: challengeSlideUp 0.35s cubic-bezier(0.34,1.56,0.64,1);
+}
+.light-mode .daily-challenge-panel {
+  background: #fff;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.12);
+}
+@keyframes challengeSlideUp {
+  from { opacity: 0; transform: translateY(20px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+.dc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.dc-badge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent, #7c5cff);
+  background: rgba(124,92,255,0.12);
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+.dc-close {
+  background: none; border: none; color: var(--text3, #64748b);
+  font-size: 16px; cursor: pointer; padding: 2px 6px;
+  border-radius: 6px; transition: background 0.15s;
+}
+.dc-close:hover { background: rgba(255,255,255,0.07); }
+.dc-question {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text1, #f1f5f9);
+  line-height: 1.5;
+  margin-bottom: 14px;
+}
+.light-mode .dc-question { color: #1e293b; }
+.dc-reveal-btn {
+  width: 100%;
+  padding: 10px;
+  background: linear-gradient(135deg, #7c5cff, #a78bfa);
+  border: none;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.dc-reveal-btn:hover { opacity: 0.9; }
+.dc-answer {
+  font-size: 13px;
+  color: var(--text2, #94a3b8);
+  line-height: 1.6;
+  background: rgba(124,92,255,0.07);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+.dc-actions {
+  display: flex;
+  gap: 8px;
+}
+.dc-rate {
+  flex: 1;
+  padding: 9px 6px;
+  border: none;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.dc-rate:hover { opacity: 0.85; transform: scale(0.97); }
+.dc-rate.hard { background: rgba(239,68,68,0.15);  color: #f87171; }
+.dc-rate.ok   { background: rgba(251,191,36,0.15); color: #fbbf24; }
+.dc-rate.easy { background: rgba(34,197,94,0.15);  color: #4ade80; }
+
+/* ── FEATURE 14 & 15: Deck action buttons ────────────────────────── */
+.fc-deck-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-shrink: 0;
+}
+.fc-deck-action-btn {
+  background: none;
+  border: none;
+  font-size: 15px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 7px;
+  transition: background 0.15s, transform 0.12s;
+  line-height: 1;
+}
+.fc-deck-action-btn:hover { background: rgba(124,92,255,0.12); transform: scale(1.1); }
+.srs-anki-btn {
+  background: rgba(124,92,255,0.12);
+  border: 1px solid rgba(124,92,255,0.2);
+  border-radius: 8px;
+  color: var(--accent, #7c5cff);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.srs-anki-btn:hover { background: rgba(124,92,255,0.22); }
+
+/* ── FEATURE 15: Import toast ────────────────────────────────────── */
+.import-toast {
+  position: absolute;
+  bottom: 90px;
+  left: 12px;
+  right: 12px;
+  background: var(--card, #0f172a);
+  border: 1px solid rgba(124,92,255,0.3);
+  border-radius: 16px;
+  padding: 14px 16px;
+  font-size: 13px;
+  color: var(--text1, #f1f5f9);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  z-index: 9995;
+  line-height: 1.6;
+  animation: toastIn 0.3s cubic-bezier(0.34,1.56,0.64,1);
+}
+.light-mode .import-toast { background: #fff; color: #1e293b; }
+.import-toast-btn {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 7px 14px;
+  background: linear-gradient(135deg, #7c5cff, #a78bfa);
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.import-toast-btn:hover { opacity: 0.9; }
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}

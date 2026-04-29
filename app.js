@@ -4972,7 +4972,7 @@ async function callOpenRouter(userMessage) {
 
     for (const model of OPENROUTER_MODELS) {
       try {
-        const res = await fetchWithTimeout(OPENROUTER_ENDPOINT, {
+        const res = await fetch(OPENROUTER_ENDPOINT, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${key}`,
@@ -4981,7 +4981,7 @@ async function callOpenRouter(userMessage) {
             'X-Title': 'Nexora AI Companion'
           },
           body: JSON.stringify({ model, max_tokens: 1200, temperature: 0.7, messages })
-        }, 25000);
+        });
 
         if (res.status === 401) {
           if (label.startsWith('pool-')) rotatePoolKey();
@@ -5030,14 +5030,10 @@ async function callOpenRouter(userMessage) {
       } catch(e) { continue; }
     }
   }
-  // GET fallback — truncate to avoid URL length limits (~2000 chars safe)
+  // GET fallback
   try {
-    const promptText = messages.map(m => m.content).join('\n\n').slice(0, 800);
-    const prompt = encodeURIComponent(promptText);
-    const res = await fetchWithTimeout(
-      `https://text.pollinations.ai/${prompt}?model=openai&seed=${Date.now() % 999}`,
-      {}, 15000
-    );
+    const prompt = encodeURIComponent(messages.map(m => m.content).join('\n\n'));
+    const res = await fetch(`https://text.pollinations.ai/${prompt}?model=openai&seed=${Date.now() % 999}`);
     if (res.ok) {
       const reply = (await res.text()).trim();
       if (reply && reply.length > 10) {
@@ -5720,11 +5716,10 @@ async function callGeminiDirect(userMessage) {
   const memory = aiConversationSummary ? `\n\nConversation memory: ${aiConversationSummary}` : '';
   const sysMsg = { role: 'user', parts: [{ text: NEXORA_SYSTEM_PROMPT + memory + '\n\nIMPORTANT: Always use markdown code fences (```language) for ALL code. Never write code as plain text.\n\nUser: ' + userMessage }] };
   try {
-    const res = await fetchWithTimeout(
+    const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gk}`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [sysMsg] }) },
-      22000
+        body: JSON.stringify({ contents: [sysMsg] }) }
     );
     if (!res.ok) return null;
     const data = await res.json();
@@ -5750,7 +5745,7 @@ async function testOpenRouterKey(key) {
 
   for (const model of testModels) {
     try {
-      const res = await fetchWithTimeout(OPENROUTER_ENDPOINT, {
+      const res = await fetch(OPENROUTER_ENDPOINT, {
         method: 'POST',
         headers: {
           'Authorization': 'Bearer ' + key,
@@ -5763,7 +5758,7 @@ async function testOpenRouterKey(key) {
           max_tokens: 40,
           messages: [{ role: 'user', content: 'Reply only: online!' }]
         })
-      }, 8000);
+      });
 
       // 401 = truly invalid key
       if (res.status === 401) {
@@ -8812,7 +8807,11 @@ function _renderSavedDecks() {
         <div class="fc-saved-deck-name">${_esc(d.topic)}</div>
         <div class="fc-saved-deck-meta">${d.cards.length} cards · ${_timeAgo(d.savedAt)}</div>
       </div>
-      <button class="fc-saved-deck-del" onclick="event.stopPropagation();deleteSavedDeck(${i})" title="Delete deck">🗑️</button>
+      <div class="fc-deck-actions" onclick="event.stopPropagation()">
+        <button class="fc-deck-action-btn share-btn" onclick="shareFlashcardDeck(${i})" title="Share deck link">🔗</button>
+        <button class="fc-deck-action-btn anki-btn" onclick="exportDeckToAnki(${i})" title="Export to Anki">📥</button>
+        <button class="fc-saved-deck-del" onclick="deleteSavedDeck(${i})" title="Delete deck">🗑️</button>
+      </div>
     </div>
   `).join('');
 }
@@ -9202,15 +9201,11 @@ function _getSrsStreak() {
       : JSON.parse(localStorage.getItem('nexora_srs_streak') || '{}');
     const today = new Date().toDateString();
     const yesterday = new Date(Date.now() - 86400000).toDateString();
-    // If already reviewed today, return saved streak
     if (d.last === today) return d.streak || 0;
-    // If last review was yesterday, the streak is still alive (will increment on record)
     if (d.last === yesterday) return d.streak || 0;
-    // Streak broken
     return 0;
   } catch(e) { return 0; }
 }
-
 function _recordSrsStreak() {
   try {
     const d = window.NexoraData?.getJSON
@@ -9219,17 +9214,10 @@ function _recordSrsStreak() {
     const today = new Date().toDateString();
     const yesterday = new Date(Date.now() - 86400000).toDateString();
     let streak = d.streak || 0;
-    if (d.last === today) {
-      // Already recorded for today — don't increment again
-      return;
-    } else if (d.last === yesterday) {
-      streak++;
-    } else {
-      streak = 1;
-    }
-    const updated = { last: today, streak };
-    if (window.NexoraData?.setJSON) NexoraData.setJSON('nexora_srs_streak', updated);
-    else localStorage.setItem('nexora_srs_streak', JSON.stringify(updated));
+    if (d.last === yesterday) streak++;
+    else if (d.last !== today) streak = 1;
+    if (window.NexoraData?.setJSON) NexoraData.setJSON('nexora_srs_streak', { last: today, streak });
+    else localStorage.setItem('nexora_srs_streak', JSON.stringify({ last: today, streak }));
   } catch(e) {}
 }
 
@@ -10800,4 +10788,715 @@ function _podcastFormatTime(secs) {
     }
     if (orig) orig(tab);
   };
+})();
+
+// ══════════════════════════════════════════════════════════════════════
+//  ✨ NEXORA — 15 FEATURE UPGRADES
+// ══════════════════════════════════════════════════════════════════════
+
+// ─────────────────────────────────────────────────────────────────────
+// FIX 1: AI Badge — always correct on load + live status text
+// ─────────────────────────────────────────────────────────────────────
+(function patchAiBadgeOnLoad() {
+  const _origInit = window.addEventListener;
+  // Patch updateResponseModeUI to also update #headerStatus
+  const _origUpdateUI = window.updateResponseModeUI;
+  window.updateResponseModeUI = function() {
+    if (typeof _origUpdateUI === 'function') _origUpdateUI();
+    const headerStatus = document.getElementById('headerStatus');
+    if (!headerStatus) return;
+    const userKey = localStorage.getItem('nexora_user_key');
+    const geminiKey = localStorage.getItem('nexora_gemini_key');
+    const hasKey = (userKey && userKey.startsWith('sk-or-')) || (geminiKey && (geminiKey.startsWith('AIza') || geminiKey.startsWith('AQ.')));
+    if (hasKey) {
+      headerStatus.textContent = nexoraResponseMode === 'online' ? 'AI ready · online' : 'key saved · offline mode';
+    } else {
+      headerStatus.textContent = nexoraResponseMode === 'online' ? 'free AI active' : 'here for you';
+    }
+  };
+})();
+
+// ─────────────────────────────────────────────────────────────────────
+// FIX 2: Header status updates when mode changes
+// ─────────────────────────────────────────────────────────────────────
+(function patchSetMode() {
+  const _orig = window.setMode;
+  window.setMode = function(mode) {
+    if (typeof _orig === 'function') _orig(mode);
+    const hs = document.getElementById('headerStatus');
+    if (!hs) return;
+    const labels = { support: 'support mode · here for you', gossip: '✨ gossip mode', hype: '🔥 hype mode' };
+    hs.textContent = labels[mode] || 'here for you';
+    setTimeout(() => { if (window.updateResponseModeUI) updateResponseModeUI(); }, 2000);
+  };
+})();
+
+// ─────────────────────────────────────────────────────────────────────
+// FIX 3: Thinking bubble — show instantly when user sends
+// ─────────────────────────────────────────────────────────────────────
+let _thinkingBubbleEl = null;
+
+function showThinkingBubble() {
+  removeThinkingBubble();
+  const messages = document.getElementById('messages');
+  if (!messages) return;
+  const row = document.createElement('div');
+  row.className = 'msg-row';
+  row.id = 'nexora-thinking-row';
+  row.innerHTML = `
+    <div class="msg-av">✨</div>
+    <div class="bubble bot-bub thinking-bubble">
+      <span class="thinking-dot"></span>
+      <span class="thinking-dot"></span>
+      <span class="thinking-dot"></span>
+    </div>`;
+  messages.appendChild(row);
+  messages.scrollTop = messages.scrollHeight;
+  _thinkingBubbleEl = row;
+}
+
+function removeThinkingBubble() {
+  const el = document.getElementById('nexora-thinking-row');
+  if (el) el.remove();
+  _thinkingBubbleEl = null;
+}
+
+// Patch sendMessage to show thinking bubble
+(function patchSendMessageThinking() {
+  const _orig = window.sendMessage;
+  window.sendMessage = function() {
+    const input = document.getElementById('userInput');
+    const text = (input && input.value.trim()) || '';
+    const hasPending = window.pendingImageFile;
+    if (!text && !hasPending) return;
+    if (typeof _orig === 'function') _orig();
+    // Show thinking bubble if isTyping just became true
+    setTimeout(() => { if (window.isTyping) showThinkingBubble(); }, 50);
+  };
+})();
+
+// Patch typeBot to remove thinking bubble before typing starts
+(function patchTypeBotThinking() {
+  const _orig = window.typeBot;
+  window.typeBot = function(text, onDone, isIdlePing) {
+    removeThinkingBubble();
+    if (typeof _orig === 'function') return _orig(text, onDone, isIdlePing);
+  };
+})();
+
+// ─────────────────────────────────────────────────────────────────────
+// FEATURE 4: Smart Topic Suggestions row (time-aware chips)
+// ─────────────────────────────────────────────────────────────────────
+function _getSmartSuggestions() {
+  const h = new Date().getHours();
+  const morning  = h >= 5  && h < 12;
+  const afternoon= h >= 12 && h < 17;
+  const evening  = h >= 17 && h < 21;
+  const night    = h >= 21 || h < 5;
+
+  const timeBased = morning
+    ? [{ icon:'☀️', label:'Morning motivation', msg:'Give me a motivational quote to start my day!' },
+       { icon:'📚', label:'Study with me', msg:'Help me make a study plan for today' }]
+    : afternoon
+    ? [{ icon:'💡', label:'Life tip', msg:'Give me one useful life tip for today' },
+       { icon:'🧠', label:'Brain teaser', msg:'Give me a brain teaser or riddle!' }]
+    : evening
+    ? [{ icon:'🌙', label:'Evening check-in', msg:'How can I wind down and relax tonight?' },
+       { icon:'📖', label:'Learn something', msg:'Teach me one interesting fact I don\'t know' }]
+    : [{ icon:'💤', label:'Can\'t sleep', msg:'I can\'t sleep, talk to me' },
+       { icon:'🌟', label:'Late night thoughts', msg:'I have some late night thoughts to share' }];
+
+  return [
+    ...timeBased,
+    { icon:'🌤️', label:'Weather', msg:'What\'s the weather like?' },
+    { icon:'📚', label:'Study Mode', msg:null, action: () => openStudyMode() },
+    { icon:'💬', label:'Just chat', msg:'Let\'s just have a casual conversation' },
+    { icon:'🎯', label:'Set a goal', msg:'Help me set a goal for today' },
+  ];
+}
+
+function renderSmartSuggestions() {
+  const bar = document.getElementById('smartSuggestBar');
+  if (!bar) return;
+  const suggestions = _getSmartSuggestions();
+  bar.innerHTML = suggestions.map((s, i) =>
+    `<div class="smart-chip" data-idx="${i}">${s.icon} ${s.label}</div>`
+  ).join('');
+  bar.querySelectorAll('.smart-chip').forEach((chip, i) => {
+    chip.addEventListener('click', () => {
+      const s = suggestions[i];
+      if (s.action) { s.action(); return; }
+      if (s.msg) { document.getElementById('userInput').value = s.msg; sendMessage(); }
+    });
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// FEATURE 5: Pinned Memory Panel (🧠 icon in header)
+// ─────────────────────────────────────────────────────────────────────
+function openMemoryPanel() {
+  const existing = document.getElementById('nexora-memory-panel');
+  if (existing) { existing.remove(); return; }
+
+  const streak = (() => {
+    try {
+      const d = window.NexoraData?.getJSON ? NexoraData.getJSON('nexora_srs_streak', {}) : JSON.parse(localStorage.getItem('nexora_srs_streak') || '{}');
+      return d.streak || 0;
+    } catch(e) { return 0; }
+  })();
+
+  const cards = (() => {
+    try { return (window.NexoraData?.getJSON ? NexoraData.getJSON('nexora_srs_cards', []) : JSON.parse(localStorage.getItem('nexora_srs_cards') || '[]')).length; }
+    catch(e) { return 0; }
+  })();
+
+  const topics = (window.NexoraData?.getJSON ? NexoraData.getJSON('nexora_topics', []) : (() => { try { return JSON.parse(localStorage.getItem('nexora_topics') || '[]'); } catch(e) { return []; } })());
+  const recentTopics = [...new Set((topics || []).map(t => String(t || '').trim()).filter(Boolean))].slice(-5).reverse();
+
+  const profile = window.NexoraData?.getJSON ? NexoraData.getJSON('nexora_profile', { emotional: 0, logical: 0 }) : { emotional: 0, logical: 0 };
+  const total = (profile.emotional || 0) + (profile.logical || 0);
+  const ePct = total ? Math.round((profile.emotional / total) * 100) : 50;
+  const lPct = 100 - ePct;
+
+  const hasKey = localStorage.getItem('nexora_user_key') || localStorage.getItem('nexora_gemini_key');
+  const aiStatus = hasKey ? '🟢 API key active' : '🟡 Free AI (Pollinations)';
+
+  const panel = document.createElement('div');
+  panel.id = 'nexora-memory-panel';
+  panel.className = 'memory-panel-popup';
+  panel.innerHTML = `
+    <div class="memory-panel-header">
+      <span>🧠 Nexora Knows</span>
+      <button onclick="document.getElementById('nexora-memory-panel').remove()">✕</button>
+    </div>
+    <div class="memory-panel-body">
+      <div class="mem-row"><span class="mem-label">👤 Name</span><span class="mem-val">${_esc(userName || '—')}</span></div>
+      <div class="mem-row"><span class="mem-label">🔥 Streak</span><span class="mem-val">${streak} day${streak !== 1 ? 's' : ''}</span></div>
+      <div class="mem-row"><span class="mem-label">🃏 Cards saved</span><span class="mem-val">${cards}</span></div>
+      <div class="mem-row"><span class="mem-label">🤖 AI status</span><span class="mem-val">${aiStatus}</span></div>
+      <div class="mem-row"><span class="mem-label">🎭 Mode</span><span class="mem-val">${currentMode || 'support'}</span></div>
+      ${recentTopics.length ? `<div class="mem-row"><span class="mem-label">📌 Recent topics</span><span class="mem-val mem-topics">${recentTopics.map(t => `<span>${_esc(t)}</span>`).join('')}</span></div>` : ''}
+      <div class="mem-row"><span class="mem-label">💡 Your style</span>
+        <span class="mem-val">
+          <div class="mem-profile-bar">
+            <div class="mem-profile-fill emotional" style="width:${ePct}%"></div>
+            <div class="mem-profile-fill logical" style="width:${lPct}%"></div>
+          </div>
+          <div class="mem-profile-labels"><span>❤️ ${ePct}% emotional</span><span>🧠 ${lPct}% logical</span></div>
+        </span>
+      </div>
+    </div>
+    <div class="memory-panel-footer">
+      <button onclick="clearMemory()">🗑️ Clear memory</button>
+    </div>`;
+
+  document.getElementById('phone').appendChild(panel);
+}
+
+function clearMemory() {
+  if (!confirm('Clear all Nexora memory? This removes your emotion history, topics, and profile data.')) return;
+  ['nexora_emotions','nexora_topics','nexora_profile','nexora_srs_streak'].forEach(k => {
+    if (window.NexoraData?.clearJSON) NexoraData.clearJSON(k);
+    else localStorage.removeItem(k);
+  });
+  emotionHistory = [];
+  topicMemory = [];
+  userProfile = { emotional: 0, logical: 0 };
+  document.getElementById('nexora-memory-panel')?.remove();
+  _showStudyToast('Memory cleared 🧹');
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// FEATURE 6: Message Reactions (long-press or double-tap)
+// ─────────────────────────────────────────────────────────────────────
+let _reactionTimer = null;
+
+function _attachMessageReactions(bubbleEl, text, isBot) {
+  let pressStart = 0;
+
+  const showReactions = (e) => {
+    e.preventDefault();
+    document.querySelectorAll('.msg-reaction-bar').forEach(el => el.remove());
+
+    const bar = document.createElement('div');
+    bar.className = 'msg-reaction-bar';
+    bar.innerHTML = `
+      <button class="reaction-btn" data-emoji="👍" title="Like">👍</button>
+      <button class="reaction-btn" data-emoji="❤️" title="Love">❤️</button>
+      <button class="reaction-btn" data-emoji="😂" title="Funny">😂</button>
+      <button class="reaction-btn" data-emoji="😮" title="Wow">😮</button>
+      ${isBot ? `<button class="reaction-btn regen-btn" title="Regenerate">🔁</button>` : ''}
+      <button class="reaction-btn copy-btn" title="Copy">📋</button>
+    `;
+
+    bar.querySelectorAll('.reaction-btn').forEach(btn => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const emoji = btn.dataset.emoji;
+        if (btn.classList.contains('regen-btn')) {
+          bar.remove();
+          if (!isTyping) {
+            const lastUserMsg = [...document.querySelectorAll('.user-bub')].pop()?.textContent || '';
+            if (lastUserMsg) { isTyping = true; showThinkingBubble(); generateSmartReply(lastUserMsg).then(r => { if (r) typeBot(r); else isTyping = false; }); }
+          }
+        } else if (btn.classList.contains('copy-btn')) {
+          navigator.clipboard.writeText(bubbleEl.innerText || text).then(() => showCopyToast()).catch(() => {});
+          bar.remove();
+        } else {
+          // Add emoji reaction badge
+          let badge = bubbleEl.querySelector('.reaction-badge');
+          if (!badge) { badge = document.createElement('div'); badge.className = 'reaction-badge'; bubbleEl.appendChild(badge); }
+          badge.textContent = emoji;
+          bar.remove();
+        }
+      });
+    });
+
+    bubbleEl.style.position = 'relative';
+    bubbleEl.appendChild(bar);
+    setTimeout(() => { document.addEventListener('click', () => bar.remove(), { once: true }); }, 100);
+  };
+
+  // Long press
+  bubbleEl.addEventListener('pointerdown', () => { pressStart = Date.now(); _reactionTimer = setTimeout(() => showReactions({ preventDefault: () => {} }), 500); });
+  bubbleEl.addEventListener('pointerup', () => { if (Date.now() - pressStart < 500) clearTimeout(_reactionTimer); });
+  bubbleEl.addEventListener('pointercancel', () => clearTimeout(_reactionTimer));
+  // Double tap on desktop
+  bubbleEl.addEventListener('dblclick', showReactions);
+}
+
+// Patch addBotMsg to attach reactions
+(function patchAddBotMsgReactions() {
+  const _orig = window.addBotMsg;
+  window.addBotMsg = function(text) {
+    if (typeof _orig === 'function') _orig(text);
+    // Attach reactions to the last bot bubble
+    setTimeout(() => {
+      const bubs = document.querySelectorAll('.bot-bub');
+      const last = bubs[bubs.length - 1];
+      if (last && !last.dataset.reactionsAttached) {
+        last.dataset.reactionsAttached = '1';
+        _attachMessageReactions(last, last.innerText, true);
+      }
+    }, 100);
+  };
+})();
+
+// Patch addUserMsg to attach reactions
+(function patchAddUserMsgReactions() {
+  const _orig = window.addUserMsg;
+  window.addUserMsg = function(text) {
+    if (typeof _orig === 'function') _orig(text);
+    setTimeout(() => {
+      const bubs = document.querySelectorAll('.user-bub');
+      const last = bubs[bubs.length - 1];
+      if (last && !last.dataset.reactionsAttached) {
+        last.dataset.reactionsAttached = '1';
+        _attachMessageReactions(last, text, false);
+      }
+    }, 100);
+  };
+})();
+
+// ─────────────────────────────────────────────────────────────────────
+// FEATURE 7: "Generate Study Cards from Chat" button
+// ─────────────────────────────────────────────────────────────────────
+function generateStudyFromChat() {
+  const rows = document.querySelectorAll('.msg-row');
+  const lines = [];
+  rows.forEach(row => {
+    const bub = row.querySelector('.bot-bub, .user-bub');
+    if (bub) lines.push(bub.innerText || bub.textContent || '');
+  });
+  const chatText = lines.filter(Boolean).join('\n\n').slice(0, 800);
+  if (!chatText) { _showStudyToast('No chat to study from yet!'); return; }
+  openStudyMode();
+  setTimeout(() => {
+    const fcInput = document.getElementById('fcTopicInput');
+    if (fcInput) {
+      fcInput.value = chatText;
+      switchStudyTab('flashcard');
+      _showStudyToast('📚 Chat loaded — tap Generate!');
+    }
+  }, 400);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// FEATURE 8: Offline Indicator in header
+// ─────────────────────────────────────────────────────────────────────
+(function initOfflineIndicator() {
+  function _setOfflineBanner(offline) {
+    let banner = document.getElementById('nexora-offline-banner');
+    const header = document.getElementById('header');
+    if (!header) return;
+    if (offline) {
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'nexora-offline-banner';
+        banner.className = 'offline-banner';
+        banner.textContent = '📵 Offline — using local AI';
+        header.after(banner);
+      }
+    } else {
+      if (banner) banner.remove();
+    }
+  }
+
+  window.addEventListener('online',  () => _setOfflineBanner(false));
+  window.addEventListener('offline', () => _setOfflineBanner(true));
+  // Check on load
+  if (!navigator.onLine) _setOfflineBanner(true);
+})();
+
+// ─────────────────────────────────────────────────────────────────────
+// FEATURE 9: Escape key closes all panels
+// ─────────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  // Close memory panel
+  document.getElementById('nexora-memory-panel')?.remove();
+  // Close reaction bars
+  document.querySelectorAll('.msg-reaction-bar').forEach(el => el.remove());
+  // Close API panel
+  const apiPanel = document.getElementById('apiPanel');
+  if (apiPanel && apiPanel.classList.contains('open')) { if (typeof closeApiPanel === 'function') closeApiPanel(); return; }
+  // Close compare panel
+  const cmpPanel = document.getElementById('comparePanel');
+  if (cmpPanel && cmpPanel.classList.contains('open')) { if (typeof closeComparePanel === 'function') closeComparePanel(); return; }
+  // Close study mode
+  const studyScreen = document.getElementById('studyScreen');
+  if (studyScreen && studyScreen.classList.contains('active')) { if (typeof closeStudyMode === 'function') closeStudyMode(); return; }
+  // Close progress dashboard
+  const dash = document.getElementById('progressDashboard');
+  if (dash && dash.classList.contains('open')) { if (typeof closeProgressDashboard === 'function') closeProgressDashboard(); return; }
+  // Close search overlay
+  const searchOvr = document.getElementById('searchOverlay');
+  if (searchOvr && searchOvr.classList.contains('open')) { if (typeof closeSearch === 'function') closeSearch(); return; }
+  // Close menu
+  if (window.menuOpen) {
+    document.getElementById('modeToggle')?.classList.remove('open');
+    window.menuOpen = false;
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// FEATURE 10: Study Mode progress banner (saves per tab)
+// ─────────────────────────────────────────────────────────────────────
+function _renderStudyProgressBanner() {
+  const existing = document.getElementById('study-progress-banner');
+  if (existing) existing.remove();
+
+  const streak = (() => { try { const d = window.NexoraData?.getJSON ? NexoraData.getJSON('nexora_srs_streak', {}) : JSON.parse(localStorage.getItem('nexora_srs_streak') || '{}'); return d.streak || 0; } catch(e) { return 0; } })();
+  const cards = (() => { try { return (window.NexoraData?.getJSON ? NexoraData.getJSON('nexora_srs_cards', []) : JSON.parse(localStorage.getItem('nexora_srs_cards') || '[]')).length; } catch(e) { return 0; } })();
+  const quizzes = (() => { try { return (window.NexoraData?.getJSON ? NexoraData.getJSON('nexora_quiz_hist', []) : JSON.parse(localStorage.getItem('nexora_quiz_hist') || '[]')).length; } catch(e) { return 0; } })();
+  const due = (() => { try { const c = window.NexoraData?.getJSON ? NexoraData.getJSON('nexora_srs_cards', []) : JSON.parse(localStorage.getItem('nexora_srs_cards') || '[]'); return c.filter(x => x.next_review <= Date.now()).length; } catch(e) { return 0; } })();
+
+  const banner = document.createElement('div');
+  banner.id = 'study-progress-banner';
+  banner.className = 'study-progress-banner';
+  banner.innerHTML = `
+    <div class="spb-stat"><span class="spb-val">${cards}</span><span class="spb-lab">cards</span></div>
+    <div class="spb-divider"></div>
+    <div class="spb-stat"><span class="spb-val">${quizzes}</span><span class="spb-lab">quizzes</span></div>
+    <div class="spb-divider"></div>
+    <div class="spb-stat"><span class="spb-val">${streak}🔥</span><span class="spb-lab">streak</span></div>
+    ${due > 0 ? `<div class="spb-divider"></div><div class="spb-stat due" onclick="switchStudyTab('srs')"><span class="spb-val">${due}</span><span class="spb-lab">due now</span></div>` : ''}
+  `;
+
+  const tabBar = document.querySelector('.study-tab-bar');
+  if (tabBar) tabBar.before(banner);
+}
+
+// Patch openStudyMode and switchStudyTab to show banner
+(function patchStudyProgressBanner() {
+  const _origOpen = window.openStudyMode;
+  window.openStudyMode = function() {
+    if (typeof _origOpen === 'function') _origOpen();
+    setTimeout(_renderStudyProgressBanner, 150);
+  };
+  const _origSwitch = window.switchStudyTab;
+  window.switchStudyTab = function(tab) {
+    if (typeof _origSwitch === 'function') _origSwitch(tab);
+    setTimeout(_renderStudyProgressBanner, 100);
+  };
+})();
+
+// ─────────────────────────────────────────────────────────────────────
+// FEATURE 11: Podcast transcript — click line to jump
+// ─────────────────────────────────────────────────────────────────────
+(function patchPodcastTranscriptSeek() {
+  const _orig = window._renderPodcastTranscript;
+  window._renderPodcastTranscript = function(lines) {
+    if (typeof _orig === 'function') _orig(lines);
+    // Attach click-to-seek on each line
+    const el = document.getElementById('podcastTranscript');
+    if (!el) return;
+    el.querySelectorAll('.podcast-line').forEach((lineEl, i) => {
+      lineEl.style.cursor = 'pointer';
+      lineEl.title = 'Jump to this line';
+      lineEl.addEventListener('click', () => {
+        // Stop current, jump to line i
+        if (window._podcastSynthActive) {
+          window.speechSynthesis && window.speechSynthesis.cancel();
+          window._podcastSynthActive = false;
+        }
+        if (window._podcastAudioEl) {
+          window._podcastAudioEl.pause();
+          window._podcastAudioEl.currentTime = 0;
+        }
+        window._podcastLineIndex = i;
+        window._podcastBlobIndex = i;
+        // Re-start from that line
+        if (window._podcastLines) {
+          if (window._podcastBlobs && window._podcastBlobs.length > i) {
+            // Audio blob mode
+            window._podcastBlobIndex = i;
+            if (typeof window._podcastPlayNextBlob === 'function') window._podcastPlayNextBlob();
+          } else {
+            // Web Speech mode
+            if (typeof window._podcastSpeakLines === 'function') window._podcastSpeakLines(window._podcastLines, i);
+          }
+        }
+        _highlightTranscriptLine(i);
+        _showStudyToast(`▶ Jumped to line ${i + 1}`);
+      });
+    });
+  };
+})();
+
+// ─────────────────────────────────────────────────────────────────────
+// FEATURE 12: Animated SVG theme toggle
+// ─────────────────────────────────────────────────────────────────────
+(function patchThemeToggle() {
+  function _updateThemeToggleSVG() {
+    const btn = document.getElementById('themeToggle');
+    if (!btn) return;
+    btn.innerHTML = isLightMode
+      ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="theme-svg sun-svg">
+           <circle cx="12" cy="12" r="5"/>
+           <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+           <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+           <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+           <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+         </svg>`
+      : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="theme-svg moon-svg">
+           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+         </svg>`;
+    btn.title = isLightMode ? 'Switch to dark mode' : 'Switch to light mode';
+  }
+
+  const _orig = window.toggleTheme;
+  window.toggleTheme = function() {
+    if (typeof _orig === 'function') _orig();
+    _updateThemeToggleSVG();
+  };
+
+  // Init on load
+  setTimeout(_updateThemeToggleSVG, 300);
+})();
+
+// ─────────────────────────────────────────────────────────────────────
+// FEATURE 13: Daily Study Challenge
+// ─────────────────────────────────────────────────────────────────────
+function _checkDailyChallenge() {
+  const today = new Date().toDateString();
+  const lastChallenge = localStorage.getItem('nexora_last_challenge');
+  if (lastChallenge === today) return; // Already shown today
+
+  let cards = [];
+  try {
+    cards = window.NexoraData?.getJSON ? NexoraData.getJSON('nexora_srs_cards', []) : JSON.parse(localStorage.getItem('nexora_srs_cards') || '[]');
+  } catch(e) {}
+
+  if (!cards.length) return; // No cards to challenge with
+
+  // Pick a random card that was reviewed at least once
+  const reviewed = cards.filter(c => c.reps > 0);
+  if (!reviewed.length) return;
+
+  const card = reviewed[Math.floor(Math.random() * reviewed.length)];
+  localStorage.setItem('nexora_last_challenge', today);
+
+  setTimeout(() => {
+    const panel = document.createElement('div');
+    panel.id = 'daily-challenge-panel';
+    panel.className = 'daily-challenge-panel';
+    panel.innerHTML = `
+      <div class="dc-header">
+        <span class="dc-badge">🎯 Daily Challenge</span>
+        <button class="dc-close" onclick="document.getElementById('daily-challenge-panel').remove()">✕</button>
+      </div>
+      <div class="dc-question">${_esc(card.front)}</div>
+      <button class="dc-reveal-btn" onclick="this.style.display='none';document.getElementById('dc-answer').style.display='block'">Reveal Answer 👇</button>
+      <div id="dc-answer" class="dc-answer" style="display:none">${_esc(card.back)}</div>
+      <div class="dc-actions" id="dc-actions" style="display:none">
+        <button class="dc-rate hard" onclick="closeDailyChallenge(0)">😕 Hard</button>
+        <button class="dc-rate ok" onclick="closeDailyChallenge(1)">🤔 Got it</button>
+        <button class="dc-rate easy" onclick="closeDailyChallenge(2)">✅ Easy</button>
+      </div>`;
+
+    panel.querySelector('#dc-answer') && panel.querySelector('.dc-reveal-btn').addEventListener('click', () => {
+      setTimeout(() => { const da = document.getElementById('dc-actions'); if (da) da.style.display = 'flex'; }, 50);
+    });
+
+    document.getElementById('phone').appendChild(panel);
+    window._dcCard = card;
+  }, 2500);
+}
+
+function closeDailyChallenge(rating) {
+  const panel = document.getElementById('daily-challenge-panel');
+  if (panel) panel.remove();
+  if (window._dcCard && window.NexoraData?.runWorkerTask) {
+    NexoraData.runWorkerTask('srs-review', { card: window._dcCard, rating, now: Date.now() }).then(updated => {
+      if (updated) {
+        // Update in srsCards
+        if (typeof srsCards !== 'undefined') {
+          const idx = srsCards.findIndex(c => c.id === updated.id);
+          if (idx !== -1) { srsCards[idx] = updated; if (typeof srsSaveCards === 'function') srsSaveCards(); }
+        }
+      }
+    }).catch(() => {});
+  }
+  const msgs = ['🔥 Keep it up!', '🧠 Memory sharpened!', '✅ Challenge done for today!'];
+  _showStudyToast(msgs[rating] || '✅ Challenge done!');
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// FEATURE 14: Export to Anki CSV
+// ─────────────────────────────────────────────────────────────────────
+function exportToAnki() {
+  let cards = [];
+  try {
+    cards = window.NexoraData?.getJSON ? NexoraData.getJSON('nexora_srs_cards', []) : JSON.parse(localStorage.getItem('nexora_srs_cards') || '[]');
+  } catch(e) {}
+
+  if (!cards.length) { _showStudyToast('No saved cards to export. Save some flashcards first!'); return; }
+
+  // Anki import format: Front<tab>Back<tab>Tags
+  const rows = ['#separator:tab', '#html:false', '#notetype:Basic', '#deck:Nexora Import'];
+  cards.forEach(c => {
+    const front = String(c.front || '').replace(/\t/g, ' ').replace(/\n/g, ' ');
+    const back  = String(c.back  || '').replace(/\t/g, ' ').replace(/\n/g, ' ');
+    const tag   = String(c.tag   || 'nexora').replace(/\s+/g, '_');
+    rows.push(`${front}\t${back}\t${tag}`);
+  });
+
+  const blob = new Blob([rows.join('\n')], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `nexora-anki-${new Date().toISOString().slice(0,10)}.txt`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  _showStudyToast(`📥 Exported ${cards.length} cards for Anki!`);
+}
+
+// Export a specific saved deck to Anki format
+function exportDeckToAnki(deckIdx) {
+  let decks = [];
+  try { decks = window.NexoraData?.getJSON ? NexoraData.getJSON('nexora_fc_decks', []) : JSON.parse(localStorage.getItem('nexora_fc_decks') || '[]'); } catch(e) {}
+  const deck = decks[deckIdx];
+  if (!deck) { _showStudyToast('Deck not found!'); return; }
+
+  const rows = ['#separator:tab', '#html:false', '#notetype:Basic', `#deck:Nexora - ${deck.topic}`];
+  deck.cards.forEach(c => {
+    const front = String(c.front || '').replace(/\t/g, ' ').replace(/\n/g, ' ');
+    const back  = String(c.back  || '').replace(/\t/g, ' ').replace(/\n/g, ' ');
+    const tag   = String(c.tag   || deck.topic || 'nexora').replace(/\s+/g, '_');
+    rows.push(`${front}\t${back}\t${tag}`);
+  });
+
+  const blob = new Blob([rows.join('\n')], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `nexora-anki-${deck.topic.slice(0,30).replace(/[^a-z0-9]/gi,'_')}.txt`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  _showStudyToast(`📥 Exported "${deck.topic}" — ${deck.cards.length} cards for Anki!`);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// FEATURE 15: Shareable Deck Links
+// ─────────────────────────────────────────────────────────────────────
+function shareFlashcardDeck(deckIdx) {
+  let decks = [];
+  try {
+    decks = window.NexoraData?.getJSON ? NexoraData.getJSON('nexora_fc_decks', []) : JSON.parse(localStorage.getItem('nexora_fc_decks') || '[]');
+  } catch(e) {}
+
+  const deck = decks[deckIdx];
+  if (!deck) { _showStudyToast('Deck not found!'); return; }
+
+  try {
+    const payload = JSON.stringify({ topic: deck.topic, cards: deck.cards.map(c => ({ front: c.front, back: c.back, hint: c.hint, tag: c.tag })) });
+    const b64 = btoa(unescape(encodeURIComponent(payload)));
+    const url = `${window.location.origin}${window.location.pathname}?deck=${b64}`;
+    navigator.clipboard.writeText(url).then(() => {
+      _showStudyToast('🔗 Deck link copied! Share it with friends.');
+    }).catch(() => {
+      // Fallback: show URL in prompt
+      prompt('Copy this link to share your deck:', url);
+    });
+  } catch(e) {
+    _showStudyToast('Could not create share link. Deck may be too large.');
+  }
+}
+
+function importSharedDeck() {
+  const params = new URLSearchParams(window.location.search);
+  const encoded = params.get('deck');
+  if (!encoded) return;
+
+  try {
+    const payload = JSON.parse(decodeURIComponent(escape(atob(encoded))));
+    if (!payload.topic || !Array.isArray(payload.cards) || !payload.cards.length) return;
+
+    // Remove ?deck= from URL without reload
+    const cleanUrl = window.location.pathname;
+    window.history.replaceState({}, '', cleanUrl);
+
+    // Import after study mode is ready
+    setTimeout(() => {
+      let decks = [];
+      try { decks = window.NexoraData?.getJSON ? NexoraData.getJSON('nexora_fc_decks', []) : JSON.parse(localStorage.getItem('nexora_fc_decks') || '[]'); } catch(e) {}
+      const imported = { topic: payload.topic, cards: payload.cards, savedAt: Date.now() };
+      decks.push(imported);
+      if (window.NexoraData?.setJSON) NexoraData.setJSON('nexora_fc_decks', decks);
+      else localStorage.setItem('nexora_fc_decks', JSON.stringify(decks));
+
+      // Show notification
+      const toast = document.createElement('div');
+      toast.className = 'import-toast';
+      toast.innerHTML = `📚 <strong>Deck imported!</strong><br>"${_esc(payload.topic)}" — ${payload.cards.length} cards<br><button onclick="openStudyMode();setTimeout(()=>switchStudyTab('flashcard'),300);" class="import-toast-btn">View in Study Mode →</button>`;
+      document.getElementById('phone').appendChild(toast);
+      setTimeout(() => toast.remove(), 6000);
+    }, 1500);
+  } catch(e) {
+    console.warn('[Nexora] Failed to import shared deck:', e);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// BOOT: run init patches after DOM ready
+// ─────────────────────────────────────────────────────────────────────
+(function nexoraFeaturesInit() {
+  // Wait for load
+  const _run = () => {
+    // Fix 1: immediately update badge
+    if (window.updateResponseModeUI) updateResponseModeUI();
+
+    // Feature 4: render smart suggestions
+    renderSmartSuggestions();
+
+    // Feature 13: daily challenge (after greeting delay)
+    setTimeout(_checkDailyChallenge, 3000);
+
+    // Feature 15: import shared deck from URL
+    importSharedDeck();
+  };
+
+  if (document.readyState === 'complete') _run();
+  else window.addEventListener('load', _run);
 })();
