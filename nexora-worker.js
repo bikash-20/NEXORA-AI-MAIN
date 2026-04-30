@@ -76,8 +76,8 @@ export default {
     if (request.method === 'GET' && (url.pathname === '/' || url.pathname === '/health')) {
       return cors(JSON.stringify({
         status: 'ok',
-        worker: 'Nexora CF AI Proxy v2.0',
-        endpoints: ['/ai', '/podcast', '/tts'],
+        worker: 'Nexora CF AI Proxy v3.0',
+        endpoints: ['/ai', '/podcast', '/tts', '/image', '/search'],
         models: Object.keys(MODELS),
         timestamp: new Date().toISOString(),
       }));
@@ -87,6 +87,8 @@ export default {
       if (url.pathname === '/ai')      return handleAI(request, env);
       if (url.pathname === '/podcast') return handlePodcast(request, env);
       if (url.pathname === '/tts')     return handleTTS(request, env);
+      if (url.pathname === '/image')   return handleImage(request, env);
+      if (url.pathname === '/search')  return handleSearch(request, env);
     }
 
     return cors(JSON.stringify({ error: 'Not found' }), 404);
@@ -349,6 +351,310 @@ async function handleTTS(request, env) {
       hint: 'The CF TTS model may not be available in your Worker region. The frontend will fall back to Web Speech API.',
     }), 502);
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  /image  — AI Image Generation (free via CF Stable Diffusion)
+//
+//  Request body:
+//    { prompt: string, width?: number, height?: number, steps?: number }
+//
+//  Response: image/png binary  (or JSON error)
+//
+//  BINDING REQUIRED: AI (already bound for /ai endpoint)
+// ══════════════════════════════════════════════════════════════════════
+async function handleImage(request, env) {
+  if (!env.AI) return cors(JSON.stringify({ error: 'Workers AI binding missing.' }), 500);
+
+  let body;
+  try { body = await request.json(); }
+  catch { return cors(JSON.stringify({ error: 'Invalid JSON' }), 400); }
+
+  const { prompt, width = 512, height = 512, steps = 20 } = body;
+  if (!prompt || prompt.trim().length === 0)
+    return cors(JSON.stringify({ error: 'prompt is required' }), 400);
+
+  // Safety: block harmful content keywords
+  const blocked = ['nude', 'naked', 'nsfw', 'porn', 'explicit', 'violence', 'gore', 'blood'];
+  const lowerPrompt = prompt.toLowerCase();
+  if (blocked.some(w => lowerPrompt.includes(w)))
+    return cors(JSON.stringify({ error: 'Prompt contains disallowed content.' }), 400);
+
+  // Enhance prompt for better results
+  const enhancedPrompt = `${prompt.trim()}, high quality, detailed, professional`;
+
+  // Safe dimensions
+  const safeWidth  = Math.min(Math.max(256, width),  1024);
+  const safeHeight = Math.min(Math.max(256, height), 1024);
+  const safeSteps  = Math.min(Math.max(10,  steps),   30);
+
+  try {
+    // Primary: Stable Diffusion XL Lightning (fastest, free)
+    let result = null;
+    let usedModel = '';
+
+    try {
+      result = await env.AI.run('@cf/bytedance/stable-diffusion-xl-lightning', {
+        prompt: enhancedPrompt,
+        width : safeWidth,
+        height: safeHeight,
+      });
+      usedModel = 'sd-xl-lightning';
+    } catch (e1) {
+      // Fallback: Stable Diffusion 1.5 (most reliable)
+      try {
+        result = await env.AI.run('@cf/runwayml/stable-diffusion-v1-5-inpainting', {
+          prompt: enhancedPrompt,
+          width : safeWidth,
+          height: safeHeight,
+          num_steps: safeSteps,
+        });
+        usedModel = 'sd-v1.5';
+      } catch (e2) {
+        // Final fallback: dreamshaper
+        result = await env.AI.run('@cf/lykon/dreamshaper-8-lcm', {
+          prompt: enhancedPrompt,
+          width : safeWidth,
+          height: safeHeight,
+          num_steps: safeSteps,
+        });
+        usedModel = 'dreamshaper-8';
+      }
+    }
+
+    if (!result) return cors(JSON.stringify({ error: 'Image generation returned empty result.' }), 502);
+
+    // Result can be ArrayBuffer or ReadableStream
+    let imageBytes;
+    if (result instanceof ReadableStream) {
+      const reader = result.getReader();
+      const chunks = [];
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+      }
+      const total = chunks.reduce((a, c) => a + c.length, 0);
+      imageBytes = new Uint8Array(total);
+      let offset = 0;
+      for (const chunk of chunks) { imageBytes.set(chunk, offset); offset += chunk.length; }
+    } else if (result instanceof ArrayBuffer) {
+      imageBytes = new Uint8Array(result);
+    } else if (result instanceof Uint8Array) {
+      imageBytes = result;
+    } else {
+      return cors(JSON.stringify({ error: 'Unexpected image format from model.' }), 502);
+    }
+
+    if (!imageBytes || imageBytes.length < 100)
+      return cors(JSON.stringify({ error: 'Generated image is too small — model may have failed.' }), 502);
+
+    return new Response(imageBytes, {
+      status: 200,
+      headers: {
+        'Content-Type'                : 'image/png',
+        'Content-Length'              : String(imageBytes.length),
+        'X-Model-Used'                : usedModel,
+        'Access-Control-Allow-Origin' : '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Cache-Control'               : 'public, max-age=3600',
+      },
+    });
+  } catch(e) {
+    return cors(JSON.stringify({
+      error: 'Image generation failed: ' + (e?.message || String(e)),
+      hint : 'The CF image model may not be available in your Worker region.',
+    }), 502);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  /search  — Web Search (DuckDuckGo, no API key needed)
+//
+//  Request body:
+//    { query: string, maxResults?: number }
+//
+//  Response:
+//    { results: [{title, url, snippet}], query, total }
+// ══════════════════════════════════════════════════════════════════════
+async function handleSearch(request, env) {
+  let body;
+  try { body = await request.json(); }
+  catch { return cors(JSON.stringify({ error: 'Invalid JSON' }), 400); }
+
+  const { query, maxResults = 5 } = body;
+  if (!query || query.trim().length === 0)
+    return cors(JSON.stringify({ error: 'query is required' }), 400);
+
+  const safeQuery = query.trim().slice(0, 200);
+  const safeMax   = Math.min(Math.max(1, maxResults), 10);
+
+  // ── Strategy 1: DuckDuckGo Instant Answer API (no key needed) ──
+  try {
+    const ddgUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(safeQuery)}&format=json&no_html=1&skip_disambig=1`;
+    const res = await fetch(ddgUrl, {
+      headers: { 'User-Agent': 'Nexora AI/3.0 (educational assistant)' },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const results = [];
+
+      // Abstract (main answer)
+      if (data.Abstract && data.Abstract.length > 20) {
+        results.push({
+          title  : data.Heading || safeQuery,
+          url    : data.AbstractURL || `https://duckduckgo.com/?q=${encodeURIComponent(safeQuery)}`,
+          snippet: data.Abstract.slice(0, 300),
+          source : 'DuckDuckGo Abstract',
+        });
+      }
+
+      // Related topics
+      if (data.RelatedTopics && Array.isArray(data.RelatedTopics)) {
+        for (const topic of data.RelatedTopics) {
+          if (results.length >= safeMax) break;
+          if (topic.Text && topic.FirstURL) {
+            results.push({
+              title  : topic.Text.split(' - ')[0]?.slice(0, 80) || safeQuery,
+              url    : topic.FirstURL,
+              snippet: topic.Text.slice(0, 250),
+              source : 'DuckDuckGo',
+            });
+          }
+          // Handle sub-topics
+          if (topic.Topics && Array.isArray(topic.Topics)) {
+            for (const sub of topic.Topics) {
+              if (results.length >= safeMax) break;
+              if (sub.Text && sub.FirstURL) {
+                results.push({
+                  title  : sub.Text.split(' - ')[0]?.slice(0, 80) || safeQuery,
+                  url    : sub.FirstURL,
+                  snippet: sub.Text.slice(0, 250),
+                  source : 'DuckDuckGo',
+                });
+              }
+            }
+          }
+        }
+      }
+
+      // Answer box (e.g. "What is 2+2" → "4")
+      if (data.Answer && results.length === 0) {
+        results.push({
+          title  : `Answer: ${safeQuery}`,
+          url    : `https://duckduckgo.com/?q=${encodeURIComponent(safeQuery)}`,
+          snippet: String(data.Answer),
+          source : 'DuckDuckGo Answer',
+        });
+      }
+
+      // Definition
+      if (data.Definition && results.length < safeMax) {
+        results.push({
+          title  : `Definition: ${data.Heading || safeQuery}`,
+          url    : data.DefinitionURL || `https://duckduckgo.com/?q=${encodeURIComponent(safeQuery)}`,
+          snippet: data.Definition.slice(0, 300),
+          source : 'DuckDuckGo Definition',
+        });
+      }
+
+      if (results.length > 0) {
+        // If we have results AND AI binding, enhance with a summary
+        let aiSummary = '';
+        if (env.AI && results.length > 0) {
+          try {
+            const snippets = results.map((r, i) => `${i+1}. ${r.title}: ${r.snippet}`).join('\n');
+            const aiResult = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+              messages: [
+                { role: 'system', content: 'You are a helpful assistant. Summarize the search results in 2-3 sentences. Be concise and factual.' },
+                { role: 'user',   content: `Query: "${safeQuery}"\n\nSearch results:\n${snippets}\n\nProvide a brief summary.` },
+              ],
+              max_tokens: 150,
+              temperature: 0.3,
+            });
+            aiSummary = (aiResult?.response || '').trim();
+          } catch { /* summary is optional */ }
+        }
+
+        return cors(JSON.stringify({
+          ok       : true,
+          query    : safeQuery,
+          total    : results.length,
+          results  : results.slice(0, safeMax),
+          summary  : aiSummary,
+          source   : 'duckduckgo',
+          timestamp: new Date().toISOString(),
+        }));
+      }
+    }
+  } catch(e) { /* fall through to Wikipedia */ }
+
+  // ── Strategy 2: Wikipedia Search API (very reliable fallback) ──
+  try {
+    const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(safeQuery)}&srlimit=${safeMax}&format=json&origin=*`;
+    const res = await fetch(wikiUrl, {
+      headers: { 'User-Agent': 'Nexora AI/3.0 (educational assistant)' },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (res.ok) {
+      const data  = await res.json();
+      const items = data?.query?.search || [];
+      const results = items.map(item => ({
+        title  : item.title,
+        url    : `https://en.wikipedia.org/wiki/${encodeURIComponent(item.title.replace(/ /g, '_'))}`,
+        snippet: item.snippet
+          .replace(/<[^>]+>/g, '')  // strip HTML tags
+          .replace(/&quot;/g, '"')
+          .replace(/&#039;/g, "'")
+          .slice(0, 280),
+        source: 'Wikipedia',
+      }));
+
+      if (results.length > 0) {
+        // AI summary from Wikipedia snippets
+        let aiSummary = '';
+        if (env.AI) {
+          try {
+            const snippets = results.slice(0,3).map((r,i) => `${i+1}. ${r.title}: ${r.snippet}`).join('\n');
+            const aiResult = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+              messages: [
+                { role: 'system', content: 'Summarize these Wikipedia search results in 2-3 clear sentences.' },
+                { role: 'user',   content: `Query: "${safeQuery}"\n\n${snippets}` },
+              ],
+              max_tokens: 150,
+              temperature: 0.3,
+            });
+            aiSummary = (aiResult?.response || '').trim();
+          } catch { /* optional */ }
+        }
+
+        return cors(JSON.stringify({
+          ok       : true,
+          query    : safeQuery,
+          total    : results.length,
+          results,
+          summary  : aiSummary,
+          source   : 'wikipedia',
+          timestamp: new Date().toISOString(),
+        }));
+      }
+    }
+  } catch(e) { /* fall through */ }
+
+  // ── No results found ──
+  return cors(JSON.stringify({
+    ok     : true,
+    query  : safeQuery,
+    total  : 0,
+    results: [],
+    summary: '',
+    source : 'none',
+    hint   : 'No results found. Try a different search query.',
+  }));
 }
 
 // ── CORS helper ─────────────────────────────────────────────────────

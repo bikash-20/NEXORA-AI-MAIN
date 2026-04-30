@@ -2730,8 +2730,8 @@ const NexoraKnowledge = {
   "what is dijkstra": "Dijkstra's algorithm finds the shortest path between nodes in a graph. Bikash actually built a Google Maps Navigator using it! 🗺️",
 
   // Capabilities
-  "what can you do": "I'm your Multimodal AI! Here's what I can do:\n📷 Read text from images (OCR)\n🧮 Solve complex math\n💱 Convert currency live\n🌤️ Fetch live weather\n🔐 Check password strength\n🧠 Teach Computer Science\n💬 Support your emotions\n🔥 Hype you up or spill gossip!",
-  "your features": "I can: talk like your bestie, solve math, convert currency, read images (OCR), check password strength, fetch live weather/time, teach CS concepts, and support you emotionally. Mode menu (☰) for Gossip / Hype / Support vibes! ✨",
+  "what can you do": "I can: 💬 Emotional support · 🎨 Generate AI images · 🔍 Web search with AI summaries · 📚 Study Mode (flashcards, quizzes, SRS, podcasts) · 🌤️ Live weather · 💱 Currency · 🧮 Math · 📷 Image analysis · 🎙️ Voice mode · ⚖️ Compare AI models · 🔐 Password check · 🎵 Music search. Say 'what can you do' for the full list!",
+  "your features": "Current features: 🎨 AI Image Generation · 🔍 Smart Web Search · 📚 Study Mode · 🎧 Podcast · 💬 Emotional support · 🌤️ Weather · 💱 Currency · 🧮 Math · 📷 Vision · 🎙️ Voice · ⚖️ AI Compare. Coming soon: 🧠 Memory · 📡 Live news · 👥 Group study · 🏆 Leaderboard!",
 };
 
 // Phase 1.2 — Smart Search Engine
@@ -2851,8 +2851,84 @@ async function getDuckDuckGoResults(query) {
 }
 
 // ══════════════════════════════════════════════
-//  ITUNES MUSIC SEARCH — Free, no key needed
+//  IMAGE GENERATION — via CF Worker /image
+//  Free, no API key, uses Stable Diffusion XL
 // ══════════════════════════════════════════════
+async function generateImageFromPrompt(prompt) {
+  const workerUrl = _getCFWorkerUrl();
+  if (!workerUrl) return null;
+
+  try {
+    _showStudyToast('🎨 Generating image...');
+    const res = await fetchWithTimeout(`${workerUrl}/image`, {
+      method : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body   : JSON.stringify({ prompt: prompt.trim(), width: 512, height: 512, steps: 20 }),
+    }, 45000); // image gen can take up to 45s
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      return `__HTML__🎨 <strong>Image generation failed</strong><br><small style="opacity:0.6">${err.error || 'Model unavailable in your region'}</small>`;
+    }
+
+    const blob   = await res.blob();
+    const imgUrl = URL.createObjectURL(blob);
+    const model  = res.headers.get('X-Model-Used') || 'stable-diffusion';
+
+    return `__HTML__🎨 <strong>Here's your image!</strong><br><em style="opacity:0.6;font-size:12px">Prompt: ${_esc(prompt)}</em><br><br>
+<img src="${imgUrl}" alt="${_esc(prompt)}" style="width:100%;max-width:400px;border-radius:14px;margin-top:6px;display:block;box-shadow:0 4px 20px rgba(0,0,0,0.3);" loading="lazy">
+<br><div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+  <a href="${imgUrl}" download="nexora-${Date.now()}.png" style="font-size:12px;color:var(--accent);text-decoration:none;background:rgba(124,92,255,0.12);padding:4px 10px;border-radius:8px;">⬇️ Download</a>
+  <span style="font-size:11px;opacity:0.4;padding:4px 0">via ${model} · free ✦</span>
+</div>`;
+  } catch(e) {
+    return `__HTML__🎨 Image generation timed out. The AI image server may be busy — try again in a moment!`;
+  }
+}
+
+// ══════════════════════════════════════════════
+//  ENHANCED WEB SEARCH — via CF Worker /search
+//  AI-summarized results from DuckDuckGo + Wikipedia
+// ══════════════════════════════════════════════
+async function getCFSearchResults(query) {
+  const workerUrl = _getCFWorkerUrl();
+  if (!workerUrl) return getDuckDuckGoResults(query); // fallback to direct DDG
+
+  try {
+    const res = await fetchWithTimeout(`${workerUrl}/search`, {
+      method : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body   : JSON.stringify({ query: query.trim(), maxResults: 5 }),
+    }, 15000);
+
+    if (!res.ok) return getDuckDuckGoResults(query);
+
+    const data = await res.json();
+    if (!data.ok || !data.results?.length) return getDuckDuckGoResults(query);
+
+    let html = `🔍 <strong>Search results for: "${_esc(query)}"</strong><br><br>`;
+
+    // AI summary first if available
+    if (data.summary && data.summary.length > 20) {
+      html += `<div style="background:rgba(124,92,255,0.08);border-left:3px solid var(--accent);border-radius:0 10px 10px 0;padding:10px 12px;margin-bottom:12px;">
+        🤖 <strong>AI Summary</strong><br><span style="opacity:0.85">${_esc(data.summary)}</span>
+      </div>`;
+    }
+
+    // Results list
+    data.results.slice(0, 4).forEach(r => {
+      html += `<div style="margin-bottom:10px;padding:8px 10px;background:rgba(255,255,255,0.03);border-radius:10px;">
+        <strong><a href="${r.url}" target="_blank" style="color:var(--accent);text-decoration:none;">${_esc(r.title)}</a></strong><br>
+        <span style="opacity:0.7;font-size:13px">${_esc(r.snippet)}</span>
+      </div>`;
+    });
+
+    html += `<small style="opacity:0.4">via ${data.source === 'wikipedia' ? 'Wikipedia' : 'DuckDuckGo'} + CF AI Summary ✦</small>`;
+    return html;
+  } catch(e) {
+    return getDuckDuckGoResults(query); // graceful fallback
+  }
+}
 async function getMusicInfo(query) {
   try {
     const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=3`);
@@ -3563,10 +3639,31 @@ const voiceQA = [
   },
   // ── What can you do ──
   {
-    match: /what can you do|your (features|abilities|skills|capabilities)|how can you help|what do you know/,
+    match: /what can you do|your (features|abilities|skills|capabilities)|how can you help|what do you know|what are you capable/,
     replies: [
-      `Great question! I can have real conversations with you, check live weather, convert currencies, solve math, read text from images using my camera, check password strength, tell you the time, answer questions about Bikash, and support you emotionally. Oh, and I speak! Literally — you're hearing me right now.`,
-      `I'm a multimodal AI bestie! I solve math, fetch live weather, convert currencies, read images, check passwords, teach computer science concepts, and most importantly — I listen to you. I'm basically your pocket genius.`
+      `__HTML__Here's everything I can do for you right now 👇<br><br>
+<strong>💬 Chat & Emotional Support</strong><br>
+Talk about anything — stress, heartbreak, overthinking, happiness. I actually listen and understand you emotionally. Switch between Support 🤍, Gossip ✨ and Hype 🔥 modes from the menu!<br><br>
+<strong>🎨 AI Image Generation</strong><br>
+Say <em>"draw me a sunset"</em> or <em>"generate image of a lion"</em> — I'll create it using Stable Diffusion XL instantly, completely free!<br><br>
+<strong>🔍 Smart Web Search</strong><br>
+Say <em>"search quantum computing"</em> — I search DuckDuckGo + Wikipedia and give you an AI-powered summary with sources.<br><br>
+<strong>📚 Study Mode</strong><br>
+Generate flashcards, take AI quizzes (Easy/Medium/Hard), use Spaced Repetition (SRS), get summaries, upload PDFs/images, export to Anki, share decks with friends via link!<br><br>
+<strong>🎧 AI Podcast Player</strong><br>
+Turn any topic into a full educational podcast with HOST & STUDENT dialogue. Click any line to jump to it!<br><br>
+<strong>🌤️ Live Weather</strong> · <strong>💱 Currency Converter</strong> · <strong>🧮 Math Solver</strong><br>
+Real-time data, no API key needed.<br><br>
+<strong>📷 Image Analysis</strong><br>
+Send me a photo of your homework, notes or any image — I'll read and explain it!<br><br>
+<strong>⚖️ AI Compare Mode</strong><br>
+Ask the same question to multiple AI models side by side and see who answers best.<br><br>
+<strong>🎙️ Voice Mode</strong><br>
+Speak to me with your mic, I'll talk back. Full voice conversation!<br><br>
+<strong>🔐 Password Checker</strong> · <strong>🕐 Time & Date</strong> · <strong>🎵 Music Search</strong><br><br>
+<strong>🚀 Coming Soon</strong><br>
+🧠 Persistent Memory across devices · 📡 Real-time news · 🎬 Video summarizer · 👥 Group study rooms · 🏆 Leaderboard · 📱 Mobile app · 🌐 Browser extension<br><br>
+<small style="opacity:0.5">Powered by 20 AI models: Gemini · Llama · DeepSeek · Groq · Grok · Mistral · Qwen · Stable Diffusion & more ✦</small>`
     ]
   },
   // ── Tell me a joke ──
@@ -5297,10 +5394,22 @@ async function generateSmartReply(input) {
     }
   }
 
-  // C. Explicit web search
-  const searchMatch = input.match(/(?:search|google|look up|find info|find out about|search for)\s+(.+)/i);
+  // ── IMAGE GENERATION ──
+  const imageMatch = input.match(
+    /(?:draw|generate|create|make|paint|design|illustrate|show me|give me)\s+(?:me\s+)?(?:an?\s+)?image\s+(?:of\s+)?(.+)|(?:draw|paint|illustrate)\s+(.+)|(?:generate|create)\s+(?:an?\s+)?(?:picture|photo|image|artwork|art|illustration|drawing|painting)\s+(?:of\s+)?(.+)/i
+  );
+  if (imageMatch) {
+    const imagePrompt = (imageMatch[1] || imageMatch[2] || imageMatch[3] || '').trim();
+    if (imagePrompt.length > 2) {
+      const imgResult = await generateImageFromPrompt(imagePrompt);
+      if (imgResult) return imgResult;
+    }
+  }
+
+  // C. Explicit web search — now uses CF Worker enhanced search
+  const searchMatch = input.match(/(?:search|google|look up|find info|find out about|search for|browse|web search)\s+(.+)/i);
   if (searchMatch) {
-    const result = await getDuckDuckGoResults(searchMatch[1].trim());
+    const result = await getCFSearchResults(searchMatch[1].trim());
     if (result) return result;
   }
 
