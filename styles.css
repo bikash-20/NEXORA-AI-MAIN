@@ -5237,11 +5237,20 @@ body.light-mode .podcast-seek-track { background: rgba(0,0,0,0.08); }
 .fc-card {
   height: 280px;
   border-radius: 26px;
+  position: relative;
+  cursor: pointer;
 }
 
 .fc-card-inner {
   border-radius: 26px;
   transition: transform 0.55s cubic-bezier(.2,.85,.2,1);
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+
+.fc-card.flipped .fc-card-inner {
+  transform: rotateY(180deg);
 }
 
 .fc-card-face {
@@ -5249,6 +5258,13 @@ body.light-mode .podcast-seek-track { background: rgba(0,0,0,0.08); }
   padding: 24px 22px 18px;
   overflow: hidden;
   position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
 }
 
 .fc-card-face::before {
@@ -5280,6 +5296,7 @@ body.light-mode .podcast-seek-track { background: rgba(0,0,0,0.08); }
     linear-gradient(145deg, rgba(16,185,129,0.12), rgba(124,92,255,0.06)),
     linear-gradient(180deg, rgba(16,20,34,0.96), rgba(11,15,26,0.98));
   border-color: rgba(16,185,129,0.24);
+  transform: rotateY(180deg);
 }
 
 .fc-card-label {
