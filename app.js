@@ -28,6 +28,13 @@ let idleTimer  = null;        // proactive ping timer
 let lastContext = '';         // last Dhaka context string (avoid repeating)
 let lastEmotionForVoice = 'default'; // used to tune TTS prosody
 let pokeCount = 0;            // escalating poke/annoy counter
+let isVoiceCallMode = false;  // true when "AI call" loop is active
+let voiceCallTimer = null;    // delayed restart timer for call loop
+let voiceReplyAudio = null;   // CF /tts playback instance for live calls
+let tutorModeEnabled = false;
+let groupChannel = null;
+let activeGroupRoom = '';
+let dailyReminderTimer = null;
 
 // ── In-session conversation memory ──
 let sessionLog = [];          // { role:'user'|'bot', text } — last 20 turns
@@ -454,6 +461,7 @@ function switchToVoice() {
 }
 
 function switchToChat() {
+  if (isVoiceCallMode) endVoiceCall();
   stopSpeaking();
   stopMic();
   setOverlayMode(null);
@@ -463,6 +471,31 @@ function switchToChat() {
 function toggleMenu() {
   menuOpen = !menuOpen;
   document.getElementById('modeToggle').classList.toggle('open', menuOpen);
+}
+
+function toggleTutorMode() {
+  tutorModeEnabled = !tutorModeEnabled;
+  const el = document.getElementById('mode-tutor-toggle');
+  if (el) el.innerHTML = `<span>🧠</span> Tutor Mode: ${tutorModeEnabled ? 'ON' : 'OFF'}`;
+  setTimeout(() => typeBot(tutorModeEnabled
+    ? '🧠 Tutor Mode enabled! I will teach using hints + questions, not just direct answers.'
+    : 'Tutor Mode disabled. Back to normal answer style.'), 120);
+}
+
+function openReminderPanel() {
+  toggleMenu();
+  document.getElementById('reminderPanel')?.classList.add('open');
+}
+function closeReminderPanel() {
+  document.getElementById('reminderPanel')?.classList.remove('open');
+}
+
+function openGroupPanel() {
+  toggleMenu();
+  document.getElementById('groupPanel')?.classList.add('open');
+}
+function closeGroupPanel() {
+  document.getElementById('groupPanel')?.classList.remove('open');
 }
 
 function setMode(mode) {
@@ -2696,6 +2729,71 @@ function toggleMic() {
   });
 }
 
+function _setCallButtonUI(active) {
+  const btn = document.getElementById('voiceCallBtn');
+  if (!btn) return;
+  btn.classList.toggle('active', !!active);
+  btn.textContent = active ? '📞 End Call' : '📞 Start Call';
+}
+
+function _queueVoiceCallListen(delayMs = 320) {
+  if (voiceCallTimer) clearTimeout(voiceCallTimer);
+  voiceCallTimer = setTimeout(() => {
+    voiceCallTimer = null;
+    if (!isVoiceCallMode || currentScreen !== 'voiceScreen') return;
+    if (isMicOn) return;
+    document.getElementById('voicePrompt').innerHTML = 'Listening…<br/><span class="dim">speak now</span>';
+    document.getElementById('voiceOrb').classList.add('listening');
+    document.getElementById('micBtn').classList.add('active');
+    startMic(async (text) => {
+      document.getElementById('voicePrompt').innerHTML = `<span style="font-size:15px;color:var(--text2)">"${text}"</span><br/><span class="dim">Nexora is thinking…</span>`;
+      document.getElementById('voiceOrb').classList.remove('listening');
+      document.getElementById('micBtn').classList.remove('active');
+      try {
+        const reply = await generateSmartReply(text);
+        document.getElementById('voicePrompt').innerHTML = reply;
+        await speakText(reply, { preferCloudTTS: true });
+      } catch (e) {
+        document.getElementById('voicePrompt').innerHTML = 'I lost the thread a bit. Say that once more?';
+      } finally {
+        if (isVoiceCallMode) _queueVoiceCallListen(300);
+      }
+    });
+  }, delayMs);
+}
+
+function startVoiceCall() {
+  if (isVoiceCallMode) return;
+  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+    document.getElementById('voicePrompt').innerHTML = 'Voice not supported<br/><span class="dim">Try Chrome or Edge</span>';
+    return;
+  }
+  isVoiceCallMode = true;
+  _setCallButtonUI(true);
+  document.getElementById('voicePrompt').innerHTML = 'Call connected ✅<br/><span class="dim">You can speak naturally</span>';
+  _queueVoiceCallListen(450);
+}
+
+function endVoiceCall() {
+  isVoiceCallMode = false;
+  if (voiceCallTimer) {
+    clearTimeout(voiceCallTimer);
+    voiceCallTimer = null;
+  }
+  stopMic();
+  stopSpeaking();
+  _setCallButtonUI(false);
+  const prompt = document.getElementById('voicePrompt');
+  if (prompt && currentScreen === 'voiceScreen') {
+    prompt.innerHTML = 'Tap the orb<br/><span class="dim">to start talking</span>';
+  }
+}
+
+function toggleVoiceCall() {
+  if (isVoiceCallMode) endVoiceCall();
+  else startVoiceCall();
+}
+
 // ==============================
 //  SPEECH SYNTHESIS (TTS)
 //  Defined below in Phase 5 with full emotion + content-aware prosody
@@ -2703,6 +2801,13 @@ function toggleMic() {
 
 function stopSpeaking() {
   if (synth) synth.cancel();
+  if (voiceReplyAudio) {
+    try {
+      voiceReplyAudio.pause();
+      voiceReplyAudio.src = '';
+    } catch (e) {}
+    voiceReplyAudio = null;
+  }
 }
 
 // ==============================
@@ -3079,7 +3184,9 @@ async function callVisionAI(file, userQuestion) {
    • Key points / facts to remember (★)
    • If relevant: a short formula or rule to memorise
 
-Be thorough but clear. Use simple language. Help the student truly understand, not just copy answers.`;
+Be thorough but clear. Use simple language. Help the student truly understand, not just copy answers.
+
+If the global Tutor Mode is enabled, ask one guiding question before revealing the final answer.`;
 
   // ── Strategy 1: Gemini Vision (free, user's own key) ──
   const gk = localStorage.getItem(LS_GEMINI_KEY);
@@ -3556,12 +3663,50 @@ function checkPasswordStrength(password) {
 //  PHASE 5 — Emotional Voice Sync (speakText — content + emotion-aware)
 // ==============================
 function speakText(text) {
-  if (!synth) return;
+  return new Promise(async (resolve) => {
+  if (!synth) { resolve(); return; }
+  const raw = String(text || '').replace(/<[^>]+>/g,'').trim();
+  if (!raw) { resolve(); return; }
   synth.cancel();
-  const utter = new SpeechSynthesisUtterance(text.replace(/<[^>]+>/g,''));
-  const lowText = text.toLowerCase();
+  if (voiceReplyAudio) {
+    try { voiceReplyAudio.pause(); voiceReplyAudio.src = ''; } catch (e) {}
+    voiceReplyAudio = null;
+  }
+  const lowText = raw.toLowerCase();
   const excitedEmotions = ['happy', 'gossip', 'hype'];
   const calmEmotions    = ['sad', 'anxious', 'lonely', 'heartbreak', 'crisis'];
+
+  // Prefer Cloudflare /tts for richer voice in live calls.
+  if (_hasCFWorker()) {
+    try {
+      const res = await fetchWithTimeout(_getCFWorkerUrl() + '/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: raw.slice(0, 450), voice: 'en-us-female' }),
+      }, 20000);
+      if (res.ok) {
+        const blob = await res.blob();
+        if (blob && blob.size > 500) {
+          const audio = new Audio(URL.createObjectURL(blob));
+          voiceReplyAudio = audio;
+          audio.onended = () => {
+            URL.revokeObjectURL(audio.src);
+            if (voiceReplyAudio === audio) voiceReplyAudio = null;
+            resolve();
+          };
+          audio.onerror = () => {
+            URL.revokeObjectURL(audio.src);
+            if (voiceReplyAudio === audio) voiceReplyAudio = null;
+            resolve();
+          };
+          await audio.play().catch(() => resolve());
+          return;
+        }
+      }
+    } catch (e) {}
+  }
+
+  const utter = new SpeechSynthesisUtterance(raw);
 
   // Content-level overrides first
   if (lowText.includes('sorry') || lowText.includes('loss') || lowText.includes('passed away') || lowText.includes('grief')) {
@@ -3580,7 +3725,10 @@ function speakText(text) {
   const preferred = voices.find(v => v.name.includes('Google') && v.lang.startsWith('en')) ||
                     voices.find(v => v.lang.startsWith('en-US')) || voices[0];
   if (preferred) utter.voice = preferred;
+  utter.onend = () => resolve();
+  utter.onerror = () => resolve();
   synth.speak(utter);
+  });
 }
 
 // ==============================
@@ -5442,7 +5590,16 @@ async function generateSmartReply(input) {
     }
 
     // Live AI
-    const aiReply = await callOpenRouter(input);
+    const aiInput = tutorModeEnabled
+      ? `You are in Tutor Mode. Use Socratic teaching:
+- Ask 1 short guiding question first.
+- Give hints before final answer.
+- Break solutions into clear steps.
+- Encourage the student.
+
+Student prompt: ${input}`
+      : input;
+    const aiReply = await callOpenRouter(aiInput);
     if (aiReply) return aiReply;
     // AI failed — fall through to offline KB (no hard stop)
     // This lets emotional responses, bestie KB, etc. still work when AI is down
@@ -9402,6 +9559,190 @@ function _studyTimeEnd() {
   };
 })();
 
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  Nexora: Daily Reminder + Group Rooms                           ║
+// ╚══════════════════════════════════════════════════════════════════╝
+(function initNexoraCommunityFeatures() {
+  'use strict';
+
+  const LS_REMINDER_TIME = 'nexora_daily_reminder_time';
+  const LS_REMINDER_EMAIL = 'nexora_daily_reminder_email';
+  const LS_TUTOR_MODE = 'nexora_tutor_mode';
+  const BACKEND_URL = (window._nexoraBackend && window._nexoraBackend.BACKEND_URL) || '';
+
+  function reminderHint(msg, isError = false) {
+    const el = document.getElementById('dailyReminderHint');
+    if (!el) return;
+    el.style.color = isError ? '#fda4af' : '#93c5fd';
+    el.textContent = msg || '';
+  }
+
+  async function sendReminderEmailNow(email) {
+    if (!BACKEND_URL || !email) return;
+    try {
+      await fetch(`${BACKEND_URL}/api/reminder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          subject: 'Nexora Daily Reminder',
+          message: 'You have cards due today. Keep your streak alive!',
+        }),
+      });
+    } catch (e) {}
+  }
+
+  function scheduleDailyReminderAt(timeText) {
+    if (dailyReminderTimer) {
+      clearTimeout(dailyReminderTimer);
+      dailyReminderTimer = null;
+    }
+    if (!timeText || !/^\d{2}:\d{2}$/.test(timeText)) return;
+    const [hh, mm] = timeText.split(':').map(Number);
+    const now = new Date();
+    const next = new Date();
+    next.setHours(hh, mm, 0, 0);
+    if (next <= now) next.setDate(next.getDate() + 1);
+    const ms = next.getTime() - now.getTime();
+
+    dailyReminderTimer = setTimeout(async () => {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('Nexora Reminder', {
+          body: 'You have study tasks due today. Keep your streak alive!',
+          icon: '/manifest.json',
+        });
+      }
+      const email = localStorage.getItem(LS_REMINDER_EMAIL) || '';
+      if (email) await sendReminderEmailNow(email);
+      scheduleDailyReminderAt(timeText);
+    }, ms);
+  }
+
+  window.saveDailyReminder = async function saveDailyReminder() {
+    const time = (document.getElementById('dailyReminderTime')?.value || '').trim();
+    const email = (document.getElementById('dailyReminderEmail')?.value || '').trim();
+    if (!time) return reminderHint('Please select a reminder time.', true);
+    localStorage.setItem(LS_REMINDER_TIME, time);
+    localStorage.setItem(LS_REMINDER_EMAIL, email);
+    const auth = window._nexoraAuth;
+    const sb = auth?.getClient?.();
+    const user = auth?.getUser?.();
+    if (sb && user) {
+      try {
+        await sb.from('reminder_subscriptions').upsert({
+          user_id: user.id,
+          email,
+          remind_time: time,
+          enabled: true,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' });
+      } catch (e) {}
+    }
+    if ('Notification' in window && Notification.permission === 'default') {
+      await Notification.requestPermission();
+    }
+    scheduleDailyReminderAt(time);
+    reminderHint(`Saved. Daily reminder set at ${time}.`);
+  };
+
+  function appendGroupFeed(text) {
+    const feed = document.getElementById('groupRoomFeed');
+    if (!feed) return;
+    const line = document.createElement('div');
+    line.textContent = text;
+    feed.appendChild(line);
+    feed.scrollTop = feed.scrollHeight;
+  }
+
+  window.joinGroupRoom = async function joinGroupRoom() {
+    const code = (document.getElementById('groupRoomCode')?.value || '').trim().toLowerCase();
+    const status = document.getElementById('groupRoomStatus');
+    if (!code) {
+      if (status) status.textContent = 'Enter a room code first.';
+      return;
+    }
+    const auth = window._nexoraAuth;
+    const sb = auth?.getClient?.();
+    const user = auth?.getUser?.();
+    if (!sb || !user) {
+      if (status) status.textContent = 'Login required for group rooms.';
+      return;
+    }
+    if (groupChannel) {
+      try { await sb.removeChannel(groupChannel); } catch (e) {}
+      groupChannel = null;
+    }
+    activeGroupRoom = code;
+    groupChannel = sb.channel(`group-room-${code}`);
+    groupChannel.on('broadcast', { event: 'message' }, ({ payload }) => {
+      appendGroupFeed(`${payload.name || 'Friend'}: ${payload.text || ''}`);
+    });
+    await groupChannel.subscribe();
+    try {
+      const { data } = await sb
+        .from('group_room_messages')
+        .select('display_name,message')
+        .eq('room_code', code)
+        .order('id', { ascending: false })
+        .limit(20);
+      const feed = document.getElementById('groupRoomFeed');
+      if (feed) feed.innerHTML = '';
+      (data || []).reverse().forEach(row => appendGroupFeed(`${row.display_name || 'Friend'}: ${row.message || ''}`));
+    } catch (e) {}
+    if (status) status.textContent = `Joined room: ${code}`;
+    appendGroupFeed(`You joined room "${code}"`);
+  };
+
+  window.sendGroupMessage = async function sendGroupMessage() {
+    const input = document.getElementById('groupRoomMsg');
+    const text = (input?.value || '').trim();
+    if (!text || !groupChannel) return;
+    const name = (userName || 'Me').slice(0, 24);
+    const auth = window._nexoraAuth;
+    const sb = auth?.getClient?.();
+    const user = auth?.getUser?.();
+    if (sb && user && activeGroupRoom) {
+      try {
+        await sb.from('group_room_messages').insert({
+          room_code: activeGroupRoom,
+          user_id: user.id,
+          display_name: name,
+          message: text,
+        });
+      } catch (e) {}
+    }
+    await groupChannel.send({
+      type: 'broadcast',
+      event: 'message',
+      payload: { name, text },
+    });
+    if (input) input.value = '';
+  };
+
+  function bootstrapCommunityUI() {
+    const savedTime = localStorage.getItem(LS_REMINDER_TIME) || '';
+    const savedEmail = localStorage.getItem(LS_REMINDER_EMAIL) || '';
+    const t = document.getElementById('dailyReminderTime');
+    const e = document.getElementById('dailyReminderEmail');
+    if (t && savedTime) t.value = savedTime;
+    if (e && savedEmail) e.value = savedEmail;
+    if (savedTime) scheduleDailyReminderAt(savedTime);
+
+    tutorModeEnabled = localStorage.getItem(LS_TUTOR_MODE) === '1';
+    const el = document.getElementById('mode-tutor-toggle');
+    if (el) el.innerHTML = `<span>🧠</span> Tutor Mode: ${tutorModeEnabled ? 'ON' : 'OFF'}`;
+  }
+
+  const oldToggleTutorMode = window.toggleTutorMode;
+  window.toggleTutorMode = function toggleTutorModePersisted() {
+    oldToggleTutorMode();
+    localStorage.setItem(LS_TUTOR_MODE, tutorModeEnabled ? '1' : '0');
+  };
+
+  if (document.readyState === 'complete') bootstrapCommunityUI();
+  else window.addEventListener('load', bootstrapCommunityUI);
+})();
+
 // ══════════════════════════════════════════════════════════════════════
 //  1. 📊 PROGRESS DASHBOARD
 // ══════════════════════════════════════════════════════════════════════
@@ -11895,4 +12236,231 @@ const BACKEND_URL = 'https://nexora-backend-sigma.vercel.app';
   window._nexoraBackend = { checkStatus: checkBackendStatus, BACKEND_URL };
 
   console.log('[Nexora] Backend integration loaded ✅', BACKEND_URL);
+})();
+
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  Nexora Auth + Cloud History (Supabase)                         ║
+// ╚══════════════════════════════════════════════════════════════════╝
+(function initNexoraAuthLayer() {
+  'use strict';
+
+  const SUPABASE_URL = window.NEXORA_SUPABASE_URL || '';
+  const SUPABASE_ANON_KEY = window.NEXORA_SUPABASE_ANON_KEY || '';
+  const PROFILE_TABLE = 'user_profiles';
+  const HISTORY_TABLE = 'chat_histories';
+
+  let authClient = null;
+  let authTab = 'login';
+  let authUser = null;
+  let cloudSyncTimer = null;
+
+  function authHint(msg, isError = false) {
+    const el = document.getElementById('authHint');
+    if (!el) return;
+    el.style.color = isError ? '#fda4af' : '';
+    el.innerHTML = msg;
+  }
+
+  function deriveNameFromUser(user) {
+    const n = user?.user_metadata?.full_name || user?.user_metadata?.name || '';
+    if (n && n.trim()) return n.trim().slice(0, 24);
+    const email = user?.email || '';
+    return (email.split('@')[0] || 'Friend').slice(0, 24);
+  }
+
+  function resetChatDOM() {
+    const messages = document.getElementById('messages');
+    if (!messages) return;
+    messages.innerHTML = '<div class="date-divider" id="dateDivider"></div>';
+    const divider = document.getElementById('dateDivider');
+    if (divider) divider.textContent = getTodayLabel();
+  }
+
+  function applySessionUser(user) {
+    authUser = user || null;
+    if (!authUser) return;
+    const nextName = deriveNameFromUser(authUser);
+    userName = nextName;
+    userInitials = (nextName.slice(0, 2) || 'ME').toUpperCase();
+    localStorage.setItem('nexora_name', nextName);
+    const input = document.getElementById('nameInput');
+    if (input) input.value = nextName;
+  }
+
+  async function ensureUserProfile(user) {
+    if (!authClient || !user) return;
+    const payload = {
+      user_id: user.id,
+      display_name: deriveNameFromUser(user),
+      email: user.email || null,
+      updated_at: new Date().toISOString(),
+    };
+    try {
+      await authClient.from(PROFILE_TABLE).upsert(payload, { onConflict: 'user_id' });
+    } catch (e) {}
+  }
+
+  async function pullCloudHistory() {
+    if (!authClient || !authUser) return;
+    try {
+      const { data, error } = await authClient
+        .from(HISTORY_TABLE)
+        .select('payload')
+        .eq('user_id', authUser.id)
+        .maybeSingle();
+      if (error || !data?.payload) return;
+
+      if (window.NexoraData?.setJSON) {
+        NexoraData.setJSON('nexora_chat_v2', data.payload.chat || []);
+        NexoraData.setJSON('nexora_emotions', data.payload.emotions || []);
+        NexoraData.setJSON('nexora_topics', data.payload.topics || []);
+        NexoraData.setJSON('nexora_profile', data.payload.profile || { emotional: 0, logical: 0 });
+        NexoraData.setText(CHAT_SUMMARY_LS, data.payload.summary || '');
+      }
+      aiConversationSummary = data.payload.summary || '';
+      emotionHistory = data.payload.emotions || [];
+      topicMemory = data.payload.topics || [];
+      userProfile = data.payload.profile || { emotional: 0, logical: 0 };
+
+      resetChatDOM();
+      loadChatHistory();
+    } catch (e) {}
+  }
+
+  async function pushCloudHistory() {
+    if (!authClient || !authUser) return;
+    const payload = {
+      chat: window.NexoraData?.getJSON ? (NexoraData.getJSON('nexora_chat_v2', []) || []) : [],
+      emotions: emotionHistory || [],
+      topics: topicMemory || [],
+      profile: userProfile || { emotional: 0, logical: 0 },
+      summary: aiConversationSummary || '',
+    };
+    try {
+      await authClient.from(HISTORY_TABLE).upsert({
+        user_id: authUser.id,
+        payload,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' });
+    } catch (e) {}
+  }
+
+  function scheduleCloudSync() {
+    if (cloudSyncTimer) clearTimeout(cloudSyncTimer);
+    cloudSyncTimer = setTimeout(() => {
+      cloudSyncTimer = null;
+      pushCloudHistory();
+    }, 900);
+  }
+
+  window.switchAuthTab = function switchAuthTab(mode) {
+    authTab = mode === 'signup' ? 'signup' : 'login';
+    document.getElementById('authTabLogin')?.classList.toggle('active', authTab === 'login');
+    document.getElementById('authTabSignup')?.classList.toggle('active', authTab === 'signup');
+    const btn = document.getElementById('authPrimaryBtn');
+    if (btn) btn.textContent = authTab === 'signup' ? 'Create account' : 'Login';
+    authHint(authTab === 'signup'
+      ? 'Create account, then verify email if prompted.'
+      : 'Use your account to unlock private, user-only chat history.');
+  };
+
+  window.submitAuth = async function submitAuth() {
+    if (!authClient) return authHint('Supabase is not configured yet.', true);
+    const email = (document.getElementById('authEmail')?.value || '').trim();
+    const password = (document.getElementById('authPassword')?.value || '').trim();
+    if (!email || !password || password.length < 6) {
+      return authHint('Enter a valid email and a password with at least 6 characters.', true);
+    }
+
+    authHint('Please wait...');
+    try {
+      if (authTab === 'signup') {
+        const { error } = await authClient.auth.signUp({ email, password });
+        if (error) throw error;
+        authHint('Signup successful. Check your email if verification is enabled.');
+      } else {
+        const { data, error } = await authClient.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        if (data?.user) {
+          applySessionUser(data.user);
+          await ensureUserProfile(data.user);
+          await pullCloudHistory();
+          showScreen('chatScreen');
+          resetIdleTimer();
+          authHint('Logged in successfully.');
+        }
+      }
+    } catch (e) {
+      authHint(e?.message || 'Authentication failed.', true);
+    }
+  };
+
+  window.loginWithGoogle = async function loginWithGoogle() {
+    if (!authClient) return authHint('Supabase is not configured yet.', true);
+    authHint('Redirecting to Google...');
+    const { error } = await authClient.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.href },
+    });
+    if (error) authHint(error.message || 'Google login failed.', true);
+  };
+
+  window.logoutUser = async function logoutUser() {
+    if (!authClient) return;
+    await authClient.auth.signOut();
+    authUser = null;
+    showScreen('authScreen');
+    authHint('Logged out.');
+  };
+
+  function patchHistorySyncHook() {
+    const originalSave = window.saveChatHistory;
+    if (typeof originalSave !== 'function') return;
+    window.saveChatHistory = function patchedSaveChatHistory() {
+      originalSave();
+      scheduleCloudSync();
+    };
+  }
+
+  async function bootstrapAuth() {
+    if (!window.supabase?.createClient || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      showScreen('authScreen');
+      authHint('Set window.NEXORA_SUPABASE_URL and window.NEXORA_SUPABASE_ANON_KEY before app.js.', true);
+      return;
+    }
+
+    authClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    patchHistorySyncHook();
+    switchAuthTab('login');
+
+    const { data } = await authClient.auth.getSession();
+    if (data?.session?.user) {
+      applySessionUser(data.session.user);
+      await ensureUserProfile(data.session.user);
+      await pullCloudHistory();
+      showScreen('chatScreen');
+    } else {
+      showScreen('authScreen');
+    }
+
+    authClient.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        applySessionUser(session.user);
+        await ensureUserProfile(session.user);
+        await pullCloudHistory();
+        showScreen('chatScreen');
+      } else if (event === 'SIGNED_OUT') {
+        authUser = null;
+        showScreen('authScreen');
+      }
+    });
+  }
+
+  window._nexoraAuth = {
+    getClient: () => authClient,
+    getUser: () => authUser,
+  };
+
+  if (document.readyState === 'complete') bootstrapAuth();
+  else window.addEventListener('load', bootstrapAuth);
 })();

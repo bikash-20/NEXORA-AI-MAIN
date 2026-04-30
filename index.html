@@ -74,6 +74,10 @@
     <div class="mode-item" onclick="openStudyMode()"><span>📚</span> Study Mode</div>
     <div class="mode-item" onclick="openProgressDashboard()"><span>📊</span> Progress Dashboard</div>
     <div class="mode-item" onclick="openPodcast()"><span>🎧</span> Listen Mode</div>
+    <div class="mode-item" id="mode-tutor-toggle" onclick="toggleTutorMode()"><span>🧠</span> Tutor Mode: OFF</div>
+    <div class="mode-item" onclick="openReminderPanel()"><span>⏰</span> Daily Reminder</div>
+    <div class="mode-item" onclick="openGroupPanel()"><span>👥</span> Group Room</div>
+    <div class="mode-item" onclick="logoutUser()" style="color:#fca5a5"><span>🚪</span> Logout</div>
   </div>
 
   <!-- Search overlay -->
@@ -87,6 +91,38 @@
 
   <!-- Copy toast -->
   <div id="copyToast">Copied! 📋</div>
+
+  <div id="reminderPanel">
+    <div class="mini-panel-head">
+      <div class="mini-title">⏰ Daily Reminder</div>
+      <button class="mini-close" onclick="closeReminderPanel()">✕</button>
+    </div>
+    <div class="mini-panel-body">
+      <label class="mini-label">Time</label>
+      <input id="dailyReminderTime" class="mini-input" type="time" value="20:30" />
+      <label class="mini-label">Email (optional for daily email)</label>
+      <input id="dailyReminderEmail" class="mini-input" type="email" placeholder="you@example.com" />
+      <button class="mini-primary" onclick="saveDailyReminder()">Save Reminder</button>
+      <div id="dailyReminderHint" class="mini-hint"></div>
+    </div>
+  </div>
+
+  <div id="groupPanel">
+    <div class="mini-panel-head">
+      <div class="mini-title">👥 Group Study Room</div>
+      <button class="mini-close" onclick="closeGroupPanel()">✕</button>
+    </div>
+    <div class="mini-panel-body">
+      <input id="groupRoomCode" class="mini-input" placeholder="Room code (e.g. cse101)" />
+      <button class="mini-primary" onclick="joinGroupRoom()">Join Room</button>
+      <div id="groupRoomStatus" class="mini-hint"></div>
+      <div id="groupRoomFeed" class="group-feed"></div>
+      <div class="group-send-row">
+        <input id="groupRoomMsg" class="mini-input" placeholder="Send to room..." />
+        <button class="mini-primary" onclick="sendGroupMessage()">Send</button>
+      </div>
+    </div>
+  </div>
 
   <!-- API Key Setup Panel -->
   <div id="apiPanel">
@@ -159,8 +195,31 @@
     </div>
   </div>
 
+  <!-- AUTH SCREEN -->
+  <div class="screen active" id="authScreen">
+    <div class="auth-shell">
+      <div class="auth-brand">Nexora</div>
+      <h1 class="auth-title">Welcome back</h1>
+      <p class="auth-sub">Secure sign in to sync your chats across devices.</p>
+
+      <div class="auth-tabs">
+        <button id="authTabLogin" class="auth-tab active" onclick="switchAuthTab('login')">Login</button>
+        <button id="authTabSignup" class="auth-tab" onclick="switchAuthTab('signup')">Sign up</button>
+      </div>
+
+      <div class="auth-form">
+        <input id="authEmail" type="email" class="auth-input" placeholder="Email address" autocomplete="email" />
+        <input id="authPassword" type="password" class="auth-input" placeholder="Password (min 6 chars)" autocomplete="current-password" />
+        <button id="authPrimaryBtn" class="auth-primary-btn" onclick="submitAuth()">Login</button>
+        <button id="authGoogleBtn" class="auth-google-btn" onclick="loginWithGoogle()">Continue with Google</button>
+      </div>
+
+      <div id="authHint" class="auth-hint">Use your account to unlock private, user-only chat history.</div>
+    </div>
+  </div>
+
   <!-- NAME SCREEN -->
-  <div class="screen active" id="nameScreen">
+  <div class="screen" id="nameScreen">
     <div class="orb-container">
       <div class="orb-ring2"></div>
       <div class="orb-ring"></div>
@@ -251,6 +310,7 @@
       <div class="vc-btn" onclick="switchToChat()">
         <svg viewBox="0 0 24 24" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       </div>
+      <button class="voice-call-btn" id="voiceCallBtn" onclick="toggleVoiceCall()">📞 Start Call</button>
       <button class="mic-btn" id="micBtn" onclick="toggleMic()">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
           <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
@@ -972,7 +1032,13 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="./nexora-data.js"></script>
+<script>
+  // Replace with your Supabase project values.
+  window.NEXORA_SUPABASE_URL = 'https://YOUR_PROJECT.supabase.co';
+  window.NEXORA_SUPABASE_ANON_KEY = 'YOUR_ANON_KEY';
+</script>
 <script src="./app.js?v=20260429-8"></script>
 </body>
 </html>

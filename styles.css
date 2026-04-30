@@ -1,3 +1,159 @@
+#authScreen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 18px;
+  background: radial-gradient(1200px 600px at 50% -200px, rgba(124, 92, 255, 0.35), transparent 62%), #080b13;
+}
+.auth-shell {
+  width: 100%;
+  max-width: 360px;
+  background: rgba(15, 23, 42, 0.86);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 22px;
+  padding: 24px 18px;
+  box-shadow: 0 30px 70px rgba(2, 6, 23, 0.55);
+  backdrop-filter: blur(10px);
+}
+.auth-brand {
+  font-family: 'Sora', sans-serif;
+  color: #c4b5fd;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+.auth-title {
+  margin: 10px 0 4px;
+  font-family: 'Sora', sans-serif;
+  font-size: 28px;
+  color: #f8fafc;
+}
+.auth-sub {
+  margin: 0 0 16px;
+  color: #94a3b8;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.auth-tab {
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  background: rgba(15, 23, 42, 0.6);
+  color: #cbd5e1;
+  border-radius: 12px;
+  padding: 10px 0;
+  font-weight: 600;
+  cursor: pointer;
+}
+.auth-tab.active {
+  background: linear-gradient(120deg, #7c5cff, #5eead4);
+  color: #0f172a;
+  border-color: transparent;
+}
+.auth-form { display: grid; gap: 10px; }
+.auth-input {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(2, 6, 23, 0.65);
+  color: #f8fafc;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 14px;
+  outline: none;
+}
+.auth-input:focus {
+  border-color: rgba(167, 139, 250, 0.9);
+  box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.18);
+}
+.auth-primary-btn,
+.auth-google-btn {
+  border: none;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.auth-primary-btn {
+  background: linear-gradient(120deg, #7c5cff, #38bdf8);
+  color: #ffffff;
+}
+.auth-google-btn {
+  background: rgba(15, 23, 42, 0.9);
+  color: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+}
+.auth-hint {
+  margin-top: 12px;
+  font-size: 12px;
+  color: #93c5fd;
+  min-height: 17px;
+}
+
+.light-mode #authScreen {
+  background: radial-gradient(1000px 560px at 50% -240px, rgba(124, 92, 255, 0.2), transparent 65%), #eef2ff;
+}
+.light-mode .auth-shell {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(148, 163, 184, 0.22);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.13);
+}
+.light-mode .auth-title { color: #0f172a; }
+.light-mode .auth-sub { color: #475569; }
+.light-mode .auth-tab { background: #ffffff; color: #334155; }
+.light-mode .auth-input { background: #ffffff; color: #0f172a; }
+.light-mode .auth-google-btn { background: #ffffff; color: #0f172a; }
+
+#reminderPanel, #groupPanel {
+  position: absolute;
+  inset: 64px 14px auto 14px;
+  z-index: 3000;
+  display: none;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 14px;
+  padding: 12px;
+}
+#reminderPanel.open, #groupPanel.open { display: block; }
+.mini-panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.mini-title { font-size: 13px; font-weight: 700; color: #e2e8f0; }
+.mini-close { background: transparent; border: none; color: #94a3b8; font-size: 15px; cursor: pointer; }
+.mini-panel-body { display: grid; gap: 8px; }
+.mini-label { color: #94a3b8; font-size: 11px; }
+.mini-input {
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(2, 6, 23, 0.65);
+  color: #f8fafc;
+  border-radius: 10px;
+  padding: 10px 11px;
+  font-size: 13px;
+}
+.mini-primary {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(120deg, #7c5cff, #06b6d4);
+  cursor: pointer;
+}
+.mini-hint { font-size: 11px; color: #93c5fd; min-height: 14px; }
+.group-feed {
+  max-height: 130px;
+  overflow: auto;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 10px;
+  padding: 8px;
+  font-size: 12px;
+  color: #cbd5e1;
+  background: rgba(2, 6, 23, 0.5);
+}
+.group-send-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
 /* Source style block 1 */
 /* =============================================
      NEXORA PREMIUM DESIGN SYSTEM v2.0
@@ -514,6 +670,23 @@
   .mic-btn.active { background: linear-gradient(135deg, #ef4444, #dc2626); box-shadow: 0 0 30px rgba(239,68,68,0.5); }
   .mic-btn:active { transform: scale(0.95); }
   .mic-btn svg { width: 24px; height: 24px; }
+.voice-call-btn {
+  border: 1px solid rgba(148,163,184,0.28);
+  background: rgba(15,23,42,0.68);
+  color: #e2e8f0;
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+.voice-call-btn.active {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  border-color: transparent;
+  color: #052e16;
+  box-shadow: 0 0 18px rgba(34,197,94,0.38);
+}
 
   /* ===== CHAT SCREEN ===== */
   #chatScreen { min-height: 0; }
