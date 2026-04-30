@@ -482,20 +482,36 @@ function toggleTutorMode() {
     : 'Tutor Mode disabled. Back to normal answer style.'), 120);
 }
 
+function _openBackdrop() {
+  document.getElementById('miniPanelBackdrop')?.classList.add('open');
+}
+function _closeBackdrop() {
+  document.getElementById('miniPanelBackdrop')?.classList.remove('open');
+}
+function closeMiniPanels() {
+  closeReminderPanel();
+  closeGroupPanel();
+}
+
 function openReminderPanel() {
   toggleMenu();
   document.getElementById('reminderPanel')?.classList.add('open');
+  _openBackdrop();
 }
 function closeReminderPanel() {
   document.getElementById('reminderPanel')?.classList.remove('open');
+  // only close backdrop if group panel also closed
+  if (!document.getElementById('groupPanel')?.classList.contains('open')) _closeBackdrop();
 }
 
 function openGroupPanel() {
   toggleMenu();
   document.getElementById('groupPanel')?.classList.add('open');
+  _openBackdrop();
 }
 function closeGroupPanel() {
   document.getElementById('groupPanel')?.classList.remove('open');
+  if (!document.getElementById('reminderPanel')?.classList.contains('open')) _closeBackdrop();
 }
 
 function setMode(mode) {
