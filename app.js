@@ -11992,9 +11992,12 @@ const BACKEND_URL = 'https://nexora-backend-sigma.vercel.app';
       return;
     }
 
-    if (remaining === null) return;
-    const pct = remaining / limit;
-    badge.textContent = `${remaining}/${limit} msgs left`;
+    // Guard against null/undefined/NaN before rendering
+    if (remaining === null || remaining === undefined || isNaN(Number(remaining))) return;
+    const rem = Number(remaining);
+    const lim = Number(limit) || 40;
+    const pct = rem / lim;
+    badge.textContent = `${rem}/${lim} msgs left`;
     badge.className = 'nexora-usage-badge ' + (pct > 0.5 ? 'good' : pct > 0.2 ? 'warn' : 'low');
   }
 
