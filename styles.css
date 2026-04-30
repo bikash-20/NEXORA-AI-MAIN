@@ -3776,7 +3776,7 @@ body.light-mode #hljs-theme {
 .fc-save-all-btn:hover { background: rgba(16,185,129,0.2); }
 
 /* Flip card */
-.fc-card-wrap { perspective: 1000px; width: 100%; flex-shrink: 0; }
+.fc-card-wrap { perspective: 1000px; -webkit-perspective: 1000px; width: 100%; flex-shrink: 0; }
 .fc-card {
   width: 100%; height: 220px;
   cursor: pointer; position: relative;
@@ -3784,10 +3784,15 @@ body.light-mode #hljs-theme {
 .fc-card-inner {
   position: absolute; inset: 0;
   transition: transform 0.5s cubic-bezier(.4,2,.6,1);
+  -webkit-transition: -webkit-transform 0.5s cubic-bezier(.4,2,.6,1);
   transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
   border-radius: 20px;
 }
-.fc-card.flipped .fc-card-inner { transform: rotateY(180deg); }
+.fc-card.flipped .fc-card-inner {
+  transform: rotateY(180deg);
+  -webkit-transform: rotateY(180deg);
+}
 .fc-card-face {
   position: absolute; inset: 0;
   backface-visibility: hidden;
@@ -3796,6 +3801,9 @@ body.light-mode #hljs-theme {
   padding: 20px 22px;
   display: flex; flex-direction: column; justify-content: center;
   gap: 10px;
+  -webkit-transform: translateZ(0.01px);
+  transform: translateZ(0.01px);
+  will-change: transform;
 }
 .fc-card-face.front {
   background: linear-gradient(145deg, rgba(124,92,255,0.12), rgba(0,224,255,0.06));
@@ -3806,7 +3814,8 @@ body.light-mode #hljs-theme {
   background: linear-gradient(145deg, rgba(16,185,129,0.1), rgba(124,92,255,0.06));
   border: 1px solid rgba(16,185,129,0.25);
   box-shadow: 0 8px 32px rgba(16,185,129,0.12);
-  transform: rotateY(180deg);
+  transform: rotateY(180deg) translateZ(0.01px);
+  -webkit-transform: rotateY(180deg) translateZ(0.01px);
 }
 .fc-card-label {
   font-size: 9px; letter-spacing: 1.2px;
@@ -5232,6 +5241,7 @@ body.light-mode .podcast-seek-track { background: rgba(0,0,0,0.08); }
 
 .fc-card-wrap {
   perspective: 1600px;
+  -webkit-perspective: 1600px;
 }
 
 .fc-card {
@@ -5239,24 +5249,27 @@ body.light-mode .podcast-seek-track { background: rgba(0,0,0,0.08); }
   border-radius: 26px;
   position: relative;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .fc-card-inner {
   border-radius: 26px;
   transition: transform 0.55s cubic-bezier(.2,.85,.2,1);
+  -webkit-transition: -webkit-transform 0.55s cubic-bezier(.2,.85,.2,1);
   position: absolute;
   inset: 0;
   transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
 }
 
 .fc-card.flipped .fc-card-inner {
   transform: rotateY(180deg);
+  -webkit-transform: rotateY(180deg);
 }
 
 .fc-card-face {
   border-radius: 26px;
   padding: 24px 22px 18px;
-  overflow: hidden;
   position: absolute;
   inset: 0;
   backface-visibility: hidden;
@@ -5265,12 +5278,17 @@ body.light-mode .podcast-seek-track { background: rgba(0,0,0,0.08); }
   flex-direction: column;
   justify-content: center;
   gap: 10px;
+  /* Force GPU layer in Safari — fixes bleed-through bug */
+  -webkit-transform: translateZ(0.01px);
+  transform: translateZ(0.01px);
+  will-change: transform;
 }
 
 .fc-card-face::before {
   content: '';
   position: absolute;
   inset: 0;
+  border-radius: 26px;
   background:
     radial-gradient(circle at 18% 20%, rgba(255,255,255,0.10), transparent 24%),
     radial-gradient(circle at 82% 16%, rgba(124,92,255,0.16), transparent 20%),
@@ -5296,7 +5314,8 @@ body.light-mode .podcast-seek-track { background: rgba(0,0,0,0.08); }
     linear-gradient(145deg, rgba(16,185,129,0.12), rgba(124,92,255,0.06)),
     linear-gradient(180deg, rgba(16,20,34,0.96), rgba(11,15,26,0.98));
   border-color: rgba(16,185,129,0.24);
-  transform: rotateY(180deg);
+  transform: rotateY(180deg) translateZ(0.01px);
+  -webkit-transform: rotateY(180deg) translateZ(0.01px);
 }
 
 .fc-card-label {
