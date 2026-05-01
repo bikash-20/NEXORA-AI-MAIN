@@ -44,10 +44,13 @@
       <svg viewBox="0 0 24 24" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
     </button>
     <div class="header-center">
-      <div class="header-avatar">✨</div>
+      <div class="header-avatar-wrap">
+        <div class="header-avatar">✨</div>
+        <div class="status-ring" id="statusRing"></div>
+      </div>
       <div class="header-text">
         <h2>Nexora <span id="aiBadge" class="ai-badge offline"><span class="ai-dot"></span>Rule-based</span></h2>
-        <p id="headerStatus">here for you</p>
+        <p id="headerStatus"><span class="status-dot-live" id="statusDotLive"></span>here for you</p>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;">
@@ -61,22 +64,25 @@
 
   <!-- Mode dropdown -->
   <div id="modeToggle">
+    <div class="menu-section-label">Modes</div>
     <div class="mode-item selected" onclick="setMode('support')" id="mode-support"><span>🤍</span> Support Mode</div>
     <div class="mode-item" onclick="setMode('gossip')" id="mode-gossip"><span>✨</span> Gossip Mode</div>
     <div class="mode-item" onclick="setMode('hype')" id="mode-hype"><span>🔥</span> Hype Mode</div>
     <div class="mode-item" onclick="switchToVoice()" id="mode-voice"><span>🎙️</span> Voice Mode</div>
-    <div class="mode-item" onclick="toggleResponseMode()" id="mode-response-toggle"><span>🌐</span> Online Priority</div>
+    <div class="mode-item" id="mode-tutor-toggle" onclick="toggleTutorModeFromMenu()"><span>🧠</span> Tutor Mode: OFF</div>
+    <div class="menu-section-divider"></div>
+    <div class="menu-section-label">Tools</div>
     <div class="mode-item" onclick="openSearch()"><span>🔍</span> Search Chat</div>
-    <div class="mode-item" onclick="exportChat()"><span>💾</span> Export Chat</div>
-    <div class="mode-item" onclick="clearChat()" style="color:#f87171"><span>🗑️</span> Clear Chat</div>
     <div class="mode-item" onclick="openApiPanel()"><span>🔑</span> API Key Setup</div>
-    <div class="mode-item" onclick="openComparePanel()"><span>⚖️</span> AI Compare Mode</div>
+    <div class="mode-item" onclick="openComparePanel()"><span>⚖️</span> AI Compare</div>
     <div class="mode-item" onclick="openStudyMode()"><span>📚</span> Study Mode</div>
-    <div class="mode-item" onclick="openProgressDashboard()"><span>📊</span> Progress Dashboard</div>
+    <div class="mode-item" onclick="openProgressDashboard()"><span>📊</span> Progress</div>
     <div class="mode-item" onclick="openPodcast()"><span>🎧</span> Listen Mode</div>
-    <div class="mode-item" id="mode-tutor-toggle" onclick="toggleTutorMode()"><span>🧠</span> Tutor Mode: OFF</div>
+    <div class="menu-section-divider"></div>
+    <div class="menu-section-label">Account</div>
     <div class="mode-item" onclick="openReminderPanel()"><span>⏰</span> Daily Reminder</div>
     <div class="mode-item" onclick="openGroupPanel()"><span>👥</span> Group Room</div>
+    <div class="mode-item" onclick="clearChat()" style="color:#f87171"><span>🗑️</span> Clear Chat</div>
     <div class="mode-item" onclick="logoutUser()" style="color:#fca5a5"><span>🚪</span> Logout</div>
   </div>
 
@@ -246,6 +252,12 @@
     </div>
     <div id="messages">
       <div class="date-divider" id="dateDivider"></div>
+      <!-- Empty state — hidden once messages arrive -->
+      <div class="chat-empty-state" id="chatEmptyState">
+        <div class="ces-orb">✦</div>
+        <div class="ces-title">How can I help you today?</div>
+        <div class="ces-sub">Ask me anything — I'm here to listen, think, and guide.</div>
+      </div>
     </div>
     <!-- Scroll to bottom button -->
     <div id="scrollBtn" onclick="scrollToBottom()" title="Scroll to latest">↓</div>
