@@ -262,7 +262,7 @@ html.preload-light #phone {
     transition-timing-function: ease;
   }
   /* But keep motion-heavy elements instant so animations aren't sluggish */
-  .orb-slice, .voice-orb, .dot, .v-ring, .orb-shell, .orb-shell-inner, .orb-depth-1, .orb-depth-2 {
+  .orb-slice, .voice-orb, .dot, .v-ring, .orb-shell, .orb-shell-inner, .orb-depth-1, .orb-depth-2, .orb-rim {
     transition: none !important;
   }
 
@@ -713,43 +713,51 @@ html.preload-light #phone {
     }
   }
 
-  /* Deep void core — fully opaque so hue-drift never bleeds through */
+  /* Deep void core — tight bright nucleus, strong contrast to mid, opaque edge */
   .orb-shell-inner {
     position: absolute;
     inset: 3px;
     border-radius: 50%;
+    /* Nucleus tight at 15% → rapid falloff → near-black edge
+       Feels like light trapped inside, not painted on top */
     background:
       radial-gradient(circle at 38% 35%,
-        rgba(60, 20, 120, 0.55) 0%,
-        rgba(10, 5, 30, 0.97)   45%,
-        rgba(4,  2, 14, 1.00)   100%);
+        rgba(90,  35, 170, 0.70) 0%,
+        rgba(90,  35, 170, 0.68) 15%,
+        rgba(30,   8,  70, 0.92) 40%,
+        rgba(8,    3,  22, 0.98) 65%,
+        rgba(4,    2,  14, 1.00) 100%);
     z-index: 2;
   }
 
-  /* Depth layer 1 — large blurred nebula cloud at the back */
+  /* Depth layer 1 — large blurred nebula cloud, light source biased top-left */
   .orb-depth-1 {
     position: absolute;
     inset: 12%;
     border-radius: 50%;
-    background: radial-gradient(circle at 45% 50%,
-      rgba(100, 40, 220, 0.30) 0%,
-      rgba(0, 140, 255, 0.18) 45%,
-      transparent 75%);
+    background: radial-gradient(circle at 40% 38%,
+      rgba(120, 50, 240, 0.35) 0%,
+      rgba(80,  20, 200, 0.20) 35%,
+      transparent 70%);
     filter: blur(10px);
     z-index: 3;
     animation: nebula-drift 8s ease-in-out infinite;
     will-change: transform, opacity;
   }
 
-  /* Depth layer 2 — tighter iridescent core glow */
+  /* Depth layer 2 — electric blue-violet accent, aligned top-left with other light cues */
   .orb-depth-2 {
     position: absolute;
     inset: 28%;
     border-radius: 50%;
-    background: radial-gradient(circle at 52% 48%,
-      rgba(180, 100, 255, 0.22) 0%,
-      rgba(0, 200, 255, 0.14) 50%,
-      transparent 80%);
+    background:
+      radial-gradient(circle at 42% 40%,
+        rgba(160,  80, 255, 0.26) 0%,
+        rgba(100,  50, 230, 0.16) 35%,
+        transparent 60%),
+      radial-gradient(circle at 55% 52%,
+        rgba(80,  100, 255, 0.08) 0%,
+        transparent 50%);
     filter: blur(6px);
     z-index: 3;
     animation: nebula-drift 6s ease-in-out infinite reverse;
@@ -757,28 +765,27 @@ html.preload-light #phone {
   }
 
   @keyframes nebula-drift {
-    0%,100% { transform: translate(0, 0) scale(1);   opacity: 0.7; }
-    33%     { transform: translate(4%, 3%) scale(1.06); opacity: 1;   }
-    66%     { transform: translate(-3%, 5%) scale(0.95); opacity: 0.55; }
+    0%,100% { transform: translate(0, 0) scale(1);     opacity: 0.7;  }
+    33%     { transform: translate(3%, 2%) scale(1.05); opacity: 1.0;  }
+    66%     { transform: translate(-2%, 4%) scale(0.96); opacity: 0.55; }
   }
 
-  /* Petal slice container — clips to sphere */
+  /* Petal slice container — clips to sphere + carries the rare hue pulse */
   .orb-slices {
     position: absolute;
     inset: 6px;
     border-radius: 50%;
     overflow: hidden;
     z-index: 4;
+    /* Asymmetric timing: fast shift, slow return — feels like a pulse not a loop */
+    animation: hue-pulse-cool 13s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 
   /* Each petal slice — JS sets --i, --hue, --delay, --dur etc.
-     v3 fixes:
-     1. mix-blend-mode: lighten — preserves individual petal shapes, no blowout,
-        no center concentration like color-dodge caused
-     2. blur reduced 7px → 3px — petals stay distinct, edges soft not blobby
-     3. Petal size increased 68% → 78% — reaches the sphere edges like the reference
-     4. contrast boosted to 1.4 — "electric" hotspot at petal core, soft edges
-     5. Opacity range 0.72/0.38 kept — good breath range
+     Animation hierarchy:
+       PRIMARY  — luminance-flicker (life, 7s, ~1% amplitude)
+       SECONDARY — petal-spin + petal-morph (structure)
+       ACCENT   — hue-drift (mood, 10s, quiet)
   */
   .orb-slice {
     position: absolute;
@@ -795,23 +802,27 @@ html.preload-light #phone {
       hsla(calc(var(--hue) + 110),72%, 88%, 0.08) 100%
     );
     mix-blend-mode: lighten;
-    /* contrast(1.4) = electric hotspot; saturate(1.5) = vivid color */
     filter: blur(3px) contrast(1.4) saturate(1.5);
     will-change: transform, border-radius, opacity;
     animation:
-      petal-spin    var(--dur,  8s) cubic-bezier(0.45, 0, 0.55, 1) var(--delay,  0s) infinite,
-      petal-morph   var(--dur2, 6s) cubic-bezier(0.45, 0, 0.55, 1) var(--delay2, 0s) infinite,
-      petal-breathe 5s              cubic-bezier(0.4, 0, 0.2, 1)   var(--delay,  0s) infinite,
-      hue-drift     8s              ease-in-out                     var(--delay,  0s) infinite;
+      petal-spin        var(--dur,  8s) cubic-bezier(0.45, 0, 0.55, 1) var(--delay,  0s) infinite,
+      petal-morph       var(--dur2, 6s) cubic-bezier(0.45, 0, 0.55, 1) var(--delay2, 0s) infinite,
+      luminance-flicker 7s              cubic-bezier(0.4, 0, 0.2, 1)   var(--delay,  0s) infinite,
+      hue-drift         10s             ease-in-out                     var(--delay,  0s) infinite;
     margin-top: -39%;
     margin-left: -39%;
   }
 
-  /* Outer petals (last 3 of 10) desaturate — natural light falloff at edges */
+  /* Outer petals — locked hue, desaturated, subtle scale breath so they're
+     stable in color but not frozen in time */
   .orb-slice:nth-child(8),
   .orb-slice:nth-child(9),
   .orb-slice:nth-child(10) {
-    filter: blur(4px) contrast(1.2) saturate(0.65);
+    filter: blur(4px) contrast(1.15) saturate(0.60);
+    animation:
+      petal-spin         var(--dur,  8s) cubic-bezier(0.45, 0, 0.55, 1) var(--delay,  0s) infinite,
+      petal-morph        var(--dur2, 6s) cubic-bezier(0.45, 0, 0.55, 1) var(--delay2, 0s) infinite,
+      outer-scale-breath 9s              ease-in-out                     var(--delay,  0s) infinite;
   }
 
   @keyframes petal-spin {
@@ -830,16 +841,66 @@ html.preload-light #phone {
     80%     { border-radius: 75% 25% 55% 45% / 45% 55% 30% 70%; }
   }
 
-  /* Opacity pulse — "Nexora is breathing" */
+  /* Outer petal scale breath — stable color, not frozen in time */
+  @keyframes outer-scale-breath {
+    0%,100% { opacity: 0.62; }
+    50%     { opacity: 0.55; }
+  }
+
+  /* Opacity pulse — kept for fallback / reduced-motion contexts */
   @keyframes petal-breathe {
     0%,100% { opacity: 0.72; }
     50%     { opacity: 0.38; }
   }
 
-  /* Slow mood shift — capped at 20deg to stay in purple/magenta, never teal */
+  /* PRIMARY animation — luminance flicker (~1% amplitude, 7s, irregular keyframes)
+     This is the "life" signal. Others support it, not compete with it. */
+  @keyframes luminance-flicker {
+    0%,100% { opacity: 0.71; }
+    18%     { opacity: 0.70; }
+    42%     { opacity: 0.72; }
+    67%     { opacity: 0.69; }
+    83%     { opacity: 0.71; }
+  }
+
+  /* ACCENT — hue drift on inner petals, 10s, quiet (25° range) */
   @keyframes hue-drift {
-    0%,100% { filter: blur(3px) contrast(1.4) saturate(1.5) hue-rotate(0deg);  }
-    50%     { filter: blur(3px) contrast(1.4) saturate(1.5) hue-rotate(20deg); }
+    0%,100% { filter: blur(3px) contrast(1.4) saturate(1.5) hue-rotate(0deg);   }
+    50%     { filter: blur(3px) contrast(1.4) saturate(1.5) hue-rotate(25deg);  }
+  }
+
+  /* RARE EVENT — cool hue pulse, asymmetric: fast shift (1s), slow return (12s)
+     Feels like a pulse, not a loop. 13s total cycle. */
+  @keyframes hue-pulse-cool {
+    0%, 92%, 100% { filter: hue-rotate(0deg)   brightness(1);    }
+    94%           { filter: hue-rotate(-20deg)  brightness(1.04); }
+    97%           { filter: hue-rotate(-8deg)   brightness(1.02); }
+  }
+
+  /* Rim light — gradient opacity falloff so it reads as light wrap, not CSS border
+     Top-left brighter (aligned with all other light cues), bottom-right fades */
+  .orb-rim {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    /* Gradient border via background-clip trick — brighter top-left, fades bottom-right */
+    background: conic-gradient(
+      from 200deg,
+      rgba(200, 140, 255, 0.50) 0deg,
+      rgba(160, 100, 255, 0.30) 90deg,
+      rgba(120,  70, 220, 0.15) 180deg,
+      rgba(100,  50, 200, 0.08) 270deg,
+      rgba(200, 140, 255, 0.50) 360deg
+    );
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 1.5px), #fff calc(100% - 1.5px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 1.5px), #fff calc(100% - 1.5px));
+    pointer-events: none;
+    z-index: 6;
+    animation: rim-breathe 5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  }
+  @keyframes rim-breathe {
+    0%,100% { opacity: 0.55; }
+    50%     { opacity: 0.90; }
   }
 
   /* Top-left glare — glass specular highlight, offset to feel 3D */
@@ -905,8 +966,9 @@ html.preload-light #phone {
 
   /* Reduced motion */
   @media (prefers-reduced-motion: reduce) {
-    .orb-slice, .orb-shell, .orb-depth-1, .orb-depth-2 { animation: none !important; }
+    .orb-slice, .orb-shell, .orb-depth-1, .orb-depth-2, .orb-rim { animation: none !important; }
     .orb-container::before, .orb-container::after { animation: none !important; }
+    .orb-slices { animation: none !important; }
     .orb-container:hover { transform: none; }
   }
 
@@ -1823,6 +1885,22 @@ html.preload-light #phone {
   /* ===== BUBBLE COPY HINT ===== */
   .bot-bub { cursor: pointer; }
   .bot-bub:active { opacity: 0.8; }
+
+  /* ── Streaming cursor — blinks while tokens arrive ── */
+  .stream-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    background: var(--accent);
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    border-radius: 1px;
+    animation: stream-blink 0.7s ease-in-out infinite;
+  }
+  @keyframes stream-blink {
+    0%,100% { opacity: 1; }
+    50%      { opacity: 0; }
+  }
 
   /* ===== AI STATUS BADGE ===== */
   .ai-badge {
