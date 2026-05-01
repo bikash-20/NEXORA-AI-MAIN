@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Nexora — Your AI Companion</title>
 
 <!-- ═══ PWA — Manifest & Icons ═══ -->
@@ -24,9 +24,20 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <!-- Syntax Highlighting Theme -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" id="hljs-theme"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" id="hljs-theme" crossorigin="anonymous"/>
 
-  <link rel="stylesheet" href="./styles.css?v=20260429-7"/>
+<!-- Theme flash prevention — apply saved theme before first paint -->
+<script>
+  (function(){
+    try {
+      if (localStorage.getItem('nexora_theme') === 'light') {
+        document.documentElement.classList.add('preload-light');
+      }
+    } catch(e) {}
+  })();
+</script>
+
+  <link rel="stylesheet" href="./style.css?v=20260502-1"/>
 </head>
 <body>
 
@@ -206,10 +217,14 @@
 
   <!-- NAME SCREEN -->
   <div class="screen" id="nameScreen">
-    <div class="orb-container">
-      <div class="orb-ring2"></div>
-      <div class="orb-ring"></div>
-      <div class="orb"></div>
+    <div class="orb-container" id="nexoraOrbContainer">
+      <!-- JS injects petal slices here -->
+      <div class="orb-shell-inner"></div>
+      <div class="orb-depth-1"></div>
+      <div class="orb-depth-2"></div>
+      <div class="orb-slices" id="orbSlices"></div>
+      <div class="orb-shell"></div>
+      <div class="orb-glare"></div>
     </div>
     <p class="welcome-title">Meet Nexora</p>
     <p class="welcome-sub">Your personal AI companion — here to listen, support, and vibe with you 24/7.</p>
@@ -1017,6 +1032,13 @@
   </div>
   <button class="pwa-install-btn" onclick="installPWA()">Install</button>
   <button class="pwa-dismiss-btn" onclick="dismissPWABanner()" title="Dismiss">✕</button>
+</div>
+
+<!-- SW Update Banner -->
+<div id="swUpdateBanner">
+  <span>✨ New version available!</span>
+  <button onclick="applySwUpdate()">Update now</button>
+  <button onclick="this.parentElement.remove()" title="Dismiss">✕</button>
 </div>
 
 <!-- Markdown + Syntax Highlighting -->

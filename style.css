@@ -1,3 +1,15 @@
+/* ── Theme flash prevention ──────────────────────────────────────
+   Applied by inline script in <head> before first paint.
+   Prevents the dark→light flash for users with light mode saved.
+   JS removes this class after taking over theme control on load.
+   ─────────────────────────────────────────────────────────────── */
+html.preload-light body {
+  background: #F4F4FB !important;
+}
+html.preload-light #phone {
+  background: #F4F4FB !important;
+}
+
 /* ═══════════════════════════════════════════════════════════════
    REMINDER & GROUP PANELS — Polished bottom-sheet with backdrop
    ═══════════════════════════════════════════════════════════════ */
@@ -250,7 +262,7 @@
     transition-timing-function: ease;
   }
   /* But keep motion-heavy elements instant so animations aren't sluggish */
-  .orb, .voice-orb, .dot, .v-ring, .orb-ring, .orb-ring2 {
+  .orb-slice, .voice-orb, .dot, .v-ring, .orb-shell, .orb-shell-inner, .orb-depth-1, .orb-depth-2 {
     transition: none !important;
   }
 
@@ -562,7 +574,8 @@
   /* ===== NAME SCREEN ===== */
   #nameScreen {
     align-items: center; justify-content: flex-start;
-    padding: 32px 28px 28px; gap: 0;
+    padding: clamp(20px, 4vh, 40px) clamp(20px, 6vw, 32px) clamp(20px, 3vh, 32px);
+    gap: 0;
     overflow-y: auto;
   }
   /* Center vertically only when content fits */
@@ -570,81 +583,269 @@
     #nameScreen { justify-content: center; }
   }
 
+  /* ===== NEXORA ORB — Nebula Core (Dark Matter) ===== */
   .orb-container {
     position: relative;
-    width: var(--orb-size);
-    height: var(--orb-size);
-    margin-bottom: 32px;
+    width: clamp(150px, 38vw, 220px);
+    height: clamp(150px, 38vw, 220px);
+    margin-bottom: clamp(18px, 3vh, 32px);
+    flex-shrink: 0;
   }
 
-  .orb {
-    width: 100%; height: 100%;
-    border-radius: 50%;
-    background: radial-gradient(circle at 38% 36%, #b8aaff 0%, #7c5cff 38%, #3b1fa8 72%, #0b0f1a 100%);
-    box-shadow:
-      0 0 45px rgba(124,92,255,0.7),
-      0 0 90px rgba(124,92,255,0.4),
-      0 0 140px rgba(255,78,205,0.18),
-      inset 0 0 30px rgba(255,255,255,0.08);
-    animation: orb-breathe 4s ease-in-out infinite;
-    position: relative;
-    transition: box-shadow 0.5s ease;
-  }
-
-  .orb::before {
-    content: '';
+  /* Outer glass sphere shell — crisp purple ring with inset glow */
+  .orb-shell {
     position: absolute;
-    top: 12%; left: 18%;
-    width: 30%; height: 20%;
-    background: radial-gradient(ellipse, rgba(255,255,255,0.35) 0%, transparent 70%);
+    inset: 0;
     border-radius: 50%;
-    transform: rotate(-30deg);
+    /* Specular highlight — simulates a physical light source at top-left
+       hitting the glass surface. Makes the orb feel like a real object. */
+    background: radial-gradient(circle at 30% 30%,
+      rgba(255, 255, 255, 0.10) 0%,
+      rgba(200, 160, 255, 0.04) 35%,
+      transparent 60%);
+    border: 1.5px solid rgba(160, 90, 255, 0.70);
+    box-shadow:
+      0 0 0 1px rgba(0, 200, 255, 0.12),
+      0 0 35px rgba(120, 60, 255, 0.60),
+      0 0 70px rgba(0, 180, 255, 0.28),
+      0 0 120px rgba(200, 60, 255, 0.16),
+      inset 0 0 50px rgba(255, 255, 255, 0.08),
+      inset 0 0 25px rgba(120, 60, 255, 0.18);
+    animation: orb-shell-breathe 5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+    will-change: transform, box-shadow;
+    z-index: 5;
+    pointer-events: none;
   }
 
-  .orb-ring {
-    position: absolute; inset: -12px;
-    border-radius: 50%;
-    border: 1px solid rgba(124,92,255,0.3);
-    box-shadow: 0 0 10px rgba(124,92,255,0.15);
-    animation: orb-ring 4s ease-in-out infinite;
-  }
-  .orb-ring2 {
-    position: absolute; inset: -24px;
-    border-radius: 50%;
-    border: 1px solid rgba(0,224,255,0.12);
-    animation: orb-ring 4s ease-in-out infinite 0.5s;
+  @keyframes orb-shell-breathe {
+    0%,100% {
+      transform: scale(1);
+      box-shadow:
+        0 0 0 1px rgba(0,200,255,0.12),
+        0 0 35px rgba(120,60,255,0.60),
+        0 0 70px rgba(0,180,255,0.28),
+        0 0 120px rgba(200,60,255,0.16),
+        inset 0 0 50px rgba(255,255,255,0.08),
+        inset 0 0 25px rgba(120,60,255,0.18);
+    }
+    50% {
+      transform: scale(1.035);
+      box-shadow:
+        0 0 0 1px rgba(0,220,255,0.22),
+        0 0 50px rgba(140,60,255,0.80),
+        0 0 95px rgba(0,200,255,0.42),
+        0 0 155px rgba(220,60,255,0.24),
+        inset 0 0 65px rgba(255,255,255,0.12),
+        inset 0 0 35px rgba(140,60,255,0.25);
+    }
   }
 
-  @keyframes orb-breathe {
-    0%,100% { transform: scale(1); box-shadow: 0 0 45px rgba(124,92,255,0.7), 0 0 90px rgba(124,92,255,0.4), 0 0 140px rgba(0,224,255,0.15), inset 0 0 30px rgba(255,255,255,0.08); }
-    50% { transform: scale(1.04); box-shadow: 0 0 65px rgba(124,92,255,0.85), 0 0 110px rgba(0,224,255,0.45), 0 0 160px rgba(255,78,205,0.25), inset 0 0 40px rgba(255,255,255,0.12); }
+  /* Deep void core — the "dark matter" center */
+  .orb-shell-inner {
+    position: absolute;
+    inset: 3px;
+    border-radius: 50%;
+    /* Deep navy void — NOT solid black, has subtle depth layers */
+    background:
+      radial-gradient(circle at 38% 35%,
+        rgba(60, 20, 120, 0.45) 0%,
+        rgba(10, 5, 30, 0.92) 45%,
+        rgba(4, 2, 14, 0.98) 100%);
+    z-index: 2;
   }
-  @keyframes orb-ring {
-    0%,100% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.06); opacity: 0.6; }
+
+  /* Depth layer 1 — large blurred nebula cloud at the back */
+  .orb-depth-1 {
+    position: absolute;
+    inset: 12%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 45% 50%,
+      rgba(100, 40, 220, 0.30) 0%,
+      rgba(0, 140, 255, 0.18) 45%,
+      transparent 75%);
+    filter: blur(10px);
+    z-index: 3;
+    animation: nebula-drift 8s ease-in-out infinite;
+    will-change: transform, opacity;
+  }
+
+  /* Depth layer 2 — tighter iridescent core glow */
+  .orb-depth-2 {
+    position: absolute;
+    inset: 28%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 52% 48%,
+      rgba(180, 100, 255, 0.22) 0%,
+      rgba(0, 200, 255, 0.14) 50%,
+      transparent 80%);
+    filter: blur(6px);
+    z-index: 3;
+    animation: nebula-drift 6s ease-in-out infinite reverse;
+    will-change: transform, opacity;
+  }
+
+  @keyframes nebula-drift {
+    0%,100% { transform: translate(0, 0) scale(1);   opacity: 0.7; }
+    33%     { transform: translate(4%, 3%) scale(1.06); opacity: 1;   }
+    66%     { transform: translate(-3%, 5%) scale(0.95); opacity: 0.55; }
+  }
+
+  /* Petal slice container — clips to sphere */
+  .orb-slices {
+    position: absolute;
+    inset: 6px;
+    border-radius: 50%;
+    overflow: hidden;
+    z-index: 4;
+  }
+
+  /* Each petal slice — JS sets --i, --hue, --delay, --dur etc.
+     KEY FIXES vs previous version:
+     1. mix-blend-mode: color-dodge instead of screen → no white blowout
+     2. Lower opacity (0.55 max) → petals stay translucent, center stays dark
+     3. filter: blur(8px) contrast(1.2) → soft light-like edges, vivid color
+     4. Opacity pulses between 0.3–0.65 → "breathing" nebula feel
+  */
+  .orb-slice {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 68%;
+    height: 68%;
+    transform-origin: center center;
+    border-radius: 50% 20% 50% 20%;
+    background: linear-gradient(
+      135deg,
+      hsla(calc(var(--hue)),      88%, 65%, 0.55) 0%,
+      hsla(calc(var(--hue) + 40), 82%, 55%, 0.42) 40%,
+      hsla(calc(var(--hue) + 80), 78%, 72%, 0.28) 70%,
+      hsla(calc(var(--hue) + 120),72%, 85%, 0.08) 100%
+    );
+    /* color-dodge: adds luminance without blowing to white */
+    mix-blend-mode: color-dodge;
+    filter: blur(7px) contrast(1.25) saturate(1.4);
+    will-change: transform, border-radius, opacity;
+    animation:
+      petal-spin    var(--dur,  8s) cubic-bezier(0.45, 0, 0.55, 1) var(--delay,  0s) infinite,
+      petal-morph   var(--dur2, 6s) cubic-bezier(0.45, 0, 0.55, 1) var(--delay2, 0s) infinite,
+      petal-breathe 4s              cubic-bezier(0.4, 0, 0.2, 1)   var(--delay,  0s) infinite;
+    margin-top: -34%;
+    margin-left: -34%;
+  }
+
+  @keyframes petal-spin {
+    0%   { transform: rotate(var(--start-rot)) scaleX(0.85) scaleY(1.05); }
+    25%  { transform: rotate(calc(var(--start-rot) + 90deg))  scaleX(1.05) scaleY(0.88); }
+    50%  { transform: rotate(calc(var(--start-rot) + 180deg)) scaleX(0.90) scaleY(1.08); }
+    75%  { transform: rotate(calc(var(--start-rot) + 270deg)) scaleX(1.08) scaleY(0.85); }
+    100% { transform: rotate(calc(var(--start-rot) + 360deg)) scaleX(0.85) scaleY(1.05); }
+  }
+
+  @keyframes petal-morph {
+    0%,100% { border-radius: 50% 20% 50% 20% / 40% 60% 40% 60%; }
+    20%     { border-radius: 30% 70% 25% 75% / 55% 45% 65% 35%; }
+    40%     { border-radius: 65% 35% 70% 30% / 30% 70% 35% 65%; }
+    60%     { border-radius: 20% 80% 30% 70% / 70% 30% 60% 40%; }
+    80%     { border-radius: 75% 25% 55% 45% / 45% 55% 30% 70%; }
+  }
+
+  /* Opacity pulse — "Nexora is breathing"
+     0.72 peak: vivid and present
+     0.38 trough: dim but not ghost-like — you can still see the color
+     cubic-bezier(0.4, 0, 0.2, 1): longer hold at bright peak (inhale feels
+     purposeful), faster drop to dim (exhale feels relaxed). Mimics calm breathing.
+     Staggered per-petal via --delay so they don't all pulse together */
+  @keyframes petal-breathe {
+    0%,100% { opacity: 0.72; }
+    50%     { opacity: 0.38; }
+  }
+
+  /* Top-left glare — glass specular highlight, offset to feel 3D */
+  .orb-glare {
+    position: absolute;
+    top: 7%; left: 12%;
+    width: 34%; height: 20%;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at 38% 38%,
+      rgba(255, 255, 255, 0.22) 0%,
+      rgba(180, 150, 255, 0.10) 55%,
+      transparent 100%);
+    transform: rotate(-28deg);
+    pointer-events: none;
+    z-index: 10;
+    filter: blur(2px);
+  }
+
+  /* ── Orb responsive overrides ── */
+
+  /* Tiny phones (≤360px wide) */
+  @media (max-width: 360px) {
+    .orb-container { width: 140px; height: 140px; margin-bottom: 16px; }
+    .orb-shell {
+      box-shadow:
+        0 0 0 1px rgba(0,200,255,0.12),
+        0 0 22px rgba(120,60,255,0.55),
+        0 0 45px rgba(0,180,255,0.20),
+        inset 0 0 30px rgba(255,255,255,0.06),
+        inset 0 0 18px rgba(120,60,255,0.15);
+    }
+  }
+
+  /* Small phones (361–480px) */
+  @media (max-width: 480px) and (min-width: 361px) {
+    .orb-container { width: 160px; height: 160px; margin-bottom: 20px; }
+  }
+
+  /* Short screens — landscape phone */
+  @media (max-height: 600px) {
+    .orb-container { width: 120px; height: 120px; margin-bottom: 12px; }
+    .welcome-sub { display: none; }
+  }
+
+  /* Tablet */
+  @media (min-width: 600px) and (max-width: 900px) {
+    .orb-container { width: 200px; height: 200px; }
+  }
+
+  /* Large desktop */
+  @media (min-width: 1200px) {
+    .orb-container { width: 220px; height: 220px; margin-bottom: 32px; }
+    .orb-shell {
+      box-shadow:
+        0 0 0 1px rgba(0,200,255,0.18),
+        0 0 50px rgba(120,60,255,0.70),
+        0 0 100px rgba(0,180,255,0.36),
+        0 0 160px rgba(200,60,255,0.20),
+        inset 0 0 65px rgba(255,255,255,0.10),
+        inset 0 0 32px rgba(120,60,255,0.22);
+    }
+  }
+
+  /* Reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    .orb-slice, .orb-shell, .orb-depth-1, .orb-depth-2 { animation: none !important; }
   }
 
   .welcome-title {
     font-family: 'Sora', sans-serif;
-    font-size: 26px; font-weight: 600;
+    font-size: clamp(20px, 5vw, 26px); font-weight: 600;
     background: linear-gradient(135deg, #ffffff 20%, #a78bfa 60%, #00e0ff 100%);
     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     text-align: center;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
   }
 
   .welcome-sub {
-    font-size: 14px; color: var(--text2);
+    font-size: clamp(12px, 3vw, 14px); color: var(--text2);
     text-align: center; line-height: 1.6;
-    margin-bottom: 20px;
+    margin-bottom: clamp(12px, 2.5vh, 20px);
     max-width: 260px;
   }
 
   .welcome-byline {
-    font-size: 11px;
+    font-size: clamp(10px, 2.5vw, 11px);
     color: #7070a0;
     text-align: center;
-    margin-bottom: 28px;
+    margin-bottom: clamp(16px, 3vh, 28px);
     letter-spacing: 0.4px;
     display: flex; align-items: center; gap: 7px;
     justify-content: center;
@@ -3268,6 +3469,45 @@
   .pwa-dismiss-btn {
     background: transparent; border: none;
     color: rgba(255,255,255,0.7); font-size: 18px;
+    cursor: pointer; flex-shrink: 0; padding: 0 2px;
+    line-height: 1;
+  }
+
+  /* ── SW Update Banner ── */
+  #swUpdateBanner {
+    display: none;
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(380px, 92vw);
+    background: linear-gradient(135deg, rgba(30,20,60,0.97), rgba(10,14,28,0.97));
+    border: 1px solid rgba(124,92,255,0.45);
+    backdrop-filter: blur(14px);
+    border-radius: 16px;
+    padding: 12px 16px;
+    z-index: 10000;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(124,92,255,0.2);
+    color: #f1f5f9;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    gap: 10px;
+    align-items: center;
+  }
+  #swUpdateBanner.show { display: flex; }
+  #swUpdateBanner span { flex: 1; }
+  #swUpdateBanner button:first-of-type {
+    background: linear-gradient(135deg, #7c5cff, #00e0ff);
+    border: none; border-radius: 10px;
+    padding: 7px 14px; font-size: 12px; font-weight: 600;
+    color: white; cursor: pointer; flex-shrink: 0;
+    font-family: 'Sora', sans-serif;
+    transition: opacity 0.15s;
+  }
+  #swUpdateBanner button:first-of-type:hover { opacity: 0.88; }
+  #swUpdateBanner button:last-of-type {
+    background: transparent; border: none;
+    color: rgba(255,255,255,0.5); font-size: 16px;
     cursor: pointer; flex-shrink: 0; padding: 0 2px;
     line-height: 1;
   }

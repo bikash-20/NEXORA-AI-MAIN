@@ -152,6 +152,47 @@ function getChatRows() {
 }
 
 // ==============================
+//  NEXORA ORB — Fluid Petal Generator
+//  Builds the animated glass-petal orb on the name screen
+//  using staggered CSS custom properties + mix-blend-mode
+// ==============================
+function initNexoraOrb() {
+  const container = document.getElementById('orbSlices');
+  if (!container) return;
+
+  // Fewer slices = less overlap = no white blowout in center
+  const SLICE_COUNT = 10;
+
+  // Nebula palette: deep purples, hot pinks, cool cyans only
+  // Deliberately NO greens (120°) or yellows (60°) — those mix to white
+  const hueAnchors = [270, 285, 300, 320, 195, 210, 260, 280, 310, 230];
+
+  for (let i = 0; i < SLICE_COUNT; i++) {
+    const slice = document.createElement('div');
+    slice.className = 'orb-slice';
+
+    const startRot  = (i / SLICE_COUNT) * 360;
+    const delay     = -(i * 0.55).toFixed(2);
+    const delay2    = -(i * 0.30).toFixed(2);
+    const dur       = (9 + (i % 4) * 0.8).toFixed(1);
+    const dur2      = (6 + (i % 3) * 0.6).toFixed(1);
+    const hue       = hueAnchors[i % hueAnchors.length];
+
+    slice.style.cssText = `
+      --i: ${i};
+      --start-rot: ${startRot}deg;
+      --delay: ${delay}s;
+      --delay2: ${delay2}s;
+      --dur: ${dur}s;
+      --dur2: ${dur2}s;
+      --hue: ${hue};
+    `;
+
+    container.appendChild(slice);
+  }
+}
+
+// ==============================
 //  MARKED.JS — Markdown Renderer Setup
 //  Gives AI replies the Claude/ChatGPT visual quality:
 //  code blocks, tables, numbered lists, math steps, etc.
@@ -317,6 +358,7 @@ window.addEventListener('load', async () => {
   resetTransientPanels(localStorage.getItem('nexora_name') ? 'chatScreen' : 'nameScreen');
   initResponseMode(); // set online/offline mode based on saved key
   initMarked();       // configure marked.js + highlight.js renderer
+  initNexoraOrb();    // build the fluid petal orb on the name screen
   updateClock();
   setInterval(updateClock, 30000);
 
@@ -334,6 +376,8 @@ window.addEventListener('load', async () => {
     document.body.classList.add('light-mode');
     document.getElementById('themeToggle').textContent = '☀️';
   }
+  // Remove the preload class now that JS has taken over theme control
+  document.documentElement.classList.remove('preload-light');
 
   const savedName = localStorage.getItem('nexora_name');
   if (savedName) {
@@ -8149,17 +8193,27 @@ function _escHtml(str) {
 
 /* Source script block 3 */
 // ── Service Worker Registration ──
+let _swReg = null; // keep reference for update
+
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js?v=20260426-2')
+    navigator.serviceWorker.register('./sw.js?v=20260502-1')
       .then(reg => {
+        _swReg = reg;
         console.log('[Nexora PWA] Service Worker registered:', reg.scope);
-        // Check for updates
+
+        // Check for updates on every load
+        reg.update().catch(() => {});
+
         reg.addEventListener('updatefound', () => {
           const newWorker = reg.installing;
+          if (!newWorker) return;
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // New version ready — show update banner
               console.log('[Nexora PWA] New version available!');
+              const banner = document.getElementById('swUpdateBanner');
+              if (banner) banner.classList.add('show');
             }
           });
         });
@@ -8168,6 +8222,16 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   });
 } else if (location.protocol === 'file:') {
   console.info('[Nexora PWA] Service workers are disabled on file:// previews. Use localhost or hosting for full PWA support.');
+}
+
+// Apply SW update — tell waiting worker to take over, then reload
+function applySwUpdate() {
+  if (_swReg?.waiting) {
+    _swReg.waiting.postMessage({ type: 'SKIP_WAITING' });
+  }
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    window.location.reload();
+  });
 }
 
 // ── Install Prompt ──
