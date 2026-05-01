@@ -8503,33 +8503,16 @@ let _swReg = null;
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', () => {
-    // Register without version query string — the SW file itself handles versioning.
-    // A query string on sw.js changes its URL and can confuse update detection.
-    navigator.serviceWorker.register('./sw.js')
+    navigator.serviceWorker.register('./sw.js?v=20260502-3')
       .then(reg => {
         _swReg = reg;
-        console.log('[Nexora PWA] SW registered:', reg.scope);
-        // Immediately check for a newer SW version in the background
+        console.log('[Nexora PWA] Service Worker registered:', reg.scope);
         reg.update().catch(() => {});
-        reg.addEventListener('updatefound', () => {
-          console.log('[Nexora PWA] New SW version found — installing...');
-        });
       })
       .catch(err => console.warn('[Nexora PWA] SW registration failed:', err));
-
-    // When a new SW takes control of this tab, reload once to get
-    // fresh HTML/JS/CSS — this replaces the need for hard refresh.
-    let reloading = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (!reloading) {
-        reloading = true;
-        console.log('[Nexora PWA] New SW active — reloading for fresh assets');
-        window.location.reload();
-      }
-    });
   });
 } else if (location.protocol === 'file:') {
-  console.info('[Nexora PWA] SW disabled on file:// — use localhost for full PWA support.');
+  console.info('[Nexora PWA] Service workers disabled on file:// — use localhost for full PWA support.');
 }
 
 
