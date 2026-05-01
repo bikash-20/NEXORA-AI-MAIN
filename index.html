@@ -83,7 +83,7 @@
     <div class="mode-item" onclick="openReminderPanel()"><span>⏰</span> Daily Reminder</div>
     <div class="mode-item" onclick="openGroupPanel()"><span>👥</span> Group Room</div>
     <div class="mode-item" onclick="clearChat()" style="color:#f87171"><span>🗑️</span> Clear Chat</div>
-    <div class="mode-item" onclick="logoutUser()" style="color:#fca5a5"><span>🚪</span> Logout</div>
+
   </div>
 
   <!-- Search overlay -->
@@ -201,29 +201,6 @@
     <div style="font-size:11px;color:var(--text3);text-align:center;line-height:1.6;">
       Keys stored only in <em>your</em> browser — never shared.<br>
       <span style="color:var(--success);">Pollinations AI is always active as free fallback.</span>
-    </div>
-  </div>
-
-  <!-- AUTH SCREEN -->
-  <div class="screen active" id="authScreen">
-    <div class="auth-shell">
-      <div class="auth-brand">Nexora</div>
-      <h1 class="auth-title">Welcome back</h1>
-      <p class="auth-sub">Secure sign in to sync your chats across devices.</p>
-
-      <div class="auth-tabs">
-        <button id="authTabLogin" class="auth-tab active" onclick="switchAuthTab('login')">Login</button>
-        <button id="authTabSignup" class="auth-tab" onclick="switchAuthTab('signup')">Sign up</button>
-      </div>
-
-      <div class="auth-form">
-        <input id="authEmail" type="email" class="auth-input" placeholder="Email address" autocomplete="email" />
-        <input id="authPassword" type="password" class="auth-input" placeholder="Password (min 6 chars)" autocomplete="current-password" />
-        <button id="authPrimaryBtn" class="auth-primary-btn" onclick="submitAuth()">Login</button>
-        <button id="authGoogleBtn" class="auth-google-btn" onclick="loginWithGoogle()">Continue with Google</button>
-      </div>
-
-      <div id="authHint" class="auth-hint">Use your account to unlock private, user-only chat history.</div>
     </div>
   </div>
 
@@ -1047,13 +1024,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="./nexora-data.js"></script>
-<script>
-  // Replace with your Supabase project values.
-  window.NEXORA_SUPABASE_URL = 'https://YOUR_PROJECT.supabase.co';
-  window.NEXORA_SUPABASE_ANON_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ4a2RlbHdsbmJlbW5rdmFxb25yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1NjY5OTksImV4cCI6MjA5MzE0Mjk5OX0.MsBaPiGW0krotgZXz2Rcl7VToOu71tmJpct3XiPVLD8;
-</script>
 <script src="./app.js?v=20260429-8"></script>
 </body>
 </html>
