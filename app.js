@@ -449,6 +449,12 @@ function showScreen(id) {
   currentScreen = id;
 }
 
+// Hide the "How can I help?" empty state once content arrives
+function _hideEmptyState() {
+  const el = document.getElementById('chatEmptyState');
+  if (el && !el.classList.contains('hidden')) el.classList.add('hidden');
+}
+
 function handleBack() {
   if (currentScreen === 'voiceScreen') switchToChat();
   if (currentScreen === 'studyScreen') closeStudyMode();
@@ -480,6 +486,12 @@ function toggleTutorMode() {
   setTimeout(() => typeBot(tutorModeEnabled
     ? '🧠 Tutor Mode enabled! I will teach using hints + questions, not just direct answers.'
     : 'Tutor Mode disabled. Back to normal answer style.'), 120);
+}
+
+// Called from menu — closes menu first, then toggles
+function toggleTutorModeFromMenu() {
+  if (menuOpen) toggleMenu();
+  toggleTutorMode();
 }
 
 function _openBackdrop() {
@@ -1908,6 +1920,9 @@ function addUserMsg(text) {
   messages.appendChild(row);
   messages.scrollTop = messages.scrollHeight;
 
+  // Hide empty state on first message
+  _hideEmptyState();
+
   // Push to session conversation log for in-session memory
   sessionLog.push({ role: 'user', text });
   if (sessionLog.length > 20) sessionLog.shift();
@@ -2369,8 +2384,20 @@ function clearChat() {
   toggleMenu();
   if (!confirm('Clear all chat history? This cannot be undone.')) return;
   const messages = document.getElementById('messages');
-  // Keep the date divider
-  messages.innerHTML = '<div class="date-divider" id="dateDivider">' + getTodayLabel() + '</div>';
+  // Restore date divider + empty state (no animation class yet)
+  messages.innerHTML = `<div class="date-divider" id="dateDivider">${getTodayLabel()}</div>
+    <div class="chat-empty-state hidden" id="chatEmptyState">
+      <div class="ces-orb">✦</div>
+      <div class="ces-title">How can I help you today?</div>
+      <div class="ces-sub">Ask me anything — I'm here to listen, think, and guide.</div>
+    </div>`;
+  // Force re-trigger of the staggered entrance by toggling hidden off next frame
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const ces = document.getElementById('chatEmptyState');
+      if (ces) ces.classList.remove('hidden');
+    });
+  });
   // Remove context chips
   const chips = document.querySelector('.context-chips');
   if (chips) chips.remove();
@@ -9754,6 +9781,11 @@ function _studyTimeEnd() {
     oldToggleTutorMode();
     localStorage.setItem(LS_TUTOR_MODE, tutorModeEnabled ? '1' : '0');
   };
+  // Re-expose the menu variant so HTML onclick still works after this IIFE
+  window.toggleTutorModeFromMenu = function() {
+    if (menuOpen) toggleMenu();
+    window.toggleTutorMode();
+  };
 
   if (document.readyState === 'complete') bootstrapCommunityUI();
   else window.addEventListener('load', bootstrapCommunityUI);
@@ -11376,7 +11408,7 @@ function _getSmartSuggestions() {
     ...timeBased,
     { icon:'🌤️', label:'Weather', msg:'What\'s the weather like?' },
     { icon:'📚', label:'Study Mode', msg:null, action: () => openStudyMode() },
-    { icon:'💬', label:'Just chat', msg:'Let\'s just have a casual conversation' },
+    { icon:'⚖️', label:'AI Compare', msg:null, action: () => openComparePanel() },
     { icon:'🎯', label:'Set a goal', msg:'Help me set a goal for today' },
   ];
 }
@@ -11390,6 +11422,9 @@ function renderSmartSuggestions() {
   ).join('');
   bar.querySelectorAll('.smart-chip').forEach((chip, i) => {
     chip.addEventListener('click', () => {
+      // Tap-to-dismiss: fade the chip out
+      chip.classList.add('chip-dismissed');
+      setTimeout(() => { if (chip.parentNode) chip.remove(); }, 280);
       const s = suggestions[i];
       if (s.action) { s.action(); return; }
       if (s.msg) { document.getElementById('userInput').value = s.msg; sendMessage(); }
@@ -12290,9 +12325,20 @@ const BACKEND_URL = 'https://nexora-backend-sigma.vercel.app';
   function resetChatDOM() {
     const messages = document.getElementById('messages');
     if (!messages) return;
-    messages.innerHTML = '<div class="date-divider" id="dateDivider"></div>';
+    // Restore divider + empty state (hidden first so animation re-fires)
+    messages.innerHTML = `<div class="date-divider" id="dateDivider"></div>
+      <div class="chat-empty-state hidden" id="chatEmptyState">
+        <div class="ces-orb">✦</div>
+        <div class="ces-title">How can I help you today?</div>
+        <div class="ces-sub">Ask me anything — I'm here to listen, think, and guide.</div>
+      </div>`;
     const divider = document.getElementById('dateDivider');
     if (divider) divider.textContent = getTodayLabel();
+    // Double-rAF so the entrance animation plays cleanly
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const ces = document.getElementById('chatEmptyState');
+      if (ces) ces.classList.remove('hidden');
+    }));
   }
 
   function applySessionUser(user) {
