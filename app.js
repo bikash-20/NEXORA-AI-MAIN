@@ -8193,98 +8193,22 @@ function _escHtml(str) {
 
 /* Source script block 3 */
 // ── Service Worker Registration ──
-let _swReg = null; // keep reference for update
+// Install prompt and update notifications are handled by pwa-install.js
+let _swReg = null;
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js?v=20260502-1')
+    navigator.serviceWorker.register('./sw.js?v=20260502-2')
       .then(reg => {
         _swReg = reg;
         console.log('[Nexora PWA] Service Worker registered:', reg.scope);
-
-        // Check for updates on every load
         reg.update().catch(() => {});
-
-        reg.addEventListener('updatefound', () => {
-          const newWorker = reg.installing;
-          if (!newWorker) return;
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // New version ready — show update banner
-              console.log('[Nexora PWA] New version available!');
-              const banner = document.getElementById('swUpdateBanner');
-              if (banner) banner.classList.add('show');
-            }
-          });
-        });
       })
       .catch(err => console.warn('[Nexora PWA] SW registration failed:', err));
   });
 } else if (location.protocol === 'file:') {
-  console.info('[Nexora PWA] Service workers are disabled on file:// previews. Use localhost or hosting for full PWA support.');
+  console.info('[Nexora PWA] Service workers disabled on file:// — use localhost for full PWA support.');
 }
-
-// Apply SW update — tell waiting worker to take over, then reload
-function applySwUpdate() {
-  if (_swReg?.waiting) {
-    _swReg.waiting.postMessage({ type: 'SKIP_WAITING' });
-  }
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    window.location.reload();
-  });
-}
-
-// ── Install Prompt ──
-let deferredInstallPrompt = null;
-
-window.addEventListener('beforeinstallprompt', e => {
-  if (location.protocol === 'file:') return;
-  e.preventDefault();
-  deferredInstallPrompt = e;
-  // Show banner after 3 seconds if not already installed
-  const dismissed = sessionStorage.getItem('pwa_banner_dismissed');
-  if (!dismissed) {
-    setTimeout(() => {
-      document.getElementById('pwaInstallBanner').classList.add('show');
-    }, 3000);
-  }
-});
-
-function installPWA() {
-  const banner = document.getElementById('pwaInstallBanner');
-  banner.classList.remove('show');
-  if (!deferredInstallPrompt) return;
-  deferredInstallPrompt.prompt();
-  deferredInstallPrompt.userChoice.then(choice => {
-    if (choice.outcome === 'accepted') {
-      console.log('[Nexora PWA] User installed the app 🎉');
-      if (typeof typeBot === 'function') {
-        setTimeout(() => typeBot('🎉 Nexora is now installed on your device! You can open it from your home screen anytime — even offline. Welcome to the app! 💜'), 500);
-      }
-    }
-    deferredInstallPrompt = null;
-  });
-}
-
-function dismissPWABanner() {
-  document.getElementById('pwaInstallBanner').classList.remove('show');
-  sessionStorage.setItem('pwa_banner_dismissed', '1');
-}
-
-// Hide banner if already installed (standalone mode)
-if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
-  document.getElementById('pwaInstallBanner')?.classList.remove('show');
-}
-if (location.protocol === 'file:') {
-  document.getElementById('pwaInstallBanner')?.classList.remove('show');
-}
-
-// ── Installed event ──
-window.addEventListener('appinstalled', () => {
-  deferredInstallPrompt = null;
-  document.getElementById('pwaInstallBanner')?.classList.remove('show');
-  console.log('[Nexora PWA] App installed successfully!');
-});
 
 
 // ══════════════════════════════════════════════════════════════════════

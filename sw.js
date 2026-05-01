@@ -8,7 +8,7 @@
 // ============================================================
 
 // ── Change this on every deploy (ISO date + deploy counter) ──────
-const CACHE_VERSION = '20260502-1';
+const CACHE_VERSION = '20260502-2';
 const CACHE_NAME = `nexora-v${CACHE_VERSION}`;
 
 // Core files to cache on install
@@ -16,6 +16,8 @@ const CORE_ASSETS = [
   './',
   './index.html',
   './style.css',
+  './pwa-install.css',
+  './pwa-install.js',
   './nexora-data.js',
   './nexora-study-worker.js',
   './app.js',
@@ -38,6 +40,8 @@ const APP_SHELL_PATHS = new Set([
   '/nexora-study-worker.js',
   '/app.js',
   '/style.css',
+  '/pwa-install.css',
+  '/pwa-install.js',
   '/manifest.json',
   '/sw.js',
 ]);

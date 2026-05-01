@@ -38,6 +38,7 @@
 </script>
 
   <link rel="stylesheet" href="./style.css?v=20260502-1"/>
+  <link rel="stylesheet" href="./pwa-install.css?v=20260502-2"/>
 </head>
 <body>
 
@@ -1019,34 +1020,30 @@
 
 </div><!-- /phone -->
 
-<!-- ═══════════════════════════════════════════════
-     PWA — Service Worker Registration + Install Prompt
-     ═══════════════════════════════════════════════ -->
-
-<!-- Install Banner HTML -->
-<div id="pwaInstallBanner">
-  <div class="pwa-banner-icon">📲</div>
-  <div class="pwa-banner-text">
-    <strong>Install Nexora as an App!</strong>
-    <span>Works offline · No browser bar · Faster</span>
-  </div>
-  <button class="pwa-install-btn" onclick="installPWA()">Install</button>
-  <button class="pwa-dismiss-btn" onclick="dismissPWABanner()" title="Dismiss">✕</button>
-</div>
-
-<!-- SW Update Banner -->
-<div id="swUpdateBanner">
-  <span>✨ New version available!</span>
-  <button onclick="applySwUpdate()">Update now</button>
-  <button onclick="this.parentElement.remove()" title="Dismiss">✕</button>
-</div>
-
 <!-- Markdown + Syntax Highlighting -->
 <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="./nexora-data.js"></script>
-<script src="./app.js?v=20260429-8"></script>
+<script src="./app.js?v=20260502-2"></script>
+<script src="./pwa-install.js?v=20260502-2" defer></script>
+
+<!-- Orb magnetic cursor glow — tracks mouse over the orb container -->
+<script>
+  (function() {
+    const orb = document.getElementById('nexoraOrbContainer');
+    if (!orb) return;
+    orb.addEventListener('mousemove', function(e) {
+      const r = orb.getBoundingClientRect();
+      orb.style.setProperty('--mx', ((e.clientX - r.left) / r.width  * 100).toFixed(1) + '%');
+      orb.style.setProperty('--my', ((e.clientY - r.top)  / r.height * 100).toFixed(1) + '%');
+    });
+    orb.addEventListener('mouseleave', function() {
+      orb.style.setProperty('--mx', '50%');
+      orb.style.setProperty('--my', '50%');
+    });
+  })();
+</script>
 </body>
 </html>
