@@ -8198,7 +8198,7 @@ let _swReg = null;
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js?v=20260502-2')
+    navigator.serviceWorker.register('./sw.js?v=20260502-3')
       .then(reg => {
         _swReg = reg;
         console.log('[Nexora PWA] Service Worker registered:', reg.scope);

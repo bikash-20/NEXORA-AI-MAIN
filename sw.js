@@ -8,7 +8,7 @@
 // ============================================================
 
 // ── Change this on every deploy (ISO date + deploy counter) ──────
-const CACHE_VERSION = '20260502-2';
+const CACHE_VERSION = '20260502-3';
 const CACHE_NAME = `nexora-v${CACHE_VERSION}`;
 
 // Core files to cache on install
