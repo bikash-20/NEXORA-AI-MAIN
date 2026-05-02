@@ -583,392 +583,114 @@ html.preload-light #phone {
     #nameScreen { justify-content: center; }
   }
 
-  /* ===== NEXORA ORB — Nebula Core (Dark Matter) ===== */
+  /* ===== NEXORA ORB — Hex Mesh Sphere ===== */
   .orb-container {
     position: relative;
     width: clamp(150px, 38vw, 220px);
     height: clamp(150px, 38vw, 220px);
     margin-bottom: clamp(18px, 3vh, 32px);
     flex-shrink: 0;
-    will-change: transform, filter;
-    /* Rim light + strong pure-purple ambient — no warm/teal tones */
-    box-shadow:
-      inset 0 0 2px 1px rgba(255, 255, 255, 0.12),
-      0 0 55px 15px rgba(120, 50, 255, 0.32),
-      0 0 100px 30px rgba(100, 30, 220, 0.14);
     border-radius: 50%;
-    --mx: 50%;
-    --my: 50%;
   }
 
-  /* Hover — scale + purple glow boost, no teal */
+  /* Hover lift */
   .orb-container:hover {
     transform: scale(1.03);
-    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
-                filter 0.4s ease,
-                box-shadow 0.4s ease;
-    filter: brightness(1.08);
-    box-shadow:
-      inset 0 0 2px 1px rgba(255, 255, 255, 0.18),
-      0 0 70px 22px rgba(140, 60, 255, 0.42),
-      0 0 130px 40px rgba(110, 30, 230, 0.20);
-  }
-  /* Speed up breath on hover — petals feel reactive */
-  .orb-container:hover .orb-slice {
-    animation-duration: 3s, 4s, 3s;
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
-  /* Ambient vignette — orb illuminates the air around it.
-     Also carries the magnetic cursor glow via --mx/--my. */
-  .orb-container::before {
-    content: '';
-    position: absolute;
-    top: 50%; left: 50%;
-    width: 280%; height: 280%;
-    transform: translate(-50%, -50%);
+  /* ── Canvas fills the container ── */
+  .orb-canvas {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
     border-radius: 50%;
-    background:
-      /* Magnetic cursor glow — follows mouse via JS */
-      radial-gradient(circle at var(--mx) var(--my),
-        rgba(255, 255, 255, 0.10) 0%,
-        transparent 55%),
-      /* Ambient purple/cyan halo */
-      radial-gradient(circle at 50% 50%,
-        rgba(120, 60, 255, 0.09) 0%,
-        rgba(0, 180, 255, 0.05) 35%,
-        transparent 65%);
-    pointer-events: none;
-    z-index: 0;
-    transition: background 0.1s ease;
-    animation: vignette-pulse 5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    display: block;
   }
 
-  @keyframes vignette-pulse {
-    0%,100% { opacity: 0.7; transform: translate(-50%, -50%) scale(1);    }
-    50%     { opacity: 1;   transform: translate(-50%, -50%) scale(1.06); }
-  }
-
-  /* Secondary specular — sharper bright arc, sits above the shell */
-  .orb-container::after {
-    content: '';
+  /* ── Outer ambient halo ── */
+  .orb-halo {
     position: absolute;
-    top: 14%; left: 22%;
-    width: 28%; height: 18%;
-    background: radial-gradient(ellipse at center,
-      rgba(255, 255, 255, 0.50) 0%,
-      rgba(255, 255, 255, 0.12) 50%,
-      transparent 100%);
+    inset: -30%;
     border-radius: 50%;
-    transform: rotate(-30deg);
-    filter: blur(4px);
-    pointer-events: none;
-    z-index: 11;
-  }
-
-  /* Outer glass sphere shell — crisp purple ring with inset glow */
-  .orb-shell {
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    /* Specular highlight — simulates a physical light source at top-left
-       hitting the glass surface. Makes the orb feel like a real object. */
-    background: radial-gradient(circle at 30% 30%,
-      rgba(255, 255, 255, 0.10) 0%,
-      rgba(200, 160, 255, 0.04) 35%,
-      transparent 60%);
-    border: 1.5px solid rgba(160, 90, 255, 0.70);
-    box-shadow:
-      0 0 0 1px rgba(0, 200, 255, 0.12),
-      0 0 35px rgba(120, 60, 255, 0.60),
-      0 0 70px rgba(0, 180, 255, 0.28),
-      0 0 120px rgba(200, 60, 255, 0.16),
-      inset 0 0 50px rgba(255, 255, 255, 0.08),
-      inset 0 0 25px rgba(120, 60, 255, 0.18);
-    animation: orb-shell-breathe 5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
-    will-change: transform, box-shadow;
-    z-index: 5;
-    pointer-events: none;
-  }
-
-  @keyframes orb-shell-breathe {
-    0%,100% {
-      transform: scale(1);
-      box-shadow:
-        0 0 0 1px rgba(0,200,255,0.12),
-        0 0 35px rgba(120,60,255,0.60),
-        0 0 70px rgba(0,180,255,0.28),
-        0 0 120px rgba(200,60,255,0.16),
-        inset 0 0 50px rgba(255,255,255,0.08),
-        inset 0 0 25px rgba(120,60,255,0.18);
-    }
-    50% {
-      transform: scale(1.035);
-      box-shadow:
-        0 0 0 1px rgba(0,220,255,0.22),
-        0 0 50px rgba(140,60,255,0.80),
-        0 0 95px rgba(0,200,255,0.42),
-        0 0 155px rgba(220,60,255,0.24),
-        inset 0 0 65px rgba(255,255,255,0.12),
-        inset 0 0 35px rgba(140,60,255,0.25);
-    }
-  }
-
-  /* Deep void core — tight bright nucleus, strong contrast to mid, opaque edge */
-  .orb-shell-inner {
-    position: absolute;
-    inset: 3px;
-    border-radius: 50%;
-    /* Nucleus tight at 15% → rapid falloff → near-black edge
-       Feels like light trapped inside, not painted on top */
-    background:
-      radial-gradient(circle at 38% 35%,
-        rgba(90,  35, 170, 0.70) 0%,
-        rgba(90,  35, 170, 0.68) 15%,
-        rgba(30,   8,  70, 0.92) 40%,
-        rgba(8,    3,  22, 0.98) 65%,
-        rgba(4,    2,  14, 1.00) 100%);
-    z-index: 2;
-  }
-
-  /* Depth layer 1 — large blurred nebula cloud, light source biased top-left */
-  .orb-depth-1 {
-    position: absolute;
-    inset: 12%;
-    border-radius: 50%;
-    background: radial-gradient(circle at 40% 38%,
-      rgba(120, 50, 240, 0.35) 0%,
-      rgba(80,  20, 200, 0.20) 35%,
+    background: radial-gradient(circle at 50% 50%,
+      rgba(0,200,255,0.18) 0%,
+      rgba(0,120,255,0.10) 35%,
       transparent 70%);
-    filter: blur(10px);
-    z-index: 3;
-    animation: nebula-drift 8s ease-in-out infinite;
-    will-change: transform, opacity;
-  }
-
-  /* Depth layer 2 — electric blue-violet accent, aligned top-left with other light cues */
-  .orb-depth-2 {
-    position: absolute;
-    inset: 28%;
-    border-radius: 50%;
-    background:
-      radial-gradient(circle at 42% 40%,
-        rgba(160,  80, 255, 0.26) 0%,
-        rgba(100,  50, 230, 0.16) 35%,
-        transparent 60%),
-      radial-gradient(circle at 55% 52%,
-        rgba(80,  100, 255, 0.08) 0%,
-        transparent 50%);
-    filter: blur(6px);
-    z-index: 3;
-    animation: nebula-drift 6s ease-in-out infinite reverse;
-    will-change: transform, opacity;
-  }
-
-  @keyframes nebula-drift {
-    0%,100% { transform: translate(0, 0) scale(1);     opacity: 0.7;  }
-    33%     { transform: translate(3%, 2%) scale(1.05); opacity: 1.0;  }
-    66%     { transform: translate(-2%, 4%) scale(0.96); opacity: 0.55; }
-  }
-
-  /* Petal slice container — clips to sphere + carries the rare hue pulse */
-  .orb-slices {
-    position: absolute;
-    inset: 6px;
-    border-radius: 50%;
-    overflow: hidden;
-    z-index: 4;
-    /* Asymmetric timing: fast shift, slow return — feels like a pulse not a loop */
-    animation: hue-pulse-cool 13s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
-
-  /* Each petal slice — JS sets --i, --hue, --delay, --dur etc.
-     Animation hierarchy:
-       PRIMARY  — luminance-flicker (life, 7s, ~1% amplitude)
-       SECONDARY — petal-spin + petal-morph (structure)
-       ACCENT   — hue-drift (mood, 10s, quiet)
-  */
-  .orb-slice {
-    position: absolute;
-    top: 50%; left: 50%;
-    width: 78%;
-    height: 78%;
-    transform-origin: center center;
-    border-radius: 50% 20% 50% 20%;
-    background: linear-gradient(
-      135deg,
-      hsla(calc(var(--hue)),      90%, 68%, 0.80) 0%,
-      hsla(calc(var(--hue) + 35), 85%, 58%, 0.60) 35%,
-      hsla(calc(var(--hue) + 70), 80%, 75%, 0.35) 65%,
-      hsla(calc(var(--hue) + 110),72%, 88%, 0.08) 100%
-    );
-    mix-blend-mode: lighten;
-    filter: blur(3px) contrast(1.4) saturate(1.5);
-    will-change: transform, border-radius, opacity;
-    animation:
-      petal-spin        var(--dur,  8s) cubic-bezier(0.45, 0, 0.55, 1) var(--delay,  0s) infinite,
-      petal-morph       var(--dur2, 6s) cubic-bezier(0.45, 0, 0.55, 1) var(--delay2, 0s) infinite,
-      luminance-flicker 7s              cubic-bezier(0.4, 0, 0.2, 1)   var(--delay,  0s) infinite,
-      hue-drift         10s             ease-in-out                     var(--delay,  0s) infinite;
-    margin-top: -39%;
-    margin-left: -39%;
-  }
-
-  /* Outer petals — locked hue, desaturated, subtle scale breath so they're
-     stable in color but not frozen in time */
-  .orb-slice:nth-child(8),
-  .orb-slice:nth-child(9),
-  .orb-slice:nth-child(10) {
-    filter: blur(4px) contrast(1.15) saturate(0.60);
-    animation:
-      petal-spin         var(--dur,  8s) cubic-bezier(0.45, 0, 0.55, 1) var(--delay,  0s) infinite,
-      petal-morph        var(--dur2, 6s) cubic-bezier(0.45, 0, 0.55, 1) var(--delay2, 0s) infinite,
-      outer-scale-breath 9s              ease-in-out                     var(--delay,  0s) infinite;
-  }
-
-  @keyframes petal-spin {
-    0%   { transform: rotate(var(--start-rot)) scaleX(0.85) scaleY(1.05); }
-    25%  { transform: rotate(calc(var(--start-rot) + 90deg))  scaleX(1.05) scaleY(0.88); }
-    50%  { transform: rotate(calc(var(--start-rot) + 180deg)) scaleX(0.90) scaleY(1.08); }
-    75%  { transform: rotate(calc(var(--start-rot) + 270deg)) scaleX(1.08) scaleY(0.85); }
-    100% { transform: rotate(calc(var(--start-rot) + 360deg)) scaleX(0.85) scaleY(1.05); }
-  }
-
-  @keyframes petal-morph {
-    0%,100% { border-radius: 50% 20% 50% 20% / 40% 60% 40% 60%; }
-    20%     { border-radius: 30% 70% 25% 75% / 55% 45% 65% 35%; }
-    40%     { border-radius: 65% 35% 70% 30% / 30% 70% 35% 65%; }
-    60%     { border-radius: 20% 80% 30% 70% / 70% 30% 60% 40%; }
-    80%     { border-radius: 75% 25% 55% 45% / 45% 55% 30% 70%; }
-  }
-
-  /* Outer petal scale breath — stable color, not frozen in time */
-  @keyframes outer-scale-breath {
-    0%,100% { opacity: 0.62; }
-    50%     { opacity: 0.55; }
-  }
-
-  /* Opacity pulse — kept for fallback / reduced-motion contexts */
-  @keyframes petal-breathe {
-    0%,100% { opacity: 0.72; }
-    50%     { opacity: 0.38; }
-  }
-
-  /* PRIMARY animation — luminance flicker (~1% amplitude, 7s, irregular keyframes)
-     This is the "life" signal. Others support it, not compete with it. */
-  @keyframes luminance-flicker {
-    0%,100% { opacity: 0.71; }
-    18%     { opacity: 0.70; }
-    42%     { opacity: 0.72; }
-    67%     { opacity: 0.69; }
-    83%     { opacity: 0.71; }
-  }
-
-  /* ACCENT — hue drift on inner petals, 10s, quiet (25° range) */
-  @keyframes hue-drift {
-    0%,100% { filter: blur(3px) contrast(1.4) saturate(1.5) hue-rotate(0deg);   }
-    50%     { filter: blur(3px) contrast(1.4) saturate(1.5) hue-rotate(25deg);  }
-  }
-
-  /* RARE EVENT — cool hue pulse, asymmetric: fast shift (1s), slow return (12s)
-     Feels like a pulse, not a loop. 13s total cycle. */
-  @keyframes hue-pulse-cool {
-    0%, 92%, 100% { filter: hue-rotate(0deg)   brightness(1);    }
-    94%           { filter: hue-rotate(-20deg)  brightness(1.04); }
-    97%           { filter: hue-rotate(-8deg)   brightness(1.02); }
-  }
-
-  /* Rim light — gradient opacity falloff so it reads as light wrap, not CSS border
-     Top-left brighter (aligned with all other light cues), bottom-right fades */
-  .orb-rim {
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    /* Gradient border via background-clip trick — brighter top-left, fades bottom-right */
-    background: conic-gradient(
-      from 200deg,
-      rgba(200, 140, 255, 0.50) 0deg,
-      rgba(160, 100, 255, 0.30) 90deg,
-      rgba(120,  70, 220, 0.15) 180deg,
-      rgba(100,  50, 200, 0.08) 270deg,
-      rgba(200, 140, 255, 0.50) 360deg
-    );
-    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 1.5px), #fff calc(100% - 1.5px));
-    mask: radial-gradient(farthest-side, transparent calc(100% - 1.5px), #fff calc(100% - 1.5px));
     pointer-events: none;
-    z-index: 6;
-    animation: rim-breathe 5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+    animation: halo-pulse 4s ease-in-out infinite;
+    z-index: 0;
   }
-  @keyframes rim-breathe {
-    0%,100% { opacity: 0.55; }
-    50%     { opacity: 0.90; }
+  @keyframes halo-pulse {
+    0%,100% { opacity: 0.7; transform: scale(1);    }
+    50%     { opacity: 1;   transform: scale(1.06); }
   }
 
-  /* Top-left glare — glass specular highlight, offset to feel 3D */
-  .orb-glare {
+  /* ── Orbital rings — 3 ellipses at different tilt angles ── */
+  .orb-orbital {
     position: absolute;
-    top: 7%; left: 12%;
-    width: 34%; height: 20%;
+    inset: -18%;
     border-radius: 50%;
-    background: radial-gradient(ellipse at 38% 38%,
-      rgba(255, 255, 255, 0.22) 0%,
-      rgba(180, 150, 255, 0.10) 55%,
-      transparent 100%);
-    transform: rotate(-28deg);
+    border: 1.5px solid rgba(180,240,255,0.55);
     pointer-events: none;
     z-index: 10;
-    filter: blur(2px);
+    /* Glow on the ring line */
+    box-shadow: 0 0 6px rgba(0,220,255,0.7), 0 0 14px rgba(0,180,255,0.3);
   }
+  /* Ring 1 — tilted ~20° on X, slow */
+  .orb-orbital-1 {
+    transform: rotateX(70deg) rotateZ(20deg);
+    animation: orbit-spin-1 7s linear infinite;
+    border-color: rgba(180,240,255,0.6);
+  }
+  /* Ring 2 — tilted ~45° on X, medium */
+  .orb-orbital-2 {
+    transform: rotateX(55deg) rotateZ(-40deg);
+    animation: orbit-spin-2 10s linear infinite reverse;
+    border-color: rgba(140,220,255,0.45);
+    box-shadow: 0 0 5px rgba(0,200,255,0.5), 0 0 12px rgba(0,160,255,0.25);
+  }
+  /* Ring 3 — nearly flat, fastest */
+  .orb-orbital-3 {
+    transform: rotateX(80deg) rotateZ(70deg);
+    animation: orbit-spin-3 5s linear infinite;
+    border-color: rgba(200,245,255,0.35);
+    box-shadow: 0 0 4px rgba(0,220,255,0.4), 0 0 10px rgba(0,180,255,0.2);
+  }
+  @keyframes orbit-spin-1 {
+    from { transform: rotateX(70deg) rotateZ(20deg); }
+    to   { transform: rotateX(70deg) rotateZ(380deg); }
+  }
+  @keyframes orbit-spin-2 {
+    from { transform: rotateX(55deg) rotateZ(-40deg); }
+    to   { transform: rotateX(55deg) rotateZ(-400deg); }
+  }
+  @keyframes orbit-spin-3 {
+    from { transform: rotateX(80deg) rotateZ(70deg); }
+    to   { transform: rotateX(80deg) rotateZ(430deg); }
+  }
+
+  /* Preserve 3D for orbital rings */
+  .orb-container { transform-style: preserve-3d; perspective: 600px; }
 
   /* ── Orb responsive overrides ── */
-
-  /* Tiny phones (≤360px wide) */
   @media (max-width: 360px) {
     .orb-container { width: 140px; height: 140px; margin-bottom: 16px; }
-    .orb-shell {
-      box-shadow:
-        0 0 0 1px rgba(0,200,255,0.12),
-        0 0 22px rgba(120,60,255,0.55),
-        0 0 45px rgba(0,180,255,0.20),
-        inset 0 0 30px rgba(255,255,255,0.06),
-        inset 0 0 18px rgba(120,60,255,0.15);
-    }
   }
-
-  /* Small phones (361–480px) */
   @media (max-width: 480px) and (min-width: 361px) {
     .orb-container { width: 160px; height: 160px; margin-bottom: 20px; }
   }
-
-  /* Short screens — landscape phone */
   @media (max-height: 600px) {
     .orb-container { width: 120px; height: 120px; margin-bottom: 12px; }
     .welcome-sub { display: none; }
   }
-
-  /* Tablet */
   @media (min-width: 600px) and (max-width: 900px) {
     .orb-container { width: 200px; height: 200px; }
   }
-
-  /* Large desktop */
   @media (min-width: 1200px) {
     .orb-container { width: 220px; height: 220px; margin-bottom: 32px; }
-    .orb-shell {
-      box-shadow:
-        0 0 0 1px rgba(0,200,255,0.18),
-        0 0 50px rgba(120,60,255,0.70),
-        0 0 100px rgba(0,180,255,0.36),
-        0 0 160px rgba(200,60,255,0.20),
-        inset 0 0 65px rgba(255,255,255,0.10),
-        inset 0 0 32px rgba(120,60,255,0.22);
-    }
   }
-
-  /* Reduced motion */
   @media (prefers-reduced-motion: reduce) {
-    .orb-slice, .orb-shell, .orb-depth-1, .orb-depth-2, .orb-rim { animation: none !important; }
-    .orb-container::before, .orb-container::after { animation: none !important; }
-    .orb-slices { animation: none !important; }
+    .orb-orbital, .orb-halo { animation: none !important; }
     .orb-container:hover { transform: none; }
   }
 

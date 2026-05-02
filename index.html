@@ -39,6 +39,10 @@
 
   <link rel="stylesheet" href="./style.css?v=20260502-1"/>
   <link rel="stylesheet" href="./pwa-install.css?v=20260502-2"/>
+  <!-- Three.js for GPU-rendered orb -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" crossorigin="anonymous"></script>
+  <!-- Nexora Orb — unified orchestration system (must load before app.js) -->
+  <script src="./nexora-orb.js?v=20260502-1"></script>
 </head>
 <body>
 
@@ -219,14 +223,14 @@
   <!-- NAME SCREEN -->
   <div class="screen" id="nameScreen">
     <div class="orb-container" id="nexoraOrbContainer">
-      <!-- JS injects petal slices here -->
-      <div class="orb-shell-inner"></div>
-      <div class="orb-depth-1"></div>
-      <div class="orb-depth-2"></div>
-      <div class="orb-slices" id="orbSlices"></div>
-      <div class="orb-shell"></div>
-      <div class="orb-rim"></div>
-      <div class="orb-glare"></div>
+      <!-- Three.js WebGL renderer mounts here -->
+      <canvas id="orbCanvas" class="orb-canvas"></canvas>
+      <!-- Orbital rings (CSS animated) -->
+      <div class="orb-orbital orb-orbital-1"></div>
+      <div class="orb-orbital orb-orbital-2"></div>
+      <div class="orb-orbital orb-orbital-3"></div>
+      <!-- Outer glow halo -->
+      <div class="orb-halo"></div>
     </div>
     <p class="welcome-title">Meet Nexora</p>
     <p class="welcome-sub">Your personal AI companion — here to listen, support, and vibe with you 24/7.</p>
