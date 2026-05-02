@@ -541,6 +541,13 @@ async function generateStudyNotes() {
     return;
   }
 
+  // ── TIER GATE: Check for paid model access ──
+  if (typeof hasPaidModelAccess === 'function' && !hasPaidModelAccess()) {
+    _showStudyToast('⚠️ PDF/Image analysis requires a paid API key. Add one in Settings!');
+    _hideStudyLoading();
+    return;
+  }
+
   _showStudyLoading('Creating notes…');
   try {
     const sourceText = studySourceText || await _studyExtractSourceText(studySourceFile);
@@ -559,6 +566,12 @@ async function generateStudyNotes() {
 async function generateStudyPodcast() {
   if (!studySourceFile) {
     _showStudyToast('Upload a file first.');
+    return;
+  }
+
+  // ── TIER GATE: Check for paid model access ──
+  if (typeof hasPaidModelAccess === 'function' && !hasPaidModelAccess()) {
+    _showStudyToast('⚠️ PDF/Image analysis requires a paid API key. Add one in Settings!');
     return;
   }
 

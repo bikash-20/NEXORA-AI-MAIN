@@ -498,23 +498,115 @@ async function performOCRFallback(file) {
   }
 }
 
+// ══════════════════════════════════════════════════════════════════════
+//  PDF/IMAGE TIER DETECTION
+//  Free models → Block with upgrade message
+//  Paid models → Full OCR + RAG pipeline
+// ══════════════════════════════════════════════════════════════════════
+
+/**
+ * Check if user has access to paid/premium models OR has an OpenRouter key
+ * Returns true if user has:
+ * - OpenRouter API key (enables all 11 free models with vision)
+ * - OpenAI key (ChatGPT)
+ * - Gemini key
+ * - Cloudflare Worker
+ * - Claude key
+ * - Grok key
+ * - Groq key
+ * - Perplexity key
+ */
+function hasPaidModelAccess() {
+  // Check for OpenRouter API key (enables all free models)
+  const orKey = localStorage.getItem('nexora_user_key') || 
+                (typeof resolveActiveKey === 'function' ? resolveActiveKey().key : '');
+  if (orKey && orKey.startsWith('sk-or-')) return true;
+
+  // Check for OpenAI API key (ChatGPT)
+  const openaiKey = localStorage.getItem('nexora_cmp_key_openai');
+  if (openaiKey && openaiKey.startsWith('sk-')) return true;
+
+  // Check for Gemini API key
+  const geminiKey = localStorage.getItem('nexora_gemini_key');
+  if (geminiKey && (geminiKey.startsWith('AIza') || geminiKey.startsWith('AQ.'))) return true;
+
+  // Check for Cloudflare Worker (premium tier)
+  if (typeof _hasCFWorker === 'function' && _hasCFWorker()) return true;
+
+  // Check for Anthropic Claude key
+  const claudeKey = localStorage.getItem('nexora_cmp_key_anthropic');
+  if (claudeKey && claudeKey.startsWith('sk-ant-')) return true;
+
+  // Check for xAI Grok key
+  const grokKey = localStorage.getItem('nexora_cmp_key_grok');
+  if (grokKey && grokKey.startsWith('xai-')) return true;
+
+  // Check for Groq key
+  const groqKey = localStorage.getItem('nexora_cmp_key_groq');
+  if (groqKey && groqKey.startsWith('gsk_')) return true;
+
+  // Check for Perplexity key
+  const pplxKey = localStorage.getItem('nexora_cmp_key_perplexity');
+  if (pplxKey && pplxKey.startsWith('pplx-')) return true;
+
+  return false;
+}
+
+/**
+ * Show upgrade message for PDF/image analysis on free tier
+ */
+function showPdfUpgradeMessage() {
+  const upgradeMsg = `
+<div class="answer-card" style="border-left: 3px solid #f59e0b;">
+  <div class="answer-key">📄 PDF & Image Analysis — Requires API Key</div>
+  <div style="line-height: 1.6;">
+    <p><strong>To process PDFs and images, you need an API key.</strong></p>
+    <p>Add any of these <strong>FREE or paid</strong> API keys:</p>
+    <ul style="margin: 12px 0; padding-left: 20px;">
+      <li>✅ <strong>OpenRouter</strong> (FREE — enables 11 models with vision) — <a href="https://openrouter.ai/keys" target="_blank" style="color: #00e0ff;">Get free key</a></li>
+      <li>✅ <strong>Google Gemini</strong> (FREE — Gemini 2.0 Flash with vision) — <a href="https://aistudio.google.com/apikey" target="_blank" style="color: #00e0ff;">Get free key</a></li>
+      <li>✅ <strong>Cloudflare Workers AI</strong> (FREE — 4 models) — <a href="#" onclick="openCFPanel(); return false;" style="color: #00e0ff;">Set up Worker</a></li>
+      <li>✅ <strong>OpenAI</strong> (Paid — GPT-4o with vision)</li>
+      <li>✅ <strong>Anthropic Claude</strong> (Paid — Claude 3.5 Sonnet)</li>
+      <li>✅ <strong>xAI Grok</strong> (FREE tier available)</li>
+      <li>✅ <strong>Groq</strong> (FREE — fast inference)</li>
+    </ul>
+    <p style="margin-top: 12px; opacity: 0.8;">
+      <small>💡 <strong>Why?</strong> Proper PDF/image analysis requires vision-capable AI models. Even free models like Gemini 2.0 Flash work great!</small>
+    </p>
+    <button onclick="openApiPanel()" style="margin-top: 12px; padding: 10px 20px; background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
+      ⚙️ Add API Key Now
+    </button>
+  </div>
+</div>`;
+  
+  addBotMsg(upgradeMsg);
+}
+
 async function performOCR(file, userQuestion) {
   const camBtn = document.getElementById('cameraBtn');
   if (camBtn) camBtn.classList.add('scanning');
 
-  // Show a context-aware loading message
-  const loadMsgs = [
-    "📚 Analysing your image — solving step by step…",
-    "🔬 Reading your image with Vision AI…",
-    "📝 Identifying content and preparing explanation…",
-  ];
-  const loadMsg = loadMsgs[Math.floor(Math.random() * loadMsgs.length)];
-
   try {
+    // ── TIER GATE: Check if user has paid model access ──
+    if (!hasPaidModelAccess()) {
+      showPdfUpgradeMessage();
+      return null;
+    }
+
+    // ── PAID TIER: Full pipeline ──
+    const loadMsgs = [
+      "📚 Analysing your image — solving step by step…",
+      "🔬 Reading your image with Vision AI…",
+      "📝 Identifying content and preparing explanation…",
+    ];
+    const loadMsg = loadMsgs[Math.floor(Math.random() * loadMsgs.length)];
+
     if (nexoraResponseMode === 'online') {
       addBotMsg(loadMsg);
       const vision = await callVisionAI(file, userQuestion);
       if (vision) return vision;
+      
       // All vision models failed — try GPT-4o via ChatGPT key if available
       const chatgptKey = localStorage.getItem('nexora_cmp_key_openai');
       if (chatgptKey && chatgptKey.startsWith('sk-')) {
