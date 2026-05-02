@@ -151,45 +151,20 @@ function getChatRows() {
   return messages ? messages.getElementsByClassName('msg-row') : [];
 }
 
-// ==============================
-//  NEXORA ORB — Fluid Petal Generator
-//  Builds the animated glass-petal orb on the name screen
-//  using staggered CSS custom properties + mix-blend-mode
-// ==============================
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  NEXORA ORB — delegated to nexora-orb.js                    ║
+// ║  Layers:                                                     ║
+// ║   1. Three.js WebGL sphere with custom fragment shader       ║
+// ║   2. Procedural hex grid + Fresnel + noise in GLSL           ║
+// ║   3. Web Audio API — bass/mid/treble drive uniforms          ║
+// ║   4. Spring physics for all state transitions                ║
+// ║   5. Mouse parallax — light + rotation follow cursor         ║
+// ║   6. Event spikes — tap burst, speech ripple, error glitch   ║
+// ╚══════════════════════════════════════════════════════════════╝
+// initNexoraOrb is implemented in nexora-orb.js (loaded before app.js)
+// nexora-orb.js defines: ORB_CONFIG, initNexoraOrb, and sets window._nexoraOrbState
 function initNexoraOrb() {
-  const container = document.getElementById('orbSlices');
-  if (!container) return;
-
-  // Fewer slices = less overlap = no white blowout in center
-  const SLICE_COUNT = 10;
-
-  // Nebula palette: deep purples, hot pinks, cool cyans only
-  // Deliberately NO greens (120°) or yellows (60°) — those mix to white
-  const hueAnchors = [270, 285, 300, 320, 195, 210, 260, 280, 310, 230];
-
-  for (let i = 0; i < SLICE_COUNT; i++) {
-    const slice = document.createElement('div');
-    slice.className = 'orb-slice';
-
-    const startRot  = (i / SLICE_COUNT) * 360;
-    const delay     = -(i * 0.55).toFixed(2);
-    const delay2    = -(i * 0.30).toFixed(2);
-    const dur       = (9 + (i % 4) * 0.8).toFixed(1);
-    const dur2      = (6 + (i % 3) * 0.6).toFixed(1);
-    const hue       = hueAnchors[i % hueAnchors.length];
-
-    slice.style.cssText = `
-      --i: ${i};
-      --start-rot: ${startRot}deg;
-      --delay: ${delay}s;
-      --delay2: ${delay2}s;
-      --dur: ${dur}s;
-      --dur2: ${dur2}s;
-      --hue: ${hue};
-    `;
-
-    container.appendChild(slice);
-  }
+  // nexora-orb.js loads first and redefines this — stub is a no-op safety net
 }
 
 // ==============================
@@ -2868,6 +2843,8 @@ function _setVoiceState(state) {
         break;
     }
 
+    // Drive the login orb shader if it's loaded
+    if (typeof window._nexoraOrbState === 'function') window._nexoraOrbState(state);
     // Fade label out after 2.5s — visuals carry the state, label is just a hint
     _stateLabelFadeTimer = setTimeout(() => {
       if (label) label.classList.add('faded');
