@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <!-- Background -->
+    <radialGradient id="bg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#020a1a"/>
+      <stop offset="100%" stop-color="#000408"/>
+    </radialGradient>
+    <!-- Core glow -->
+    <radialGradient id="core" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"  stop-color="#ffffff" stop-opacity="1"/>
+      <stop offset="25%" stop-color="#7df9ff" stop-opacity="0.95"/>
+      <stop offset="60%" stop-color="#00c8e0" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#003a4a" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Ring glow -->
+    <radialGradient id="ring" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"  stop-color="#00e5ff" stop-opacity="0"/>
+      <stop offset="55%" stop-color="#00c8e0" stop-opacity="0.18"/>
+      <stop offset="72%" stop-color="#00e5ff" stop-opacity="0.85"/>
+      <stop offset="82%" stop-color="#7df9ff" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#003a4a" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Outer halo -->
+    <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"  stop-color="#00e5ff" stop-opacity="0"/>
+      <stop offset="78%" stop-color="#00e5ff" stop-opacity="0"/>
+      <stop offset="88%" stop-color="#00c8e0" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#003a4a" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Spike glow filter -->
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="3.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softglow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="coreglow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="14" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <!-- Rounded square clip -->
+    <clipPath id="rounded">
+      <rect width="512" height="512" rx="112" ry="112"/>
+    </clipPath>
+  </defs>
+
+  <!-- Rounded square background -->
+  <rect width="512" height="512" rx="112" ry="112" fill="url(#bg)"/>
+
+  <g clip-path="url(#rounded)">
+
+    <!-- Outer halo layer -->
+    <circle cx="256" cy="256" r="230" fill="url(#halo)" filter="url(#softglow)"/>
+
+    <!-- Energy ring -->
+    <circle cx="256" cy="256" r="155" fill="url(#ring)" filter="url(#softglow)"/>
+
+    <!-- Spikes — outer ring, 36 spikes at varying lengths -->
+    <g filter="url(#glow)" opacity="0.82">
+      <!-- Long spikes every 30° -->
+      <line x1="256" y1="256" x2="256" y2="62"  stroke="#00e5ff" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+      <line x1="256" y1="256" x2="353" y2="90"  stroke="#00e5ff" stroke-width="1.2" stroke-linecap="round" opacity="0.65"/>
+      <line x1="256" y1="256" x2="422" y2="166" stroke="#00e5ff" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+      <line x1="256" y1="256" x2="450" y2="256" stroke="#00e5ff" stroke-width="1.2" stroke-linecap="round" opacity="0.65"/>
+      <line x1="256" y1="256" x2="422" y2="346" stroke="#00e5ff" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+      <line x1="256" y1="256" x2="353" y2="422" stroke="#00e5ff" stroke-width="1.2" stroke-linecap="round" opacity="0.65"/>
+      <line x1="256" y1="256" x2="256" y2="450" stroke="#00e5ff" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+      <line x1="256" y1="256" x2="159" y2="422" stroke="#00e5ff" stroke-width="1.2" stroke-linecap="round" opacity="0.65"/>
+      <line x1="256" y1="256" x2="90"  y2="346" stroke="#00e5ff" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+      <line x1="256" y1="256" x2="62"  y2="256" stroke="#00e5ff" stroke-width="1.2" stroke-linecap="round" opacity="0.65"/>
+      <line x1="256" y1="256" x2="90"  y2="166" stroke="#00e5ff" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+      <line x1="256" y1="256" x2="159" y2="90"  stroke="#00e5ff" stroke-width="1.2" stroke-linecap="round" opacity="0.65"/>
+      <!-- Medium spikes every 15° offset -->
+      <line x1="256" y1="256" x2="304" y2="74"  stroke="#00d4f0" stroke-width="0.9" stroke-linecap="round" opacity="0.55"/>
+      <line x1="256" y1="256" x2="396" y2="116" stroke="#00d4f0" stroke-width="0.9" stroke-linecap="round" opacity="0.5"/>
+      <line x1="256" y1="256" x2="438" y2="208" stroke="#00d4f0" stroke-width="0.9" stroke-linecap="round" opacity="0.55"/>
+      <line x1="256" y1="256" x2="438" y2="304" stroke="#00d4f0" stroke-width="0.9" stroke-linecap="round" opacity="0.5"/>
+      <line x1="256" y1="256" x2="396" y2="396" stroke="#00d4f0" stroke-width="0.9" stroke-linecap="round" opacity="0.55"/>
+      <line x1="256" y1="256" x2="304" y2="438" stroke="#00d4f0" stroke-width="0.9" stroke-linecap="round" opacity="0.5"/>
+      <line x1="256" y1="256" x2="208" y2="438" stroke="#00d4f0" stroke-width="0.9" stroke-linecap="round" opacity="0.55"/>
+      <line x1="256" y1="256" x2="116" y2="396" stroke="#00d4f0" stroke-width="0.9" stroke-linecap="round" opacity="0.5"/>
+      <line x1="256" y1="256" x2="74"  y2="304" stroke="#00d4f0" stroke-width="0.9" stroke-linecap="round" opacity="0.55"/>
+      <line x1="256" y1="256" x2="74"  y2="208" stroke="#00d4f0" stroke-width="0.9" stroke-linecap="round" opacity="0.5"/>
+      <line x1="256" y1="256" x2="116" y2="116" stroke="#00d4f0" stroke-width="0.9" stroke-linecap="round" opacity="0.55"/>
+      <line x1="256" y1="256" x2="208" y2="74"  stroke="#00d4f0" stroke-width="0.9" stroke-linecap="round" opacity="0.5"/>
+      <!-- Short filler spikes -->
+      <line x1="256" y1="256" x2="280" y2="68"  stroke="#00c8e0" stroke-width="0.7" stroke-linecap="round" opacity="0.38"/>
+      <line x1="256" y1="256" x2="330" y2="80"  stroke="#00c8e0" stroke-width="0.7" stroke-linecap="round" opacity="0.35"/>
+      <line x1="256" y1="256" x2="410" y2="140" stroke="#00c8e0" stroke-width="0.7" stroke-linecap="round" opacity="0.38"/>
+      <line x1="256" y1="256" x2="444" y2="232" stroke="#00c8e0" stroke-width="0.7" stroke-linecap="round" opacity="0.35"/>
+      <line x1="256" y1="256" x2="444" y2="280" stroke="#00c8e0" stroke-width="0.7" stroke-linecap="round" opacity="0.38"/>
+      <line x1="256" y1="256" x2="410" y2="372" stroke="#00c8e0" stroke-width="0.7" stroke-linecap="round" opacity="0.35"/>
+      <line x1="256" y1="256" x2="330" y2="432" stroke="#00c8e0" stroke-width="0.7" stroke-linecap="round" opacity="0.38"/>
+      <line x1="256" y1="256" x2="280" y2="444" stroke="#00c8e0" stroke-width="0.7" stroke-linecap="round" opacity="0.35"/>
+      <line x1="256" y1="256" x2="232" y2="444" stroke="#00c8e0" stroke-width="0.7" stroke-linecap="round" opacity="0.38"/>
+      <line x1="256" y1="256" x2="182" y2="432" stroke="#00c8e0" stroke-width="0.7" stroke-linecap="round" opacity="0.35"/>
+      <line x1="256" y1="256" x2="102" y2="372" stroke="#00c8e0" stroke-width="0.7" stroke-linecap="round" opacity="0.38"/>
+      <line x1="256" y1="256" x2="68"  y2="280" stroke="#00c8e0" stroke-width="0.7" stroke-linecap="round" opacity="0.35"/>
+      <line x1="256" y1="256" x2="68"  y2="232" stroke="#00c8e0" stroke-width="0.7" stroke-linecap="round" opacity="0.38"/>
+      <line x1="256" y1="256" x2="102" y2="140" stroke="#00c8e0" stroke-width="0.7" stroke-linecap="round" opacity="0.35"/>
+      <line x1="256" y1="256" x2="182" y2="80"  stroke="#00c8e0" stroke-width="0.7" stroke-linecap="round" opacity="0.38"/>
+      <line x1="256" y1="256" x2="232" y2="68"  stroke="#00c8e0" stroke-width="0.7" stroke-linecap="round" opacity="0.35"/>
+    </g>
+
+    <!-- Dot particles on ring -->
+    <g fill="#7df9ff" filter="url(#glow)">
+      <circle cx="256" cy="101" r="2.2" opacity="0.9"/>
+      <circle cx="353" cy="131" r="1.8" opacity="0.8"/>
+      <circle cx="411" cy="211" r="2.0" opacity="0.85"/>
+      <circle cx="411" cy="301" r="1.8" opacity="0.8"/>
+      <circle cx="353" cy="381" r="2.2" opacity="0.9"/>
+      <circle cx="256" cy="411" r="1.8" opacity="0.8"/>
+      <circle cx="159" cy="381" r="2.0" opacity="0.85"/>
+      <circle cx="101" cy="301" r="1.8" opacity="0.8"/>
+      <circle cx="101" cy="211" r="2.2" opacity="0.9"/>
+      <circle cx="159" cy="131" r="1.8" opacity="0.8"/>
+      <!-- Mid-ring dots -->
+      <circle cx="304" cy="112" r="1.4" opacity="0.65"/>
+      <circle cx="390" cy="168" r="1.4" opacity="0.65"/>
+      <circle cx="390" cy="344" r="1.4" opacity="0.65"/>
+      <circle cx="304" cy="400" r="1.4" opacity="0.65"/>
+      <circle cx="208" cy="400" r="1.4" opacity="0.65"/>
+      <circle cx="122" cy="344" r="1.4" opacity="0.65"/>
+      <circle cx="122" cy="168" r="1.4" opacity="0.65"/>
+      <circle cx="208" cy="112" r="1.4" opacity="0.65"/>
+    </g>
+
+    <!-- Inner ring structure -->
+    <circle cx="256" cy="256" r="100" fill="none" stroke="#00e5ff" stroke-width="1.0" stroke-opacity="0.25" stroke-dasharray="6 5"/>
+    <circle cx="256" cy="256" r="130" fill="none" stroke="#00c8e0" stroke-width="0.8" stroke-opacity="0.18" stroke-dasharray="4 8"/>
+
+    <!-- Core glow -->
+    <circle cx="256" cy="256" r="90" fill="url(#core)" filter="url(#coreglow)"/>
+
+    <!-- Bright center point -->
+    <circle cx="256" cy="256" r="14" fill="#ffffff" opacity="0.95" filter="url(#coreglow)"/>
+    <circle cx="256" cy="256" r="6"  fill="#ffffff" opacity="1"/>
+
+  </g>
+</svg>

@@ -32,6 +32,7 @@ const APP_SHELL_PATHS = new Set([
   '/nexora-study-worker.js',
   '/manifest.json',
   '/sw.js',
+  '/icon.svg',
 ]);
 
 const IMAGE_EXTS = /\.(png|jpg|jpeg|webp|gif|svg|ico)$/i;
