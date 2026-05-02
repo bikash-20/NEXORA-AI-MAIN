@@ -1,53 +1,39 @@
 // ============================================================
-//  Nexora Service Worker — PWA Offline Support
-//  Cache-first strategy for static assets
-//  Network-first for API calls
+//  Nexora Service Worker v4.0
 //
-//  CACHE_VERSION: bump this string on every deploy to force
-//  all clients to fetch fresh assets immediately.
+//  Strategy:
+//  - HTML / JS / CSS  → Network-first, 2.5s timeout, cache fallback
+//  - Images / icons   → Cache-first, background revalidate
+//  - Google Fonts     → Cache-first (immutable CDN)
+//  - API calls        → Network-only, offline stub
+//
+//  Auto-update (no hard refresh needed):
+//  1. skipWaiting()   → new SW activates immediately on install
+//  2. clients.claim() → new SW takes over ALL open tabs on activate
+//  3. controllerchange in index.html → page reloads itself once
 // ============================================================
 
-// ── Change this on every deploy (ISO date + deploy counter) ──────
-const CACHE_VERSION = '20260502-3';
-const CACHE_NAME = `nexora-v${CACHE_VERSION}`;
-
-// Core files to cache on install
-const CORE_ASSETS = [
-  './',
-  './index.html',
-  './style.css',
-  './pwa-install.css',
-  './pwa-install.js',
-  './nexora-data.js',
-  './nexora-study-worker.js',
-  './app.js',
-  './manifest.json',
-  './apple-touch-icon.png',
-  './icon-192.png',
-  './icon-512.png',
-  './icon.svg'
-];
-
-// Optional assets — cache them when available, but don't fail install if any are missing
-const OPTIONAL_ASSETS = [
-  'https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap'
-];
+const CACHE_VERSION = '20260502-4';
+const CACHE_NAME    = `nexora-v${CACHE_VERSION}`;
+const FONT_CACHE    = 'nexora-fonts-v1';
+const IMAGE_CACHE   = 'nexora-images-v1';
 
 const APP_SHELL_PATHS = new Set([
   '/',
   '/index.html',
-  '/nexora-data.js',
-  '/nexora-study-worker.js',
   '/app.js',
   '/style.css',
   '/pwa-install.css',
   '/pwa-install.js',
+  '/nexora-data.js',
+  '/nexora-study-worker.js',
   '/manifest.json',
   '/sw.js',
 ]);
 
-// API hostnames — always go to network (never cache)
-const NETWORK_ONLY_HOSTS = [
+const IMAGE_EXTS = /\.(png|jpg|jpeg|webp|gif|svg|ico)$/i;
+
+const NETWORK_ONLY_HOSTS = new Set([
   'openrouter.ai',
   'api.open-meteo.com',
   'geocoding-api.open-meteo.com',
@@ -56,129 +42,144 @@ const NETWORK_ONLY_HOSTS = [
   'v2.jokeapi.dev',
   'api.mymemory.translated.net',
   'en.wikipedia.org',
-  'v6.exchangerate-api.com'
-];
+  'v6.exchangerate-api.com',
+]);
 
-// ── Install: cache all static assets ──
-self.addEventListener('install', event => {
-  console.log(`[SW] Installing cache: ${CACHE_NAME}`);
+function fetchWithTimeout(request, ms) {
+  ms = ms || 2500;
+  return new Promise(function(resolve, reject) {
+    var timer = setTimeout(function() { reject(new Error('timeout')); }, ms);
+    fetch(request).then(
+      function(r) { clearTimeout(timer); resolve(r); },
+      function(e) { clearTimeout(timer); reject(e); }
+    );
+  });
+}
+
+function putInCache(cacheName, request, response) {
+  if (response && response.ok) {
+    caches.open(cacheName).then(function(cache) { cache.put(request, response.clone()); });
+  }
+}
+
+// Install: pre-cache app shell, activate immediately
+self.addEventListener('install', function(event) {
+  console.log('[SW] Installing ' + CACHE_NAME);
   event.waitUntil(
-    caches.open(CACHE_NAME).then(async cache => {
-      const toCache = [...CORE_ASSETS, ...OPTIONAL_ASSETS];
-      await Promise.allSettled(
-        toCache.map(async asset => {
-          try {
-            await cache.add(asset);
-          } catch (err) {
-            console.warn('[SW] Failed to cache asset:', asset, err?.message || err);
-          }
+    caches.open(CACHE_NAME).then(function(cache) {
+      return Promise.allSettled(
+        Array.from(APP_SHELL_PATHS).map(function(path) {
+          return cache.add(path).catch(function(err) {
+            console.warn('[SW] Pre-cache miss:', path, err.message);
+          });
         })
       );
-    }).then(() => {
-      console.log(`[SW] Cache ${CACHE_NAME} ready. Skipping waiting.`);
+    }).then(function() {
       return self.skipWaiting();
     })
   );
 });
 
-// ── Activate: clean up old caches ──
-self.addEventListener('activate', event => {
+// Activate: wipe old caches, claim all open tabs instantly
+self.addEventListener('activate', function(event) {
+  console.log('[SW] Activating ' + CACHE_NAME);
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
+    caches.keys().then(function(keys) {
+      return Promise.all(
         keys
-          .filter(key => key !== CACHE_NAME)
-          .map(key => {
-            console.log('[SW] Deleting old cache:', key);
-            return caches.delete(key);
-          })
-      )
-    ).then(() => self.clients.claim())
+          .filter(function(k) { return k !== CACHE_NAME && k !== FONT_CACHE && k !== IMAGE_CACHE; })
+          .map(function(k) { console.log('[SW] Deleting:', k); return caches.delete(k); })
+      );
+    }).then(function() {
+      return self.clients.claim();
+    })
   );
 });
 
-// ── Fetch: smart routing ──
-self.addEventListener('fetch', event => {
+// Fetch routing
+self.addEventListener('fetch', function(event) {
   if (event.request.method !== 'GET') return;
-  const url = new URL(event.request.url);
-  const isSameOrigin = url.origin === self.location.origin;
-  const pathname = url.pathname;
+  var url = new URL(event.request.url);
+  var isSameOrigin = url.origin === self.location.origin;
 
-  // Always use network for API calls
-  if (NETWORK_ONLY_HOSTS.includes(url.hostname)) {
+  // Network-only: APIs
+  if (NETWORK_ONLY_HOSTS.has(url.hostname)) {
     event.respondWith(
-      fetch(event.request).catch(() =>
-        new Response(JSON.stringify({ error: 'offline' }), {
+      fetch(event.request).catch(function() {
+        return new Response(JSON.stringify({ error: 'offline' }), {
           headers: { 'Content-Type': 'application/json' }
-        })
-      )
-    );
-    return;
-  }
-
-  // For Google Fonts — cache then network
-  if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
-    event.respondWith(
-      caches.match(event.request).then(cached => {
-        if (cached) return cached;
-        return fetch(event.request).then(response => {
-          if (response.ok) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-          }
-          return response;
-        }).catch(() => cached || new Response('', { status: 503 }));
+        });
       })
     );
     return;
   }
 
-  // App shell files should prefer network so new deploys replace old broken JS/CSS quickly.
-  if (isSameOrigin && (event.request.mode === 'navigate' || APP_SHELL_PATHS.has(pathname))) {
+  // Cache-first: Google Fonts
+  if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
     event.respondWith(
-      fetch(event.request).then(response => {
-        if (response.ok) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-        }
-        return response;
-      }).catch(() =>
-        caches.match(event.request).then(cached => {
-          if (cached) return cached;
-          if (event.request.mode === 'navigate') return caches.match('./index.html');
-          return new Response('Offline', { status: 503 });
-        })
-      )
+      caches.match(event.request).then(function(cached) {
+        if (cached) return cached;
+        return fetch(event.request).then(function(r) {
+          putInCache(FONT_CACHE, event.request, r);
+          return r;
+        }).catch(function() { return new Response('', { status: 503 }); });
+      })
     );
     return;
   }
 
-  // Cache-first for all other static assets
-  event.respondWith(
-    caches.match(event.request).then(cached => {
-      if (cached) return cached;
+  // Network-first: App shell (HTML, JS, CSS)
+  if (isSameOrigin && (event.request.mode === 'navigate' || APP_SHELL_PATHS.has(url.pathname))) {
+    event.respondWith(
+      fetchWithTimeout(event.request, 2500)
+        .then(function(response) {
+          putInCache(CACHE_NAME, event.request, response);
+          return response;
+        })
+        .catch(function() {
+          return caches.match(event.request).then(function(cached) {
+            if (cached) return cached;
+            if (event.request.mode === 'navigate') {
+              return caches.match('./index.html').then(function(shell) {
+                return shell || new Response('Offline', { status: 503 });
+              });
+            }
+            return new Response('Offline', { status: 503 });
+          });
+        })
+    );
+    return;
+  }
 
-      return fetch(event.request).then(response => {
-        // Cache successful GET responses
-        if (response.ok && event.request.method === 'GET') {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-        }
-        return response;
-      }).catch(() => {
-        // Offline fallback — return cached index.html for navigation
-        if (event.request.mode === 'navigate') {
-          return caches.match('./index.html');
-        }
-        return new Response('Offline', { status: 503 });
-      });
+  // Cache-first: Images (revalidate in background)
+  if (isSameOrigin && IMAGE_EXTS.test(url.pathname)) {
+    event.respondWith(
+      caches.match(event.request).then(function(cached) {
+        var fresh = fetch(event.request).then(function(r) {
+          putInCache(IMAGE_CACHE, event.request, r);
+          return r;
+        });
+        return cached || fresh;
+      })
+    );
+    return;
+  }
+
+  // Stale-while-revalidate: everything else
+  event.respondWith(
+    caches.match(event.request).then(function(cached) {
+      var fresh = fetch(event.request).then(function(r) {
+        putInCache(CACHE_NAME, event.request, r);
+        return r;
+      }).catch(function() { return cached; });
+      return cached || fresh;
     })
   );
 });
 
-// ── Push notification support (future use) ──
-self.addEventListener('message', event => {
-  if (event.data?.type === 'SKIP_WAITING') {
+// Messages
+self.addEventListener('message', function(event) {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
 });

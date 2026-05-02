@@ -219,10 +219,8 @@
       });
     }).catch(() => {});
 
-    let refreshing = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (!refreshing) { refreshing = true; window.location.reload(); }
-    });
+    // NOTE: controllerchange auto-reload is handled in app.js SW registration.
+    // Removed here to prevent double-reload loop.
   }
 
   // ── DEBUG helper — type in console to test banners ────────
