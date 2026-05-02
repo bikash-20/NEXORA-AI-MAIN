@@ -5848,6 +5848,12 @@ function isUtilityQuery(lower) {
 
 async function generateSmartReply(input) {
   const lower = input.toLowerCase().trim();
+  // ── Orb cognition: start timing for latency signal ──────────
+  const _orbReplyStart = Date.now();
+  const _orbComplexity = Math.min(input.length / 200, 1.0); // rough complexity from length
+  if (typeof window._nexoraOrbCognition === 'function') {
+    window._nexoraOrbCognition({ complexity: _orbComplexity });
+  }
 
   // ── TIER 0: Always-instant handlers (both modes) ──
   // These are never blocked — voice, Bangla greetings, crisis safety
@@ -6046,8 +6052,22 @@ async function generateSmartReply(input) {
 Student prompt: ${input}`
       : input;
     const aiReply = await callOpenRouter(aiInput, emotion);
-    if (aiReply === '__STREAMED__') return '__STREAMED__';
-    if (aiReply) return aiReply;
+    if (aiReply === '__STREAMED__') {
+      // Signal confident, fast response
+      if (typeof window._nexoraOrbCognition === 'function') {
+        window._nexoraOrbCognition({ confidence: 0.9, latency: Date.now() - _orbReplyStart });
+      }
+      return '__STREAMED__';
+    }
+    if (aiReply) {
+      if (typeof window._nexoraOrbCognition === 'function') {
+        const latency = Date.now() - _orbReplyStart;
+        // Longer reply = more confident; longer latency = more tension
+        const confidence = Math.min(aiReply.length / 300, 1.0);
+        window._nexoraOrbCognition({ confidence, latency });
+      }
+      return aiReply;
+    }
     // AI failed — fall through to offline KB (no hard stop)
     // This lets emotional responses, bestie KB, etc. still work when AI is down
   }
