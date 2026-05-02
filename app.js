@@ -507,7 +507,12 @@ function handleBack() {
 function switchToVoice() {
   toggleMenu();
   showScreen('voiceScreen');
-  document.getElementById('voiceTopic').textContent = 'VOICE MODE — ' + (userName || 'FRIEND');
+  const cap = userName ? userName.charAt(0).toUpperCase() + userName.slice(1) : '';
+  document.getElementById('voiceTopic').textContent = 'VOICE MODE' + (cap ? ' — ' + cap.toUpperCase() : '');
+  // Personalized greeting in prompt
+  const prompt = document.getElementById('voicePrompt');
+  if (prompt) prompt.innerHTML = cap ? `Hello, ${cap}! Tap the orb` : 'Tap the orb to start';
+  _setVoiceState('idle');
 }
 
 function switchToChat() {
@@ -2773,8 +2778,9 @@ function startMic(onResult) {
     if (err.error === 'not-allowed') {
       // Hard stop — mic blocked by user or browser
       _voiceContinuousActive = false;
-      document.getElementById('voicePrompt').innerHTML =
-        'Mic blocked ⛔<br/><span class="dim">Allow mic in browser settings</span>';
+      _setVoiceState('idle');
+      const prompt = document.getElementById('voicePrompt');
+      if (prompt) prompt.innerHTML = 'Mic blocked ⛔<br/><span class="dim">Allow mic in browser settings</span>';
       return;
     }
     // All other errors (no-speech, aborted, audio-capture, network) — restart quietly
@@ -2816,8 +2822,60 @@ function stopMic() {
 // ==============================
 //  VOICE SCREEN MIC
 // ==============================
-// ==============================
-//  VOICE SCREEN MIC
+// ── Voice screen state helper ──────────────────────────────────
+// States: 'idle' | 'listening' | 'processing' | 'speaking'
+let _stateLabelFadeTimer = null;
+
+function _setVoiceState(state) {
+  const orb    = document.getElementById('voiceOrb');
+  const wrap   = document.getElementById('voiceOrbWrap');
+  const label  = document.getElementById('voiceStateLabel');
+  const rings  = document.getElementById('voiceRings');
+  const prompt = document.getElementById('voicePrompt');
+  if (!orb) return;
+
+  // 120ms settle delay — feels intentional, not instant
+  setTimeout(() => {
+    orb.classList.remove('listening', 'processing', 'speaking');
+    if (wrap)  wrap.classList.remove('processing');
+    if (label) label.classList.remove('state-listening', 'state-processing', 'state-speaking', 'faded');
+    if (rings) rings.classList.remove('active');
+
+    // Clear any pending label fade
+    if (_stateLabelFadeTimer) { clearTimeout(_stateLabelFadeTimer); _stateLabelFadeTimer = null; }
+
+    switch (state) {
+      case 'listening':
+        orb.classList.add('listening');
+        if (label) { label.textContent = 'listening'; label.classList.add('state-listening'); }
+        if (rings) rings.classList.add('active');
+        if (prompt) prompt.innerHTML = 'Listening…<br/><span class="dim">speak now</span>';
+        break;
+      case 'processing':
+        orb.classList.add('processing');
+        if (wrap)  wrap.classList.add('processing');
+        if (label) { label.textContent = 'thinking'; label.classList.add('state-processing'); }
+        if (prompt) prompt.innerHTML = '<span class="dim">thinking…</span>';
+        break;
+      case 'speaking':
+        orb.classList.add('speaking');
+        if (label) { label.textContent = 'speaking'; label.classList.add('state-speaking'); }
+        if (prompt) prompt.innerHTML = '<span class="dim">Nexora is speaking…</span>';
+        break;
+      default: // idle
+        if (label) label.textContent = 'idle';
+        if (prompt) prompt.innerHTML = 'Tap the orb to start';
+        break;
+    }
+
+    // Fade label out after 2.5s — visuals carry the state, label is just a hint
+    _stateLabelFadeTimer = setTimeout(() => {
+      if (label) label.classList.add('faded');
+      _stateLabelFadeTimer = null;
+    }, 2500);
+  }, 120);
+}
+
 // ==============================
 let _voiceContinuousActive = false; // tracks orb-tap continuous mode
 
@@ -2826,14 +2884,14 @@ function toggleMic() {
   if (_voiceContinuousActive || isMicOn) {
     _voiceContinuousActive = false;
     stopMic();
-    document.getElementById('voicePrompt').innerHTML = 'Tap the orb<br/><span class="dim">to start talking</span>';
-    document.getElementById('voiceOrb').classList.remove('listening');
+    _setVoiceState('idle');
     document.getElementById('micBtn').classList.remove('active');
     return;
   }
 
   if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-    document.getElementById('voicePrompt').innerHTML = 'Voice not supported<br/><span class="dim">Try Chrome or Edge</span>';
+    const prompt = document.getElementById('voicePrompt');
+    if (prompt) prompt.innerHTML = 'Voice not supported<br/><span class="dim">Try Chrome or Edge</span>';
     return;
   }
 
@@ -2847,20 +2905,20 @@ function _startContinuousVoice() {
   // Don't double-start if voice call mode is also running
   if (isVoiceCallMode) return;
 
-  document.getElementById('voiceOrb').classList.add('listening');
+  _setVoiceState('listening');
   document.getElementById('micBtn').classList.add('active');
-  document.getElementById('voicePrompt').innerHTML = 'Listening…<br/><span class="dim">speak now</span>';
 
   startMic(async (text) => {
+    _setVoiceState('processing');
     document.getElementById('voicePrompt').innerHTML =
-      `<span style="font-size:15px;color:var(--text2)">"${text}"</span><br/><span class="dim">thinking…</span>`;
-    document.getElementById('voiceOrb').classList.remove('listening');
+      `<span style="font-size:14px;color:var(--text2)">"${text}"</span><br/><span class="dim">thinking…</span>`;
     document.getElementById('micBtn').classList.remove('active');
 
     try {
       const reply = await generateSmartReply(text);
       const speakable = _stripHTMLForVoice(reply);
       const display   = (reply === '__STREAMED__') ? '✅ Replied in chat' : reply;
+      _setVoiceState('speaking');
       document.getElementById('voicePrompt').innerHTML = display;
       const _orbEl = document.getElementById('voiceOrb');
       if (_orbEl) _orbEl.classList.add('speaking');
@@ -2868,7 +2926,7 @@ function _startContinuousVoice() {
       if (_orbEl) _orbEl.classList.remove('speaking');
     } catch (e) {
       console.error('Nexora voice error:', e);
-      document.getElementById('voiceOrb')?.classList.remove('speaking');
+      _setVoiceState('idle');
       document.getElementById('voicePrompt').innerHTML = 'Oops! Try again? 😅';
     } finally {
       // ALWAYS restart listening after reply or error — this is what makes it truly continuous
@@ -2892,16 +2950,16 @@ function _queueVoiceCallListen(delayMs = 320) {
     voiceCallTimer = null;
     if (!isVoiceCallMode || currentScreen !== 'voiceScreen') return;
     if (isMicOn) return;
-    document.getElementById('voicePrompt').innerHTML = 'Listening…<br/><span class="dim">speak now</span>';
-    document.getElementById('voiceOrb').classList.add('listening');
+    _setVoiceState('listening');
     document.getElementById('micBtn').classList.add('active');
     startMic(async (text) => {
-      document.getElementById('voicePrompt').innerHTML = `<span style="font-size:15px;color:var(--text2)">"${text}"</span><br/><span class="dim">Nexora is thinking…</span>`;
-      document.getElementById('voiceOrb').classList.remove('listening');
+      _setVoiceState('processing');
+      document.getElementById('voicePrompt').innerHTML = `<span style="font-size:14px;color:var(--text2)">"${text}"</span><br/><span class="dim">thinking…</span>`;
       document.getElementById('micBtn').classList.remove('active');
       try {
         const reply = await generateSmartReply(text);
         const speakable = _stripHTMLForVoice(reply);
+        _setVoiceState('speaking');
         document.getElementById('voicePrompt').innerHTML =
           reply === '__STREAMED__' ? '✅ Replied in chat' : reply;
         const _callOrbEl = document.getElementById('voiceOrb');
@@ -2909,6 +2967,7 @@ function _queueVoiceCallListen(delayMs = 320) {
         await speakText(speakable, { preferCloudTTS: true });
         if (_callOrbEl) _callOrbEl.classList.remove('speaking');
       } catch (e) {
+        _setVoiceState('idle');
         document.getElementById('voicePrompt').innerHTML = 'I lost the thread a bit. Say that once more?';
       } finally {
         if (isVoiceCallMode) _queueVoiceCallListen(300);
@@ -2920,12 +2979,15 @@ function _queueVoiceCallListen(delayMs = 320) {
 function startVoiceCall() {
   if (isVoiceCallMode) return;
   if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-    document.getElementById('voicePrompt').innerHTML = 'Voice not supported<br/><span class="dim">Try Chrome or Edge</span>';
+    const prompt = document.getElementById('voicePrompt');
+    if (prompt) prompt.innerHTML = 'Voice not supported<br/><span class="dim">Try Chrome or Edge</span>';
     return;
   }
   isVoiceCallMode = true;
   _setCallButtonUI(true);
-  document.getElementById('voicePrompt').innerHTML = 'Call connected ✅<br/><span class="dim">You can speak naturally</span>';
+  _setVoiceState('listening');
+  const prompt = document.getElementById('voicePrompt');
+  if (prompt) prompt.innerHTML = 'Call connected ✅<br/><span class="dim">You can speak naturally</span>';
   _queueVoiceCallListen(450);
 }
 
@@ -2939,10 +3001,7 @@ function endVoiceCall() {
   stopMic();
   stopSpeaking();
   _setCallButtonUI(false);
-  const prompt = document.getElementById('voicePrompt');
-  if (prompt && currentScreen === 'voiceScreen') {
-    prompt.innerHTML = 'Tap the orb<br/><span class="dim">to start talking</span>';
-  }
+  _setVoiceState('idle');
 }
 
 function toggleVoiceCall() {

@@ -300,33 +300,65 @@
   <!-- VOICE SCREEN -->
   <div class="screen" id="voiceScreen">
     <div class="voice-topic" id="voiceTopic">VOICE MODE</div>
-    <div class="voice-orb-wrap">
-      <div class="voice-rings">
+
+    <div class="voice-orb-wrap" id="voiceOrbWrap">
+      <!-- Outer ripple rings — animate outward when listening -->
+      <div class="voice-rings" id="voiceRings">
         <div class="v-ring"></div>
         <div class="v-ring"></div>
         <div class="v-ring"></div>
       </div>
+
+      <!-- Processing arc — orbits outside the orb when thinking -->
+      <div class="orb-process-arc" id="orbProcessArc"></div>
+
+      <!-- Main orb -->
       <div class="voice-orb" id="voiceOrb" onclick="toggleMic()">
-        <svg id="voiceOrbIcon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="1.5">
-          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+        <!-- Glass highlight -->
+        <div class="orb-glass-shine"></div>
+        <!-- Inner glow layer -->
+        <div class="orb-inner-glow" id="orbInnerGlow"></div>
+
+        <!-- Mic icon -->
+        <svg class="orb-icon orb-icon-mic" id="voiceOrbIcon" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.92)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="2" width="6" height="12" rx="3" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.92)"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
         </svg>
+
+        <!-- Waveform bars — shown when listening -->
+        <div class="orb-waveform" id="orbWaveform">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
       </div>
     </div>
-    <div class="voice-greeting">💡 Start your message with <strong>"Hello"</strong></div>
+
+    <!-- State label — changes per state -->
+    <div class="voice-state-label" id="voiceStateLabel">idle</div>
+
+    <!-- Primary CTA -->
     <div class="voice-prompt" id="voicePrompt">
-      Tap the orb<br/><span class="dim">to start talking</span>
+      Tap the orb to start
     </div>
+
+    <!-- Hint — secondary, smaller -->
+    <div class="voice-greeting">💡 Start with <strong>"Hello"</strong></div>
+
     <div class="voice-controls">
-      <div class="vc-btn" onclick="switchToChat()">
+      <div class="vc-btn" onclick="switchToChat()" title="Back to chat">
         <svg viewBox="0 0 24 24" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       </div>
       <button class="voice-call-btn" id="voiceCallBtn" onclick="toggleVoiceCall()">📞 Start Call</button>
-      <button class="mic-btn" id="micBtn" onclick="toggleMic()">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+      <button class="mic-btn" id="micBtn" onclick="toggleMic()" title="Toggle mic">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round">
+          <rect x="9" y="2" width="6" height="12" rx="3" fill="rgba(255,255,255,0.2)" stroke="white"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
         </svg>
       </button>
-      <div class="vc-btn" onclick="stopSpeaking()">
+      <div class="vc-btn" onclick="stopSpeaking()" title="Stop speaking">
         <svg viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
       </div>
     </div>
