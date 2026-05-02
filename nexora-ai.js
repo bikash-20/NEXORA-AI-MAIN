@@ -889,8 +889,33 @@ function speakText(text, _opts) {
         }, 20000);
 
         if (res.ok) {
-          const blob = await res.blob();
-          if (blob && blob.size > 500) {
+          // Handle both raw audio binary AND base64 JSON response from CF worker
+          const ct = (res.headers.get('content-type') || '').toLowerCase();
+          let blob = null;
+
+          if (ct.includes('audio/')) {
+            // Raw binary audio — ideal path
+            blob = await res.blob();
+          } else {
+            // JSON wrapper: { audio: "<base64>", ... }
+            const payload = await res.json().catch(() => null);
+            const b64 = payload?.audio || payload?.result?.audio || payload?.data || '';
+            if (b64) {
+              try {
+                const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+                blob = new Blob([bytes], { type: 'audio/mpeg' });
+              } catch(e) {}
+            }
+          }
+
+          // Normalise blob type if browser set it to octet-stream
+          if (blob && blob.size > 100 && (!blob.type || blob.type === 'application/octet-stream')) {
+            blob = new Blob([await blob.arrayBuffer()], { type: 'audio/mpeg' });
+          }
+
+          console.log('[CF TTS] blob size:', blob?.size, 'type:', blob?.type);
+
+          if (blob && blob.size > 100) {
             const url   = URL.createObjectURL(blob);
             const audio = new Audio(url);
             voiceReplyAudio = audio;
@@ -902,13 +927,14 @@ function speakText(text, _opts) {
                 if (voiceReplyAudio === audio) voiceReplyAudio = null;
                 playResolve();
               };
-              audio.onerror = () => {
+              audio.onerror = (e) => {
+                console.warn('[CF TTS] audio.onerror', e);
                 URL.revokeObjectURL(url);
                 if (voiceReplyAudio === audio) voiceReplyAudio = null;
-                playResolve(); // don't fall to browser TTS on error — just finish
+                playResolve();
               };
-              audio.play().catch(() => {
-                // Autoplay still blocked even after unlock attempt
+              audio.play().catch((e) => {
+                console.warn('[CF TTS] play() blocked', e);
                 URL.revokeObjectURL(url);
                 if (voiceReplyAudio === audio) voiceReplyAudio = null;
                 playResolve();
