@@ -2952,7 +2952,7 @@ function _queueVoiceCallListen(delayMs = 320) {
           reply === '__STREAMED__' ? '✅ Replied in chat' : reply;
         const _callOrbEl = document.getElementById('voiceOrb');
         if (_callOrbEl) _callOrbEl.classList.add('speaking');
-        await speakText(speakable, { preferCloudTTS: true });
+        await speakText(speakable);
         if (_callOrbEl) _callOrbEl.classList.remove('speaking');
       } catch (e) {
         _setVoiceState('idle');

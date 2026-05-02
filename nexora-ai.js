@@ -855,54 +855,86 @@ function checkPasswordStrength(password) {
 
 // ==============================
 //  PHASE 5 — Emotional Voice Sync (speakText — content + emotion-aware)
+//
+//  Priority order:
+//   1. Cloudflare Worker /tts  — best voice quality, always tried first
+//   2. Browser SpeechSynthesis — instant fallback, emotion-tuned prosody
 // ==============================
-function speakText(text) {
+function speakText(text, _opts) {
+  // _opts accepted for call-site compat but CF is always tried first regardless
   return new Promise(async (resolve) => {
-  if (!synth) { resolve(); return; }
-  const raw = String(text || '').replace(/<[^>]+>/g,'').trim();
+  if (!synth && !_hasCFWorker()) { resolve(); return; }
+
+  const raw = String(text || '').replace(/<[^>]+>/g, '').trim();
   if (!raw) { resolve(); return; }
-  synth.cancel();
+
+  // Stop any in-progress speech before starting new one
+  if (synth) synth.cancel();
   if (voiceReplyAudio) {
     try { voiceReplyAudio.pause(); voiceReplyAudio.src = ''; } catch (e) {}
     voiceReplyAudio = null;
   }
-  const lowText = raw.toLowerCase();
-  const excitedEmotions = ['happy', 'gossip', 'hype'];
-  const calmEmotions    = ['sad', 'anxious', 'lonely', 'heartbreak', 'crisis'];
 
-  // Prefer Cloudflare /tts for richer voice in live calls.
+  // ── TIER 1: Cloudflare Worker TTS — always first ─────────────
+  // Nicer voice than browser TTS. Falls through silently on any failure.
   if (_hasCFWorker()) {
     try {
+      // Smart truncation: cut at sentence boundary near 600 chars
+      let ttsText = raw;
+      if (ttsText.length > 600) {
+        const cutoff = ttsText.lastIndexOf('.', 600);
+        ttsText = cutoff > 300 ? ttsText.slice(0, cutoff + 1) : ttsText.slice(0, 600);
+      }
       const res = await fetchWithTimeout(_getCFWorkerUrl() + '/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: raw.slice(0, 450), voice: 'en-us-female' }),
+        body: JSON.stringify({ text: ttsText, voice: 'en-us-female' }),
       }, 20000);
       if (res.ok) {
         const blob = await res.blob();
         if (blob && blob.size > 500) {
-          const audio = new Audio(URL.createObjectURL(blob));
+          const url   = URL.createObjectURL(blob);
+          const audio = new Audio(url);
           voiceReplyAudio = audio;
           audio.onended = () => {
-            URL.revokeObjectURL(audio.src);
+            URL.revokeObjectURL(url);
             if (voiceReplyAudio === audio) voiceReplyAudio = null;
             resolve();
           };
           audio.onerror = () => {
-            URL.revokeObjectURL(audio.src);
+            URL.revokeObjectURL(url);
             if (voiceReplyAudio === audio) voiceReplyAudio = null;
-            resolve();
+            _fallbackBrowserTTS(raw, resolve); // graceful fallback on audio error
           };
-          await audio.play().catch(() => resolve());
-          return;
+          await audio.play().catch(() => {
+            // Autoplay blocked — fall through to browser TTS
+            URL.revokeObjectURL(url);
+            voiceReplyAudio = null;
+            _fallbackBrowserTTS(raw, resolve);
+          });
+          return; // CF succeeded — don't fall through
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      // Network error, timeout, or worker down — fall through silently
+    }
   }
 
-  const utter = new SpeechSynthesisUtterance(raw);
+  // ── TIER 2: Browser SpeechSynthesis — emotion-tuned prosody ──
+  if (!synth) { resolve(); return; }
+  _fallbackBrowserTTS(raw, resolve);
+  });
+}
 
-  // Content-level overrides first
+// Browser TTS with emotion-aware prosody — used as fallback when CF is unavailable
+function _fallbackBrowserTTS(raw, resolve) {
+  if (!synth) { resolve(); return; }
+  const lowText = raw.toLowerCase();
+  const excitedEmotions = ['happy', 'gossip', 'hype'];
+  const calmEmotions    = ['sad', 'anxious', 'lonely', 'heartbreak', 'crisis'];
+
+  const utter = new SpeechSynthesisUtterance(raw);
+  // Content-level prosody overrides
   if (lowText.includes('sorry') || lowText.includes('loss') || lowText.includes('passed away') || lowText.includes('grief')) {
     utter.rate = 0.78; utter.pitch = 0.9;
   } else if (lowText.includes('creator') || lowText.includes('genius') || lowText.includes('yes!') || lowText.includes('🔥') || lowText.includes('go!')) {
@@ -919,10 +951,9 @@ function speakText(text) {
   const preferred = voices.find(v => v.name.includes('Google') && v.lang.startsWith('en')) ||
                     voices.find(v => v.lang.startsWith('en-US')) || voices[0];
   if (preferred) utter.voice = preferred;
-  utter.onend = () => resolve();
+  utter.onend   = () => resolve();
   utter.onerror = () => resolve();
   synth.speak(utter);
-  });
 }
 
 // ==============================

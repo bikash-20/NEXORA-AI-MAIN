@@ -2582,11 +2582,17 @@ async function _generateAudioBlobs(lines) {
   for (let i = 0; i < MAX_LINES; i++) {
     const line = lines[i];
     const voice = line.speaker === 'STUDENT' ? 'en-us-female' : 'en-us-male';
+    // Smart truncation: cut at sentence boundary near 600 chars (same as speakText)
+    let ttsText = line.text;
+    if (ttsText.length > 600) {
+      const cutoff = ttsText.lastIndexOf('.', 600);
+      ttsText = cutoff > 300 ? ttsText.slice(0, cutoff + 1) : ttsText.slice(0, 600);
+    }
     try {
       const res = await fetchWithTimeout(_getCFWorkerUrl() + '/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: line.text.slice(0, 450), voice }),
+        body: JSON.stringify({ text: ttsText, voice }),
       }, 12000);
 
       if (res.ok) {

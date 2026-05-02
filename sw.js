@@ -13,7 +13,7 @@
 //  3. controllerchange in index.html → page reloads itself once
 // ============================================================
 
-const CACHE_VERSION = '20260502-4';
+const CACHE_VERSION = '20260503-1';
 const CACHE_NAME    = `nexora-v${CACHE_VERSION}`;
 const FONT_CACHE    = 'nexora-fonts-v1';
 const IMAGE_CACHE   = 'nexora-images-v1';
@@ -21,11 +21,14 @@ const IMAGE_CACHE   = 'nexora-images-v1';
 const APP_SHELL_PATHS = new Set([
   '/',
   '/index.html',
-  '/app.js',
   '/style.css',
   '/pwa-install.css',
   '/pwa-install.js',
   '/nexora-data.js',
+  '/nexora-orb.js',
+  '/nexora-core.js',
+  '/nexora-ai.js',
+  '/nexora-study.js',
   '/nexora-study-worker.js',
   '/manifest.json',
   '/sw.js',
