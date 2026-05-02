@@ -1389,6 +1389,41 @@ html.preload-light #phone {
   }
   .camera-btn:hover::after { opacity: 1; }
 
+  /* ── Voice Quick Toggle Button ── */
+  .voice-quick-btn {
+    width: 32px; height: 32px; border-radius: 10px;
+    background: rgba(124, 92, 255, 0.08);
+    border: 1px solid rgba(124, 92, 255, 0.2);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: all 0.2s;
+    position: relative;
+  }
+  .voice-quick-btn svg { width: 16px; height: 16px; stroke: #7c5cff; fill: none; }
+  .voice-quick-btn:hover {
+    background: rgba(124, 92, 255, 0.18);
+    border-color: rgba(124, 92, 255, 0.5);
+    transform: scale(1.1);
+    box-shadow: 0 0 10px rgba(124, 92, 255, 0.3);
+  }
+  .voice-quick-btn::after {
+    content: 'Voice Mode 🎙️';
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.75);
+    color: #7c5cff;
+    font-size: 10px;
+    white-space: nowrap;
+    padding: 3px 7px;
+    border-radius: 6px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .voice-quick-btn:hover::after { opacity: 1; }
+
   /* ── Image Preview Bar ── */
   #imgPreviewBar {
     display: none;

@@ -52,23 +52,114 @@ function findKnowledgeResponse(userInput) {
 // ══════════════════════════════════════════════
 //  WEATHER — Open-Meteo (100% free, no key)
 // ══════════════════════════════════════════════
-async function getLiveWeather() {
+//  WEATHER — Open-Meteo (100% free, no key)
+//  Improved: Extracts location from user input
+//  With optional backend support for better accuracy
+// ══════════════════════════════════════════════
+
+/**
+ * Get weather for a location
+ * @param {string} userInput - User's message (e.g., "weather in London")
+ * @returns {Promise<string>} - Formatted weather HTML
+ */
+async function getLiveWeather(userInput = '') {
   try {
-    // Geocode city name from input if possible, default Dhaka
-    const geoRes = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=Dhaka&count=1&language=en&format=json');
+    // Extract location from user input if provided
+    // e.g., "weather in London" → "London"
+    let location = 'Dhaka'; // default
+    if (userInput) {
+      const match = userInput.match(/(?:weather\s+(?:in|for|at)\s+)?([A-Za-z\s]+?)(?:\s*$|[?!.])/i);
+      if (match && match[1]) {
+        location = match[1].trim();
+      }
+    }
+    
+    // Try backend first (if configured)
+    const backendUrl = _getCFWorkerUrl();
+    if (backendUrl) {
+      try {
+        const backendRes = await fetchWithTimeout(`${backendUrl}/weather`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ location, units: 'metric' })
+        }, 10000);
+        
+        if (backendRes.ok) {
+          const data = await backendRes.json();
+          if (data.ok) {
+            return formatWeatherResponse(data, true);
+          }
+        }
+      } catch(e) {
+        // Silently fall back to free API
+        console.warn('Backend weather failed, using free API:', e.message);
+      }
+    }
+    
+    // Fallback: Use free Open-Meteo API
+    return await getWeatherFreeAPI(location);
+    
+  } catch(e) {
+    logError('getLiveWeather', e, { userInput });
+    return "🌧️ Couldn't reach the weather station right now. Try again in a bit!";
+  }
+}
+
+/**
+ * Free weather API fallback (Open-Meteo)
+ */
+async function getWeatherFreeAPI(location) {
+  try {
+    // Geocode location name
+    const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=1&language=en&format=json`);
     const geoData = await geoRes.json();
     const loc = geoData.results?.[0];
-    if (!loc) return "☁️ Couldn't find that location. Try again!";
-    const { latitude, longitude, name, country } = loc;
+    if (!loc) return `☁️ Couldn't find weather for "${location}". Try another location!`;
+    
+    const { latitude, longitude, name, country, admin1 } = loc;
     const wRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code&wind_speed_unit=kmh&timezone=auto`);
     const w = await wRes.json();
     const c = w.current;
-    const wmoMap = {0:'☀️ Clear sky',1:'🌤 Mainly clear',2:'⛅ Partly cloudy',3:'☁️ Overcast',45:'🌫 Foggy',48:'🌫 Icy fog',51:'🌦 Light drizzle',53:'🌦 Drizzle',55:'🌧 Heavy drizzle',61:'🌧 Light rain',63:'🌧 Rain',65:'🌧 Heavy rain',71:'❄️ Light snow',73:'❄️ Snow',75:'❄️ Heavy snow',80:'🌦 Rain showers',81:'🌧 Heavy showers',95:'⛈ Thunderstorm',99:'⛈ Thunderstorm with hail'};
+    
+    const wmoMap = {
+      0:'☀️ Clear sky',1:'🌤 Mainly clear',2:'⛅ Partly cloudy',3:'☁️ Overcast',
+      45:'🌫 Foggy',48:'🌫 Icy fog',51:'🌦 Light drizzle',53:'🌦 Drizzle',55:'🌧 Heavy drizzle',
+      61:'🌧 Light rain',63:'🌧 Rain',65:'🌧 Heavy rain',71:'❄️ Light snow',73:'❄️ Snow',75:'❄️ Heavy snow',
+      80:'🌦 Rain showers',81:'🌧 Heavy showers',95:'⛈ Thunderstorm',99:'⛈ Thunderstorm with hail'
+    };
     const desc = wmoMap[c.weather_code] || '🌡️ Various conditions';
-    return `${desc.split(' ')[0]} <strong>Live Weather — ${name}, ${country}</strong><br><br>🌡️ <strong>${Math.round(c.temperature_2m)}°C</strong> (feels like ${Math.round(c.apparent_temperature)}°C)<br>☁️ ${desc.split(' ').slice(1).join(' ')}<br>💧 Humidity: ${c.relative_humidity_2m}%<br>💨 Wind: ${Math.round(c.wind_speed_10m)} km/h<br><small style="opacity:0.45">Live · Open-Meteo ✦ Free forever</small>`;
+    const region = admin1 ? `${admin1}, ` : '';
+    
+    return `${desc.split(' ')[0]} <strong>Live Weather — ${name}, ${region}${country}</strong><br><br>🌡️ <strong>${Math.round(c.temperature_2m)}°C</strong> (feels like ${Math.round(c.apparent_temperature)}°C)<br>☁️ ${desc.split(' ').slice(1).join(' ')}<br>💧 Humidity: ${c.relative_humidity_2m}%<br>💨 Wind: ${Math.round(c.wind_speed_10m)} km/h<br><small style="opacity:0.45">Live · Open-Meteo ✦ Free forever</small>`;
   } catch(e) {
+    logError('getWeatherFreeAPI', e, { location });
     return "🌧️ Couldn't reach the weather station right now. Try again in a bit!";
   }
+}
+
+/**
+ * Format weather response from backend
+ */
+function formatWeatherResponse(data, isPremium = false) {
+  const {
+    location, temperature, feels_like, description, humidity, wind_speed,
+    visibility, sunrise, sunset, temp_unit, speed_unit
+  } = data;
+  
+  const weatherEmoji = {
+    'Clear': '☀️', 'Sunny': '☀️',
+    'Clouds': '☁️', 'Cloudy': '☁️', 'Overcast': '☁️',
+    'Rain': '🌧️', 'Rainy': '🌧️', 'Drizzle': '🌦',
+    'Thunderstorm': '⛈️', 'Snow': '❄️', 'Mist': '🌫️', 'Fog': '🌫️'
+  };
+  
+  const emoji = Object.keys(weatherEmoji).find(key => description.includes(key)) 
+    ? weatherEmoji[Object.keys(weatherEmoji).find(key => description.includes(key))]
+    : '🌡️';
+  
+  const source = isPremium ? 'OpenWeatherMap ✦ Premium' : 'Open-Meteo ✦ Free';
+  
+  return `${emoji} <strong>Live Weather — ${location}</strong><br><br>🌡️ <strong>${temperature}${temp_unit}</strong> (feels like ${feels_like}${temp_unit})<br>☁️ ${description}<br>💧 Humidity: ${humidity}%<br>💨 Wind: ${wind_speed} ${speed_unit}<br>👁️ Visibility: ${data.visibility} km<br>🌅 Sunrise: ${sunrise} | 🌇 Sunset: ${sunset}<br><small style="opacity:0.45">Live · ${source}</small>`;
 }
 
 // ══════════════════════════════════════════════
@@ -3042,9 +3133,9 @@ async function generateSmartReply(input) {
   // ── TIER 1: Utility tools — always instant, both modes ──
   // Math, weather, time, currency, password — these are deterministic local tools
 
-  // Live weather
+  // Live weather — pass user input for location extraction
   if (/\b(weather|temperature|how hot|how cold|rain|forecast)\b/.test(lower))
-    return await getLiveWeather();
+    return await getLiveWeather(input);
 
   // Live time / date
   if (/\b(what time|current time|what date|today.*date|date today|what day)\b/.test(lower) && !/news|event/.test(lower))
