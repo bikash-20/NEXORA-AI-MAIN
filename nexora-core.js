@@ -488,6 +488,7 @@ function handleBack() {
 }
 
 function switchToVoice() {
+  _unlockAudio(); // unlock autoplay as soon as user enters voice mode
   toggleMenu();
   showScreen('voiceScreen');
   const cap = userName ? userName.charAt(0).toUpperCase() + userName.slice(1) : '';
@@ -2867,7 +2868,32 @@ function _setVoiceState(state) {
 // ==============================
 let _voiceContinuousActive = false; // tracks orb-tap continuous mode
 
+// ── Autoplay unlock — must happen inside a user gesture ──────────────
+// Browsers block audio.play() until the user has interacted.
+// We silently play a 0-duration silent audio on first mic/orb tap
+// so every subsequent CF TTS call plays without being blocked.
+let _audioUnlocked = false;
+function _unlockAudio() {
+  if (_audioUnlocked) return;
+  _audioUnlocked = true;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const buf = ctx.createBuffer(1, 1, 22050);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    src.start(0);
+    ctx.resume().catch(() => {});
+    // Also unlock HTML5 Audio element
+    const a = new Audio();
+    a.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+    a.volume = 0;
+    a.play().catch(() => {});
+  } catch(e) {}
+}
+
 function toggleMic() {
+  _unlockAudio(); // unlock autoplay on first user gesture
   // If continuous voice is running, stop it
   if (_voiceContinuousActive || isMicOn) {
     _voiceContinuousActive = false;
@@ -2965,6 +2991,7 @@ function _queueVoiceCallListen(delayMs = 320) {
 }
 
 function startVoiceCall() {
+  _unlockAudio(); // unlock autoplay on first user gesture
   if (isVoiceCallMode) return;
   if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
     const prompt = document.getElementById('voicePrompt');
