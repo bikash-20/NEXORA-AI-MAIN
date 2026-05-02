@@ -2758,30 +2758,37 @@ function startMic(onResult) {
   recognition.lang = 'en-US';
   recognition.interimResults = false;
   recognition.continuous = false;
+  let _resultFired = false; // guard: prevent onend from restarting if result already handled
 
   recognition.onresult = e => {
+    _resultFired = true;
     const text = e.results[0][0].transcript;
     stopMic();
     if (onResult) onResult(text);
   };
 
   recognition.onerror = (err) => {
-    console.warn('Speech recognition error:', err.error);
+    console.warn('[Mic] error:', err.error);
     stopMic();
     if (err.error === 'not-allowed') {
-      _voiceContinuousActive = false; // stop loop — mic is blocked
-      alert('Microphone access was denied. Please allow mic access in your browser settings.');
-    } else if (err.error === 'no-speech') {
-      // User was silent — restart listen loop quietly if continuous mode is on
+      // Hard stop — mic blocked by user or browser
+      _voiceContinuousActive = false;
+      document.getElementById('voicePrompt').innerHTML =
+        'Mic blocked ⛔<br/><span class="dim">Allow mic in browser settings</span>';
+      return;
+    }
+    // All other errors (no-speech, aborted, audio-capture, network) — restart quietly
+    if (!_resultFired) {
       if (_voiceContinuousActive && currentScreen === 'voiceScreen' && !isVoiceCallMode) {
-        setTimeout(_startContinuousVoice, 600);
+        setTimeout(_startContinuousVoice, 500);
       } else if (isVoiceCallMode) {
-        _queueVoiceCallListen(600);
+        _queueVoiceCallListen(500);
       }
     }
   };
 
-  // onend fires after onresult; reset UI state so user can tap again immediately
+  // onend fires after onresult AND after onerror
+  // Only restart from here if no result fired AND no error restarted already
   recognition.onend = () => {
     isMicOn = false;
     const vt = document.getElementById('voiceToggle');
@@ -2855,20 +2862,19 @@ function _startContinuousVoice() {
       const speakable = _stripHTMLForVoice(reply);
       const display   = (reply === '__STREAMED__') ? '✅ Replied in chat' : reply;
       document.getElementById('voicePrompt').innerHTML = display;
-      // Visual: pulse orb in "speaking" state while TTS plays — user knows not to talk yet
       const _orbEl = document.getElementById('voiceOrb');
       if (_orbEl) _orbEl.classList.add('speaking');
-      await speakText(speakable);
+      if (speakable && speakable.trim().length > 1) await speakText(speakable);
       if (_orbEl) _orbEl.classList.remove('speaking');
     } catch (e) {
       console.error('Nexora voice error:', e);
       document.getElementById('voiceOrb')?.classList.remove('speaking');
-      document.getElementById('voicePrompt').innerHTML = 'Hmm, something glitched. Try again? 😅';
-    }
-
-    // Auto-restart — keep listening after each reply
-    if (_voiceContinuousActive && currentScreen === 'voiceScreen') {
-      setTimeout(_startContinuousVoice, 400);
+      document.getElementById('voicePrompt').innerHTML = 'Oops! Try again? 😅';
+    } finally {
+      // ALWAYS restart listening after reply or error — this is what makes it truly continuous
+      if (_voiceContinuousActive && currentScreen === 'voiceScreen') {
+        setTimeout(_startContinuousVoice, 500);
+      }
     }
   });
 }
@@ -2962,7 +2968,19 @@ function stopSpeaking() {
 
 // ── Strip HTML/markdown for TTS — prevents tags being read aloud ──
 function _stripHTMLForVoice(text) {
-  if (!text || text === '__STREAMED__') return 'Got it!';
+  if (!text) return '';
+  if (text === '__STREAMED__') {
+    const streamedText = window._lastStreamedReplyText || '';
+    window._lastStreamedReplyText = null;
+    if (streamedText.trim().length > 2) {
+      return streamedText
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\*\*/g, '').replace(/#{1,6}\s/g, '')
+        .replace(/[\u{1F300}-\u{1FFFF}]/gu, '').replace(/[\u2600-\u27BF]/gu, '')
+        .replace(/\s{2,}/g, ' ').trim();
+    }
+    return '';
+  }
   return text
     .replace(/__HTML__/g, '')
     .replace(/<[^>]+>/g, ' ')
@@ -5626,6 +5644,7 @@ async function callOpenRouter(userMessage, detectedEmotion) {
             _rememberConversationTurn(userMessage, fullReply);
             _activeStreamAbort = null;
             keyWorked = true;
+            window._lastStreamedReplyText = fullReply; // voice mode reads this to speak the reply
             return '__STREAMED__'; // signal that reply is already in DOM
           }
           // Empty stream — remove bubble if it was created, try next model
@@ -8503,33 +8522,16 @@ let _swReg = null;
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', () => {
-    // Register without version query string — the SW file itself handles versioning.
-    // A query string on sw.js changes its URL and can confuse update detection.
-    navigator.serviceWorker.register('./sw.js')
+    navigator.serviceWorker.register('./sw.js?v=20260502-3')
       .then(reg => {
         _swReg = reg;
-        console.log('[Nexora PWA] SW registered:', reg.scope);
-        // Immediately check for a newer SW version in the background
+        console.log('[Nexora PWA] Service Worker registered:', reg.scope);
         reg.update().catch(() => {});
-        reg.addEventListener('updatefound', () => {
-          console.log('[Nexora PWA] New SW version found — installing...');
-        });
       })
       .catch(err => console.warn('[Nexora PWA] SW registration failed:', err));
-
-    // When a new SW takes control of this tab, reload once to get
-    // fresh HTML/JS/CSS — this replaces the need for hard refresh.
-    let reloading = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (!reloading) {
-        reloading = true;
-        console.log('[Nexora PWA] New SW active — reloading for fresh assets');
-        window.location.reload();
-      }
-    });
   });
 } else if (location.protocol === 'file:') {
-  console.info('[Nexora PWA] SW disabled on file:// — use localhost for full PWA support.');
+  console.info('[Nexora PWA] Service workers disabled on file:// — use localhost for full PWA support.');
 }
 
 
