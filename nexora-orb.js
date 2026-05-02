@@ -356,8 +356,6 @@ function initNexoraOrb() {
   // ── Behavior engine — continuous, not scripted ──────────────
   // Instead of timelines, we set behavior targets and springs
   // interpolate continuously. Everything emerges from these 3 values.
-  const behavior = { tension: 0.05, coherence: 0.85, energy: 0.30 };
-
   function setBehavior(t, c, e) {
     springs.tension.target   = Math.max(0, Math.min(1, t));
     springs.coherence.target = Math.max(0, Math.min(1, c));
@@ -475,7 +473,7 @@ function initNexoraOrb() {
     ignitionDone = true;
     let t = 0;
     const dur = 1.8; // seconds
-    function step(now) {
+    function step() {
       t += 0.016;
       const p = Math.min(t / dur, 1.0);
       // Sweep from 0→1 (bottom to top of sphere)
@@ -556,6 +554,60 @@ function initNexoraOrb() {
       springs.cluster.target = 0.0;
     }
   };
+
+  // ── Sleep drift — signature behavior after prolonged idle ───
+  // After 8s of idle, the orb enters a slow dreamy drift.
+  // Any state change wakes it immediately.
+  let _sleepTimer = null;
+  let _isSleeping = false;
+
+  function _enterSleep() {
+    if (_isSleeping || currentState !== 'idle') return;
+    _isSleeping = true;
+    // Gently reduce energy + motion — orb breathes slower, drifts
+    springs.energy.target   = 0.10;
+    springs.motion.target   = 0.08;
+    springs.coherence.target = 0.60;
+    springs.hexSc.target    = 7.2;
+    // Slight cool color shift — deeper blue, like resting
+    springs.colR.target = 0.02;
+    springs.colG.target = 0.45;
+    springs.colB.target = 0.90;
+  }
+
+  function _exitSleep() {
+    if (!_isSleeping) return;
+    _isSleeping = false;
+    // Restore idle config
+    const cfg = ORB_CONFIG.idle;
+    springs.colR.target = cfg.colorA[0];
+    springs.colG.target = cfg.colorA[1];
+    springs.colB.target = cfg.colorA[2];
+    springs.energy.target    = cfg.energy;
+    springs.motion.target    = cfg.motion;
+    springs.coherence.target = cfg.coherence;
+    springs.hexSc.target     = cfg.hexScale;
+  }
+
+  function _resetSleepTimer() {
+    if (_sleepTimer) clearTimeout(_sleepTimer);
+    if (_isSleeping) _exitSleep();
+    _sleepTimer = setTimeout(_enterSleep, 8000); // 8s idle → sleep
+  }
+
+  // Patch state setter to reset sleep on any state change
+  const _origOrbState = window._nexoraOrbState;
+  window._nexoraOrbState = function(state) {
+    _resetSleepTimer();
+    _origOrbState(state);
+  };
+
+  // Also wake on mouse interaction
+  container.addEventListener('pointermove', _resetSleepTimer, { passive: true });
+  container.addEventListener('pointerdown', _resetSleepTimer, { passive: true });
+
+  // Start sleep timer on load
+  _resetSleepTimer();
 
   // ── Mouse parallax ──────────────────────────────────────────
   const mouse = { x: 0, y: 0 };
