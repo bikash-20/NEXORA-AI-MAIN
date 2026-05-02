@@ -1127,6 +1127,23 @@ html.preload-light #phone {
   }
   .voice-prompt .dim { color: var(--text3); }
 
+  .voice-greeting {
+    font-family: 'Sora', sans-serif;
+    font-size: 13px; font-weight: 400;
+    color: var(--text2);
+    text-align: center;
+    letter-spacing: 0.01em;
+    padding: 6px 18px;
+    background: rgba(124,92,255,0.10);
+    border: 1px solid rgba(124,92,255,0.22);
+    border-radius: 20px;
+    margin-bottom: 4px;
+  }
+  .voice-greeting strong {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
   .voice-controls {
     display: flex; align-items: center; gap: 32px;
     margin-top: 20px;
