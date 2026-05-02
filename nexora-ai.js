@@ -857,72 +857,78 @@ function checkPasswordStrength(password) {
 //  PHASE 5 — Emotional Voice Sync (speakText — content + emotion-aware)
 //
 //  Priority order:
-//   1. Cloudflare Worker /tts  — best voice quality, always tried first
-//   2. Browser SpeechSynthesis — instant fallback, emotion-tuned prosody
+//   1. Cloudflare Worker /tts  — always used when worker is configured
+//   2. Browser SpeechSynthesis — only if CF fails or is not configured
 // ==============================
 function speakText(text, _opts) {
-  // _opts accepted for call-site compat but CF is always tried first regardless
   return new Promise(async (resolve) => {
-  if (!synth && !_hasCFWorker()) { resolve(); return; }
+    const raw = String(text || '').replace(/<[^>]+>/g, '').trim();
+    if (!raw) { resolve(); return; }
 
-  const raw = String(text || '').replace(/<[^>]+>/g, '').trim();
-  if (!raw) { resolve(); return; }
-
-  // Stop any in-progress speech before starting new one
-  if (synth) synth.cancel();
-  if (voiceReplyAudio) {
-    try { voiceReplyAudio.pause(); voiceReplyAudio.src = ''; } catch (e) {}
-    voiceReplyAudio = null;
-  }
-
-  // ── TIER 1: Cloudflare Worker TTS — always first ─────────────
-  // Nicer voice than browser TTS. Falls through silently on any failure.
-  if (_hasCFWorker()) {
-    try {
-      // Smart truncation: cut at sentence boundary near 600 chars
-      let ttsText = raw;
-      if (ttsText.length > 600) {
-        const cutoff = ttsText.lastIndexOf('.', 600);
-        ttsText = cutoff > 300 ? ttsText.slice(0, cutoff + 1) : ttsText.slice(0, 600);
-      }
-      const res = await fetchWithTimeout(_getCFWorkerUrl() + '/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: ttsText, voice: 'en-us-female' }),
-      }, 20000);
-      if (res.ok) {
-        const blob = await res.blob();
-        if (blob && blob.size > 500) {
-          const url   = URL.createObjectURL(blob);
-          const audio = new Audio(url);
-          voiceReplyAudio = audio;
-          audio.onended = () => {
-            URL.revokeObjectURL(url);
-            if (voiceReplyAudio === audio) voiceReplyAudio = null;
-            resolve();
-          };
-          audio.onerror = () => {
-            URL.revokeObjectURL(url);
-            if (voiceReplyAudio === audio) voiceReplyAudio = null;
-            _fallbackBrowserTTS(raw, resolve); // graceful fallback on audio error
-          };
-          await audio.play().catch(() => {
-            // Autoplay blocked — fall through to browser TTS
-            URL.revokeObjectURL(url);
-            voiceReplyAudio = null;
-            _fallbackBrowserTTS(raw, resolve);
-          });
-          return; // CF succeeded — don't fall through
-        }
-      }
-    } catch (e) {
-      // Network error, timeout, or worker down — fall through silently
+    // Stop any in-progress speech before starting new one
+    if (synth) synth.cancel();
+    if (voiceReplyAudio) {
+      try { voiceReplyAudio.pause(); voiceReplyAudio.src = ''; } catch (e) {}
+      voiceReplyAudio = null;
     }
-  }
 
-  // ── TIER 2: Browser SpeechSynthesis — emotion-tuned prosody ──
-  if (!synth) { resolve(); return; }
-  _fallbackBrowserTTS(raw, resolve);
+    // ── TIER 1: Cloudflare Worker TTS ────────────────────────────
+    if (_hasCFWorker()) {
+      let cfSucceeded = false;
+      try {
+        // Smart truncation at sentence boundary near 600 chars
+        let ttsText = raw;
+        if (ttsText.length > 600) {
+          const cutoff = ttsText.lastIndexOf('.', 600);
+          ttsText = cutoff > 300 ? ttsText.slice(0, cutoff + 1) : ttsText.slice(0, 600);
+        }
+        const res = await fetchWithTimeout(_getCFWorkerUrl() + '/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: ttsText, voice: 'en-us-female' }),
+        }, 20000);
+
+        if (res.ok) {
+          const blob = await res.blob();
+          if (blob && blob.size > 500) {
+            const url   = URL.createObjectURL(blob);
+            const audio = new Audio(url);
+            voiceReplyAudio = audio;
+
+            // Wrap playback in its own promise — resolves only when audio ends or errors
+            await new Promise((playResolve) => {
+              audio.onended = () => {
+                URL.revokeObjectURL(url);
+                if (voiceReplyAudio === audio) voiceReplyAudio = null;
+                playResolve();
+              };
+              audio.onerror = () => {
+                URL.revokeObjectURL(url);
+                if (voiceReplyAudio === audio) voiceReplyAudio = null;
+                playResolve(); // don't fall to browser TTS on error — just finish
+              };
+              audio.play().catch(() => {
+                // Autoplay still blocked even after unlock attempt
+                URL.revokeObjectURL(url);
+                if (voiceReplyAudio === audio) voiceReplyAudio = null;
+                playResolve();
+              });
+            });
+
+            cfSucceeded = true;
+          }
+        }
+      } catch (e) {
+        // CF network error or timeout — fall through to browser TTS
+      }
+
+      if (cfSucceeded) { resolve(); return; }
+      // CF failed — fall through to browser TTS below
+    }
+
+    // ── TIER 2: Browser SpeechSynthesis — only if CF unavailable/failed ──
+    if (!synth) { resolve(); return; }
+    _fallbackBrowserTTS(raw, resolve);
   });
 }
 
