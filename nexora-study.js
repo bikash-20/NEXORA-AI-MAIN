@@ -12,6 +12,18 @@
 //  Gemini / Pollinations chain already in the app.
 // ══════════════════════════════════════════════════════════════════════
 
+// ── Study Mode Timing Constants ────────────────────────────────────────
+const STUDY_TIMING = {
+  AI_CALL_TIMEOUT: 30000,               // 30s timeout for AI calls
+  LOADING_DISPLAY_MIN: 500,             // Minimum 500ms to show loading state
+  CARD_FLIP_ANIMATION: 300,             // 300ms flip animation
+  TOPIC_LABEL_MAX_LENGTH: 80,           // Max chars for topic label
+  MAX_FLASHCARDS_PER_DECK: 100,         // Safety limit
+  MAX_QUIZ_QUESTIONS: 50,               // Safety limit
+  SRS_SESSION_BATCH_SIZE: 10,           // Cards per SRS session
+  STUDY_OUTPUT_TEXT_PREVIEW: 6000,      // Max chars to show in output
+};
+
 // ── State ──────────────────────────────────────────────────────────────
 let studyCurrentTab  = 'flashcard';
 const STUDY_AI_LS_KEY = 'nexora_study_ai';
@@ -82,7 +94,7 @@ function _studyBaseTopicLabel(topic) {
     .replace(/\s+/g, ' ')
     .trim()
     .split(/[.!?\n]/)[0]
-    .slice(0, 80) || 'this topic';
+    .slice(0, STUDY_TIMING.TOPIC_LABEL_MAX_LENGTH) || 'this topic';
 }
 
 function _studyExtractPoints(topic) {

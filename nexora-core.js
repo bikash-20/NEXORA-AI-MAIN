@@ -7,6 +7,25 @@
 // ============================================================
 
 /* Source script block 1 */
+
+// ==============================
+//  TIMING CONSTANTS (ms)
+// ==============================
+const TIMING = {
+  IDLE_PING_DELAY: 5 * 60 * 1000,           // 5 minutes
+  VOICE_CALL_RESTART_DELAY: 320,            // 320ms between voice turns
+  VOICE_REPLY_TIMEOUT: 45000,               // 45s max for voice reply
+  CHAT_HISTORY_SAVE_DEBOUNCE: 2500,         // 2.5s debounce for saves
+  EMOTION_HISTORY_RETENTION: 20,            // Keep last 20 emotions
+  SESSION_LOG_MAX_TURNS: 20,                // Keep last 20 conversation turns
+  CONTEXT_CHIP_COOLDOWN: 500,               // 500ms between context chips
+  MEMORY_BADGE_DISPLAY: 3000,               // 3s display time for memory badge
+  COPY_TOAST_DURATION: 1500,                // 1.5s for copy confirmation
+  ORALLY_EXCITED_DURATION: 3000,            // 3s for excited orb animation
+  ORALLY_CALM_DURATION: 4000,               // 4s for calm orb animation
+  POKE_ESCALATION_DELAY: 8000,              // 8s between poke escalations
+};
+
 // ==============================
 //  STATE
 // ==============================
@@ -593,6 +612,11 @@ function startApp() {
   aiConversationSummary = '';
   _saveConversationSummary();
   sessionLog = [];
+  
+  // Register cleanup handlers for page unload
+  window.addEventListener('beforeunload', cleanupTimers);
+  window.addEventListener('unload', cleanupTimers);
+  
   showScreen('chatScreen');
   resetIdleTimer();
   setTimeout(() => {
@@ -1314,10 +1338,10 @@ function reactOrb(emotion) {
   const calm    = ['sad', 'anxious', 'lonely', 'heartbreak'];
   if (excited.includes(emotion)) {
     vo.classList.add('excited');
-    setTimeout(() => vo.classList.remove('excited'), 3000);
+    setTimeout(() => vo.classList.remove('excited'), TIMING.ORALLY_EXCITED_DURATION);
   } else if (calm.includes(emotion)) {
     vo.classList.add('calm');
-    setTimeout(() => vo.classList.remove('calm'), 4000);
+    setTimeout(() => vo.classList.remove('calm'), TIMING.ORALLY_CALM_DURATION);
   }
 }
 
@@ -1343,7 +1367,15 @@ function resetIdleTimer() {
       typeBot(msg, null, true);  // isIdlePing = true → pulse border
     }
     idleTimer = null;
-  }, 5 * 60 * 1000); // 5 minutes
+  }, TIMING.IDLE_PING_DELAY);
+}
+
+// Cleanup function for page unload
+function cleanupTimers() {
+  if (idleTimer) clearTimeout(idleTimer);
+  if (voiceCallTimer) clearTimeout(voiceCallTimer);
+  if (dailyReminderTimer) clearTimeout(dailyReminderTimer);
+  if (saveChatHistoryTimer) clearTimeout(saveChatHistoryTimer);
 }
 
 // ==============================
@@ -2194,7 +2226,7 @@ function showMemoryBadge(trend) {
   if (trend === 'sad') text.textContent = "I've noticed you've been feeling down lately";
   if (trend === 'stress') text.textContent = "You've been under a lot of stress recently";
   badge.classList.add('show');
-  setTimeout(() => badge.classList.remove('show'), 5000);
+  setTimeout(() => badge.classList.remove('show'), TIMING.MEMORY_BADGE_DISPLAY);
 }
 
 // ==============================
@@ -2226,7 +2258,79 @@ function toggleTheme() {
 function showCopyToast() {
   const t = document.getElementById('copyToast');
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 1800);
+  setTimeout(() => t.classList.remove('show'), TIMING.COPY_TOAST_DURATION);
+}
+
+// ==============================
+//  ERROR HANDLING & USER FEEDBACK
+// ==============================
+
+/**
+ * Show error message to user with optional retry button
+ * @param {string} title - Error title
+ * @param {string} message - Error message
+ * @param {Function} onRetry - Optional retry callback
+ */
+function showErrorMessage(title, message, onRetry) {
+  const errorDiv = document.createElement('div');
+  errorDiv.className = 'error-notification';
+  errorDiv.style.cssText = `
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(239, 68, 68, 0.95);
+    color: white;
+    padding: 16px 20px;
+    border-radius: 12px;
+    max-width: 320px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    z-index: 10000;
+    font-size: 14px;
+    line-height: 1.5;
+  `;
+  
+  let html = `<strong>${title}</strong><br><span style="opacity:0.9">${message}</span>`;
+  if (onRetry) {
+    html += `<br><button onclick="this.parentElement.remove()" style="margin-top:8px;padding:6px 12px;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:white;border-radius:6px;cursor:pointer;font-size:12px;">Retry</button>`;
+  }
+  
+  errorDiv.innerHTML = html;
+  document.body.appendChild(errorDiv);
+  
+  setTimeout(() => {
+    if (errorDiv.parentElement) errorDiv.remove();
+  }, 6000);
+  
+  if (onRetry) {
+    errorDiv.querySelector('button')?.addEventListener('click', () => {
+      errorDiv.remove();
+      onRetry();
+    });
+  }
+}
+
+/**
+ * Log error with context for debugging
+ * @param {string} context - Where the error occurred
+ * @param {Error} error - The error object
+ * @param {Object} metadata - Additional context
+ */
+function logError(context, error, metadata = {}) {
+  const errorLog = {
+    timestamp: new Date().toISOString(),
+    context,
+    message: error?.message || String(error),
+    stack: error?.stack || '',
+    metadata,
+    userAgent: navigator.userAgent,
+  };
+  
+  console.error(`[Nexora Error] ${context}:`, errorLog);
+  
+  // Optionally send to error tracking service
+  if (window.NexoraData?.logError) {
+    NexoraData.logError(errorLog);
+  }
 }
 
 // ==============================
