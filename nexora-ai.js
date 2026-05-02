@@ -913,8 +913,6 @@ function speakText(text, _opts) {
             blob = new Blob([await blob.arrayBuffer()], { type: 'audio/mpeg' });
           }
 
-          console.log('[CF TTS] blob size:', blob?.size, 'type:', blob?.type);
-
           if (blob && blob.size > 100) {
             const url   = URL.createObjectURL(blob);
             const audio = new Audio(url);
@@ -927,14 +925,12 @@ function speakText(text, _opts) {
                 if (voiceReplyAudio === audio) voiceReplyAudio = null;
                 playResolve();
               };
-              audio.onerror = (e) => {
-                console.warn('[CF TTS] audio.onerror', e);
+              audio.onerror = () => {
                 URL.revokeObjectURL(url);
                 if (voiceReplyAudio === audio) voiceReplyAudio = null;
                 playResolve();
               };
-              audio.play().catch((e) => {
-                console.warn('[CF TTS] play() blocked', e);
+              audio.play().catch(() => {
                 URL.revokeObjectURL(url);
                 if (voiceReplyAudio === audio) voiceReplyAudio = null;
                 playResolve();
